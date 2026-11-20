@@ -1,6 +1,7 @@
 package mapping
 
 import (
+	"encoding/json"
 	"regexp"
 	"strings"
 	"time"
@@ -242,4 +243,50 @@ func BuildEvent(item interface{}, m SourceMapping, sourceName string, now time.T
 	}
 
 	return ev
+}
+
+// MarshalJSON omits rules that aren't set. config.RecordAttempt rewrites a
+// source file through SourceConfig after every fetch; without this, every
+// unused rule would show up as `"date": {}` etc. in the hand-written file.
+func (m SourceMapping) MarshalJSON() ([]byte, error) {
+	fr := func(r FieldRule) *FieldRule {
+		if r == (FieldRule{}) {
+			return nil
+		}
+		return &r
+	}
+	br := func(r BoolRule) *BoolRule {
+		if r == (BoolRule{}) {
+			return nil
+		}
+		return &r
+	}
+	var price *PriceRule
+	if m.Price != (PriceRule{}) {
+		price = &m.Price
+	}
+	return json.Marshal(struct {
+		SourceID             *FieldRule `json:"sourceId,omitempty"`
+		Title                *FieldRule `json:"title,omitempty"`
+		Description          *FieldRule `json:"description,omitempty"`
+		Category             *FieldRule `json:"category,omitempty"`
+		Organizer            *FieldRule `json:"organizer,omitempty"`
+		URL                  *FieldRule `json:"url,omitempty"`
+		LocationName         *FieldRule `json:"locationName,omitempty"`
+		LocationAddress      *FieldRule `json:"locationAddress,omitempty"`
+		Start                *FieldRule `json:"start,omitempty"`
+		End                  *FieldRule `json:"end,omitempty"`
+		Date                 *FieldRule `json:"date,omitempty"`
+		StartTime            *FieldRule `json:"startTime,omitempty"`
+		EndTime              *FieldRule `json:"endTime,omitempty"`
+		Price                *PriceRule `json:"price,omitempty"`
+		TicketRequired       *BoolRule  `json:"ticketRequired,omitempty"`
+		RegistrationRequired *BoolRule  `json:"registrationRequired,omitempty"`
+		FamilyFriendly       *BoolRule  `json:"familyFriendly,omitempty"`
+	}{
+		fr(m.SourceID), fr(m.Title), fr(m.Description), fr(m.Category), fr(m.Organizer), fr(m.URL),
+		fr(m.LocationName), fr(m.LocationAddress), fr(m.Start), fr(m.End),
+		fr(m.Date), fr(m.StartTime), fr(m.EndTime), price,
+		br(m.TicketRequired), br(m.RegistrationRequired), br(m.FamilyFriendly),
+	})
 }

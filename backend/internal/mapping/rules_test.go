@@ -48,3 +48,22 @@ func TestPriceUnknownIfMissing(t *testing.T) {
 		t.Errorf("without unknownIfMissing, missing should stay free, got %+v", p)
 	}
 }
+
+func TestSourceMappingMarshalOmitsEmptyRules(t *testing.T) {
+	m := SourceMapping{
+		Title: FieldRule{Path: "title"},
+		Price: PriceRule{AmountPath: "p", UnknownIfMissing: true},
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"title":{"path":"title"},"price":{"amountPath":"p","unknownIfMissing":true}}`
+	if string(b) != want {
+		t.Errorf("got %s\nwant %s", b, want)
+	}
+	var back SourceMapping
+	if err := json.Unmarshal(b, &back); err != nil || back != m {
+		t.Errorf("round trip mismatch: %+v (%v)", back, err)
+	}
+}
