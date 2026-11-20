@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -116,10 +117,7 @@ var labelEscaper = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`)
 func escapeLabel(s string) string { return labelEscaper.Replace(s) }
 
 func formatFloat(v float64) string {
-	if v == float64(int64(v)) {
-		return fmt.Sprintf("%d", int64(v))
-	}
-	return fmt.Sprintf("%g", v)
+	return strconv.FormatFloat(v, 'f', -1, 64)
 }
 
 func ts(t *time.Time) float64 {

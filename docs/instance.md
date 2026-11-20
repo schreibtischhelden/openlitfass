@@ -104,13 +104,75 @@ Der Standardbefehl des Images ist `serve /instance`:
   `status`-Feld der Quellen, abgelaufene Inbox-Dateien werden gelöscht,
 - `/healthz` liefert den Zustand als JSON (letzter Abruf, Anzahl Termine,
   ausgefallene Quellen, nächster Abruf) und dient dem `HEALTHCHECK` des
-  Images.
+  Images; `/metrics` für Prometheus, siehe unten.
 
 | Variable / Flag | Standard | Bedeutung |
 |---|---|---|
 | `FETCH_INTERVAL` / `-interval` | `6h` | Abruf-Intervall; `0` = nur ausliefern |
 | `ADDR` / `-addr` | `:8080` | Listen-Adresse |
 | `PUBLIC_DIR` / `-public` | `<instance>/.openlitfass-serve` | Build-Verzeichnis |
+| `METRICS_ADDR` / `-metrics-addr` | leer | eigener Port für `/metrics`, z.B. `:9090` |
+
+### Metriken (Prometheus)
+
+`/metrics` liefert Kennzahlen im Prometheus-Textformat (geprüft mit
+`promtool check metrics`). Mit `METRICS_ADDR=:9090` laufen sie auf einem
+eigenen Port und sind **nicht** neben der öffentlichen Seite erreichbar –
+empfohlen; ohne `METRICS_ADDR` liegt `/metrics` auf dem Haupt-Port.
+
+```sh
+docker run -d … -p 8080:8080 -p 127.0.0.1:9090:9090 -e METRICS_ADDR=:9090 ghcr.io/<owner>/openlitfass
+```
+
+| Metrik | Typ | Bedeutung |
+|---|---|---|
+| `openlitfass_info{version,instance}` | gauge | immer 1, trägt Version und Instanz |
+| `openlitfass_up` | gauge | 1 = Seite wird ausgeliefert |
+| `openlitfass_fetch_interval_seconds` | gauge | eingestelltes Abruf-Intervall |
+| `openlitfass_last_fetch_timestamp_seconds` / `…_next_fetch_…` / `…_last_build_…` | gauge | Zeitpunkte (Unix) |
+| `openlitfass_fetch_runs_total{result}` | counter | Abrufläufe: `ok`, `partial` (einzelne Quellen ausgefallen), `failed`, `nothing`, `error` |
+| `openlitfass_builds_total{result}` | counter | Seiten-Builds: `ok`, `failed` |
+| `openlitfass_http_requests_total{code}` | counter | Anfragen nach Statusklasse (`2xx` …) |
+| `openlitfass_fetch_duration_seconds` | gauge | Dauer des letzten Abruflaufs |
+| `openlitfass_source_up{source}` | gauge | 1 = letzter Abruf der Quelle erfolgreich (aus dem `status`-Feld, stimmt also auch, wenn CI abruft) |
+| `openlitfass_source_last_success_timestamp_seconds{source}` | gauge | letzter Erfolg der Quelle |
+| `openlitfass_source_fetch_duration_seconds{source}` | gauge | Dauer des letzten Abrufs der Quelle |
+| `openlitfass_source_fetched_events{source}` | gauge | Termine der Quelle im letzten Lauf (vor dem Zusammenführen) |
+| `openlitfass_source_carried_events{source}` | gauge | wegen Ausfall aus dem Vorlauf übernommene Termine |
+| `openlitfass_events` / `…_cancelled` / `…_merged` | gauge | veröffentlichte Termine: gesamt, abgesagt, aus mehreren Quellen |
+| `openlitfass_events_by_source{source}` / `…_by_category{category}` | gauge | veröffentlichte Termine je Quelle / Kategorie |
+
+Scrape-Konfiguration:
+
+```yaml
+scrape_configs:
+  - job_name: openlitfass
+    static_configs:
+      - targets: ["weissens-host:9090"]
+```
+
+Beispiel-Alarme:
+
+```yaml
+groups:
+  - name: openlitfass
+    rules:
+      - alert: OpenLitfassSourceDown
+        expr: time() - openlitfass_source_last_success_timestamp_seconds > 86400
+        labels: { severity: warning }
+        annotations: { summary: "Quelle {{ $labels.source }} seit über einem Tag ohne Erfolg" }
+      - alert: OpenLitfassNoFetch
+        expr: time() - openlitfass_last_fetch_timestamp_seconds > 2 * openlitfass_fetch_interval_seconds and openlitfass_fetch_interval_seconds > 0
+        labels: { severity: warning }
+        annotations: { summary: "{{ $labels.instance }}: kein Abruf seit zwei Intervallen" }
+      - alert: OpenLitfassDown
+        expr: openlitfass_up == 0
+        for: 5m
+        labels: { severity: critical }
+```
+
+Die Version im Image setzt `image.yml` (Build-Argument `VERSION`); lokal
+gebaute Images melden `dev`.
 
 HTTPS, eigene Domain: einen Reverse-Proxy davor setzen (Caddy, Traefik,
 nginx). `serve` setzt passende Cache-Header (Daten, Startseite und Service
