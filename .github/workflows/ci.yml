@@ -1,7 +1,7 @@
 name: CI
 
 # Compiles and checks the Go backend on every push and pull request.
-# (Also the first place the code gets compiled at all - see docs/backend.md
+# What has been verified beyond CI: docs/backend.md "Teststand".
 on:
   push:
     branches: [main]
