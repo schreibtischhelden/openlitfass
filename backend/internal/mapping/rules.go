@@ -65,20 +65,69 @@ func (r FieldRule) resolveString(item interface{}) string {
 }
 
 func (r FieldRule) resolveTime(item interface{}) (time.Time, bool) {
-	s := r.resolveString(item)
+	t, _, ok := r.resolveTimeClock(item)
+	return t, ok
+}
+
+// resolveTimeClock parses the resolved string with Format. Format may list
+// several layouts separated by "|" (tried in order, e.g.
+// "2 Jan 2006 15:04|2 Jan 2006"); hasClock reports whether the layout that
+// matched contains a time of day - if not, the event is all-day.
+//
+// German month names and abbreviations ("Nov.", "März", "Dezember") are
+// translated to the English ones Go's parser knows when a layout uses
+// month names.
+func (r FieldRule) resolveTimeClock(item interface{}) (t time.Time, hasClock bool, ok bool) {
+	s := strings.TrimSpace(r.resolveString(item))
 	if s == "" {
-		return time.Time{}, false
+		return time.Time{}, false, false
 	}
-	layout := resolveLayout(r.Format)
-	// ParseInLocation: if s carries an explicit offset/zone matching the
-	// layout (e.g. RFC3339 with "Z" or "+02:00"), that wins; otherwise s is
-	// interpreted as instance-local time (model.Local). Covers both "source gives
-	// UTC/offset timestamps" and "source gives naive local strings".
-	t, err := time.ParseInLocation(layout, s, model.Local)
-	if err != nil {
-		return time.Time{}, false
+	for _, name := range strings.Split(r.Format, "|") {
+		layout := resolveLayout(strings.TrimSpace(name))
+		in := s
+		if strings.Contains(layout, "Jan") {
+			in = germanMonthsToEnglish(in)
+		}
+		// ParseInLocation: if s carries an explicit offset/zone matching the
+		// layout (e.g. RFC3339 with "Z" or "+02:00"), that wins; otherwise s
+		// is interpreted as instance-local time (model.Local). Covers both
+		// "source gives UTC/offset timestamps" and "source gives naive local
+		// strings".
+		if t, err := time.ParseInLocation(layout, in, model.Local); err == nil {
+			return t, layoutHasClock(layout), true
+		}
 	}
-	return t, true
+	return time.Time{}, false, false
+}
+
+func layoutHasClock(layout string) bool {
+	return strings.Contains(layout, "15") || strings.Contains(layout, "03") ||
+		strings.Contains(layout, "3:04") || strings.Contains(layout, ":04")
+}
+
+var germanMonthRe = regexp.MustCompile(`(?i)\b(januar|jänner|jan|februar|feb|märz|maerz|mär|mrz|april|apr|mai|juni|jun|juli|jul|august|aug|september|sept|sep|oktober|okt|november|nov|dezember|dez)\b\.?`)
+
+var germanMonths = map[string]string{
+	"januar": "Jan", "jänner": "Jan", "jan": "Jan",
+	"februar": "Feb", "feb": "Feb",
+	"märz": "Mar", "maerz": "Mar", "mär": "Mar", "mrz": "Mar",
+	"april": "Apr", "apr": "Apr", "mai": "May",
+	"juni": "Jun", "jun": "Jun", "juli": "Jul", "jul": "Jul",
+	"august": "Aug", "aug": "Aug",
+	"september": "Sep", "sept": "Sep", "sep": "Sep",
+	"oktober": "Oct", "okt": "Oct",
+	"november": "Nov", "nov": "Nov",
+	"dezember": "Dec", "dez": "Dec",
+}
+
+func germanMonthsToEnglish(s string) string {
+	return germanMonthRe.ReplaceAllStringFunc(s, func(m string) string {
+		key := strings.ToLower(strings.TrimSuffix(m, "."))
+		if en, ok := germanMonths[key]; ok {
+			return en
+		}
+		return m
+	})
 }
 
 var (
@@ -246,12 +295,15 @@ func BuildEvent(item interface{}, m SourceMapping, sourceName string, now time.T
 		LastSeen: now,
 	}
 
-	if start, ok := m.Start.resolveTime(item); ok {
+	if start, hasClock, ok := m.Start.resolveTimeClock(item); ok {
 		date, startTime := model.LocalParts(start)
-		ev.Date, ev.StartTime = date, startTime
-		if end, ok := m.End.resolveTime(item); ok {
-			_, endTime := model.LocalParts(end)
-			ev.EndTime = endTime
+		ev.Date = date
+		if hasClock { // a date-only layout matched: all-day event
+			ev.StartTime = startTime
+			if end, endClock, ok := m.End.resolveTimeClock(item); ok && endClock && end.After(start) {
+				_, endTime := model.LocalParts(end)
+				ev.EndTime = endTime
+			}
 		}
 	} else {
 		ev.Date = m.Date.resolveString(item)
