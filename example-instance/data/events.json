@@ -31,6 +31,7 @@
       "organizer": "Nachbarschaftsinitiative",
       "url": "https://example.org/flohmarkt",
       "source": "beispiel-json",
+      "sources": ["beispiel-json", "beispiel-rss"],
       "ticketRequired": false,
       "registrationRequired": false,
       "familyFriendly": true

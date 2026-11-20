@@ -514,7 +514,7 @@ Das Ausgabe-Schema folgt exakt dem, was das Frontend erwartet
   "generatedAt": "2026-07-05T15:40:00Z",  // Metadaten, Frontend ignoriert das Feld
   "events": [
     {
-      "id": "beispiel-rss-3f9a1b2c4d",  // stabil, aus source.name+sourceId
+      "id": "flohmarkt-am-antonplatz-3f9a1b2c",  // stabil, aus Datum+Zeit+Titel, siehe "Derselbe Termin aus mehreren Quellen"
       "title": "Flohmarkt am Antonplatz",
       "description": "…",
       "category": "Markt",
@@ -525,7 +525,8 @@ Das Ausgabe-Schema folgt exakt dem, was das Frontend erwartet
       "price": { "free": true, "amount": null },
       "organizer": "Kiezinitiative",
       "url": "https://example.events/#kiezinitiative-3f9a1b2c4d",
-      "source": "beispiel-rss",                   // Quellen-Name, Label steht in data/sources.json
+      "source": "beispiel-rss",                   // Quelle der angezeigten Version, Label in data/sources.json
+      "sources": ["beispiel-rss"],                // alle Quellen dieses Termins
       "ticketRequired": false,
       "registrationRequired": false,
       "familyFriendly": false,
@@ -586,6 +587,40 @@ in einer `rss`/`json`-Quelle: `{"path": "..."}`, Standard `false` wenn
 Plugin-API liefert kein Ticket-/Anmeldungssignal pro Event, daher sind
 `ticketRequired`/`registrationRequired` bei `wcs`-Quellen aktuell immer
 `false` (bekannte Einschränkung, kein Fake-Wert).
+
+## Derselbe Termin aus mehreren Quellen
+
+Kommt ein Termin aus mehreren Quellen (das Haus selbst und ein
+Sammelkalender), wird er zu **einem** Termin zusammengeführt
+(`internal/writer/merge.go`):
+
+- **Abgleich** über Datum + Startzeit + normalisierten Titel
+  (Kleinbuchstaben, Umlaute vereinheitlicht, Hinweise in eckigen Klammern wie
+  `[AUSVERKAUFT!]` und Satzzeichen ignoriert – nur für den Vergleich, der
+  angezeigte Titel bleibt unverändert). Der Ort gehört bewusst nicht zum
+  Schlüssel, weil jede Quelle das Haus anders nennt; nennen beide Termine
+  aber unterschiedliche Postleitzahlen, werden sie nicht zusammengeführt.
+- **Wer gewinnt:** die Quelle mit der höchsten `priority` (Feld in der
+  Quelldatei, Standard 0; das Haus selbst z.B. `10`, ein Sammelkalender `0`
+  oder negativ). Leere Felder (Beschreibung, Link, Adresse, Preis, Endzeit,
+  Kategorie "Unkategorisiert") werden aus den anderen Quellen ergänzt; meldet
+  irgendeine Quelle eine Absage, gilt der Termin als abgesagt.
+- **`sources`** im Event listet alle beteiligten Quellen (Gewinner zuerst);
+  das Frontend zeigt "Quellen: A, B".
+- Innerhalb **einer** Quelle wird nie zusammengeführt (zwei Räume, gleicher
+  Kurs, gleiche Zeit bleiben zwei Termine).
+
+**Termin-IDs** werden aus demselben quellenunabhängigen Schlüssel gebildet –
+lesbarer Titel-Anfang plus Hash, z.B. `tanztee-fuer-alle-3f9a1b2c`. Ein Termin
+behält seine ID also, wenn er später zusätzlich aus einer zweiten Quelle
+kommt (geteilte Links, gemerkte Sterne). Gleiche Schlüssel innerhalb einer
+Quelle bekommen ein festes `-2`, `-3`. Ändert der Veranstalter Titel, Datum
+oder Startzeit, entsteht eine neue ID.
+
+**Grenze:** Der Abgleich ist exakt. Umformulierte Titel ("Kiezchor:
+Weihnachtskonzert" vs. "Weihnachtskonzert des Kiezchors") werden nicht
+erkannt; eine unscharfe Stufe folgt, sobald ein Sammelkalender echte Daten
+liefert, an denen sie sich einstellen lässt.
 
 ## Kategorie-Piktogramm-Schnittstelle (`<instance>/data/categories.json`)
 

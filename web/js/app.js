@@ -53,6 +53,7 @@
     openMap: "Karte öffnen",
     noRegistration: "keine Anmeldung nötig",
     source: "Quelle",
+    sources: "Quellen",
     updated: "aktualisiert",
     linkCopied: "Link kopiert",
     about: "Über",
@@ -575,9 +576,17 @@
       ? `<a class="btn btn--primary" href="${escapeHtml(safeUrl(ev.url))}" target="_blank" rel="noopener">${STR.toEvent} ${svg(ICON.external)}</a>`
       : "";
 
-    const src = state.sources.get(ev.source);
-    const srcLabel = ev.source === "inbox" ? STR.inbox : (src ? src.label : ev.source);
-    const sourceLine = [srcLabel ? `${STR.source}: ${escapeHtml(srcLabel)}` : "",
+    // Derselbe Termin kann aus mehreren Quellen stammen (vom Backend
+    // zusammengeführt, siehe writer.MergeAcrossSources): alle nennen,
+    // die angezeigte Version zuerst.
+    const sourceLabel = (name) => {
+      if (name === "inbox") return STR.inbox;
+      const src = state.sources.get(name);
+      return src ? src.label : name;
+    };
+    const srcNames = (ev.sources && ev.sources.length ? ev.sources : [ev.source]).filter(Boolean);
+    const srcLabel = [...new Set(srcNames.map(sourceLabel))].join(", ");
+    const sourceLine = [srcLabel ? `${srcNames.length > 1 ? STR.sources : STR.source}: ${escapeHtml(srcLabel)}` : "",
       state.generatedAt ? `${STR.updated} ${relativeTime(state.generatedAt)}` : ""].filter(Boolean).join(" · ");
 
     const isSaved = saved.has(ev.id);
