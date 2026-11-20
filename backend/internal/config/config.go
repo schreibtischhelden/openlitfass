@@ -73,6 +73,13 @@ type SourceConfig struct {
 	// MaxPages caps pagination (default 10) so a misbehaving API can't
 	// make a run loop forever.
 	MaxPages int `json:"maxPages,omitempty"`
+	// ItemSelector ("html" sources only) is the CSS selector of one event
+	// container on the page, e.g. "#jevents_body .schatten".
+	ItemSelector string `json:"itemSelector,omitempty"`
+	// Extract ("html" sources only) names the values pulled out of each
+	// item; the mapping block then refers to these names as paths. See
+	// ExtractRule and docs/backend.md "html-Quellen".
+	Extract map[string]ExtractRule `json:"extract,omitempty"`
 	// Mapping declares how to translate one item into a model.Event. Only
 	// used by "rss"/"json" sources. Pointer + omitempty so "wcs" sources
 	// (which don't use it) don't get a large empty "mapping" block written
