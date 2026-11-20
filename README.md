@@ -40,3 +40,8 @@ Dann <http://localhost:8080> öffnen.
 
 Fertige Images: `ghcr.io/<owner>/openlitfass` (amd64/arm64), gebaut von
 `.github/workflows/image.yml`.
+
+## Lizenz
+
+[MIT](LICENSE). Die Kategorie- und Filter-Piktogramme stammen aus
+[Tabler Icons](https://tabler.io/icons) (ebenfalls MIT).

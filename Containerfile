@@ -36,4 +36,5 @@ COPY --from=build /out/fetch /out/build-site /usr/local/bin/
 COPY web/ /opt/openlitfass/web/
 ENV WEB_DIR=/opt/openlitfass/web
 LABEL org.opencontainers.image.title="openLitfass" \
+      org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.description="Die digitale Litfaßsäule für deinen Kiez: fetch + build-site"
