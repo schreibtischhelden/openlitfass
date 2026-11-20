@@ -64,6 +64,14 @@ type SourceConfig struct {
 	// within the decoded response, e.g. "data.items". Empty means the
 	// top-level response is itself the array.
 	ItemsPath string `json:"itemsPath,omitempty"`
+	// NextPath (JSON sources only) is a dot-path to the URL of the next
+	// page in the response (e.g. "next_rest_url" for WordPress "The Events
+	// Calendar"). Pages are followed until it's empty, MaxPages is reached,
+	// or a whole page lies beyond the DaysAhead window.
+	NextPath string `json:"nextPath,omitempty"`
+	// MaxPages caps pagination (default 10) so a misbehaving API can't
+	// make a run loop forever.
+	MaxPages int `json:"maxPages,omitempty"`
 	// Mapping declares how to translate one item into a model.Event. Only
 	// used by "rss"/"json" sources. Pointer + omitempty so "wcs" sources
 	// (which don't use it) don't get a large empty "mapping" block written
