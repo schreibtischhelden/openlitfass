@@ -74,6 +74,8 @@ func All(sourcesDir, inboxDir string) []Source {
 			src = NewRSSSource(c)
 		case "json":
 			src = NewJSONSource(c)
+		case "ical":
+			src = NewICalSource(c)
 		case "wcs":
 			src = NewWCSSource(c)
 		default:
