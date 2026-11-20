@@ -185,7 +185,15 @@ func extractValue(item *html.Node, r compiledExtract, base *url.URL) string {
 		case r.re.SubexpIndex("value") > 0:
 			v = m[r.re.SubexpIndex("value")]
 		case len(m) > 1:
-			v = m[1]
+			// First non-empty group, so alternatives work:
+			// "(\d+)\s*€|Eintritt (frei)" gives "27" or "frei".
+			v = ""
+			for _, g := range m[1:] {
+				if g != "" {
+					v = g
+					break
+				}
+			}
 		default:
 			v = m[0]
 		}

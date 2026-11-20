@@ -67,7 +67,8 @@ func Float(node interface{}, path string) float64 {
 	case float64:
 		return t
 	case string:
-		f, _ := strconv.ParseFloat(strings.TrimSpace(t), 64)
+		// German decimal comma ("19,62") as well as "19.62".
+		f, _ := strconv.ParseFloat(strings.Replace(strings.TrimSpace(t), ",", ".", 1), 64)
 		return f
 	default:
 		return 0

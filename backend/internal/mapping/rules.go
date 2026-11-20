@@ -1,7 +1,6 @@
 package mapping
 
 import (
-	"encoding/json"
 	"regexp"
 	"strings"
 	"time"
@@ -356,7 +355,7 @@ func (m SourceMapping) MarshalJSON() ([]byte, error) {
 	if m.Price != (PriceRule{}) {
 		price = &m.Price
 	}
-	return json.Marshal(struct {
+	return MarshalNoEscape(struct {
 		SourceID             *FieldRule `json:"sourceId,omitempty"`
 		Title                *FieldRule `json:"title,omitempty"`
 		Description          *FieldRule `json:"description,omitempty"`

@@ -138,3 +138,13 @@ func TestInferYear(t *testing.T) {
 		}
 	}
 }
+
+func TestPriceDecimalComma(t *testing.T) {
+	r := PriceRule{AmountPath: "p", UnknownIfMissing: true}
+	if p := r.resolve(item(t, `{"p":"19,62"}`)); p.Free || p.Amount == nil || *p.Amount != 19.62 {
+		t.Errorf("19,62 -> %+v", p)
+	}
+	if p := r.resolve(item(t, `{"p":"frei"}`)); !p.Free {
+		t.Errorf("a non-number like 'frei' should count as 0 = free, got %+v", p)
+	}
+}

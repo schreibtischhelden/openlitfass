@@ -3,10 +3,16 @@ package sources
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
+	"golang.org/x/net/html"
+
 	"openlitfass/backend/internal/config"
+	"openlitfass/backend/internal/htmlsel"
 )
 
 // A source file as an instance would write it (see docs/backend.md).
@@ -100,5 +106,43 @@ func TestExtractRuleShorthandRoundTrip(t *testing.T) {
 	out, _ := json.Marshal(m)
 	if string(out) != in {
 		t.Errorf("round trip: %s", out)
+	}
+}
+
+func TestExtractRegexAlternatives(t *testing.T) {
+	cfg := config.SourceConfig{
+		Name: "t", URL: "https://x.example/", ItemSelector: ".e",
+		Extract: map[string]config.ExtractRule{
+			"price": {Selector: "p", Regex: `(?i)Tickets:\s*(?:ab\s*)?(\d+(?:,\d+)?)\s*€|eintritt\s+(frei)`},
+			"title": {Selector: "h2"},
+		},
+	}
+	body := `<div class="e"><h2>A</h2><p>Tickets: Ab 27,00€</p></div>
+<div class="e"><h2>B</h2><p>Eintritt frei!</p></div>
+<div class="e"><h2>C</h2><p>Tickets: Ab 1. Oktober erhältlich!</p></div>`
+	for i, want := range []string{"27,00", "frei", ""} {
+		r := compiledExtract{rule: cfg.Extract["price"]}
+		r.re = regexp.MustCompile(cfg.Extract["price"].Regex)
+		sel := htmlsel.MustParse("p")
+		r.sel = &sel
+		doc, _ := html.Parse(strings.NewReader(body))
+		item := htmlsel.MustParse(".e").QueryAll(doc)[i]
+		if got := extractValue(item, r, nil); got != want {
+			t.Errorf("item %d: %q, want %q", i, got, want)
+		}
+	}
+}
+
+func TestRecordAttemptKeepsSelectorsReadable(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "s.json")
+	if err := os.WriteFile(path, []byte(`{"type":"html","itemSelector":".row > div","extract":{"t":"a > b"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.RecordAttempt(path, nil); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(path)
+	if strings.Contains(string(b), `\u003e`) || !strings.Contains(string(b), `".row > div"`) {
+		t.Errorf("source file got escaped:\n%s", b)
 	}
 }

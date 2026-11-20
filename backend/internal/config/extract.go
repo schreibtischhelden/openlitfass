@@ -1,6 +1,10 @@
 package config
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"openlitfass/backend/internal/mapping"
+)
 
 // ExtractRule pulls one named value out of an event container of an "html"
 // source. In JSON it's either a plain selector string ("h2") or an object.
@@ -38,8 +42,8 @@ func (r *ExtractRule) UnmarshalJSON(b []byte) error {
 // RecordAttempt doesn't blow hand-written source files up.
 func (r ExtractRule) MarshalJSON() ([]byte, error) {
 	if r == (ExtractRule{Selector: r.Selector}) {
-		return json.Marshal(r.Selector)
+		return mapping.MarshalNoEscape(r.Selector)
 	}
 	type plain ExtractRule
-	return json.Marshal(plain(r))
+	return mapping.MarshalNoEscape(plain(r))
 }

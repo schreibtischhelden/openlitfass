@@ -5,6 +5,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -243,11 +244,17 @@ func RecordAttempt(path string, fetchErr error) error {
 	c.Status = &status
 	c.Path = "" // json:"-" anyway, but be explicit that it never gets written
 
-	out, err := json.MarshalIndent(c, "", "  ")
-	if err != nil {
+	// No HTML escaping: source files are hand-written and may contain CSS
+	// selectors ("div > p") and regexes ("<b>") that json.Marshal would
+	// turn into > / <.
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(c); err != nil {
 		return fmt.Errorf("marshal %s: %w", path, err)
 	}
-	if err := os.WriteFile(path, append(out, '\n'), 0o644); err != nil {
+	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 	return nil
