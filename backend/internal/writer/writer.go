@@ -139,6 +139,14 @@ func SortEvents(events []model.Event) {
 // Empty baseURL leaves such events without a URL.
 func Write(path string, events []model.Event, baseURL string) ([]model.Event, error) {
 	for i := range events {
+		// Sources without their own ids (html pages, feeds without guid):
+		// derive one from what identifies the event, so Dedupe doesn't
+		// collapse all of them into one and the id stays stable across
+		// runs as long as date, time, title and place don't change.
+		if events[i].Source.SourceID == "" {
+			e := events[i]
+			events[i].Source.SourceID = strings.Join([]string{e.Date, e.StartTime, e.Title, e.Location.Name}, "|")
+		}
 		if events[i].ID == "" {
 			events[i].ID = MakeID(events[i].Source.Name, events[i].Source.SourceID)
 		}
