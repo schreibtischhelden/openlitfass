@@ -1,0 +1,30 @@
+{
+  "label": "Beispiel-Stadtteilzentrum",
+  "homepage": "https://example.org",
+  "type": "html",
+  "url": "https://example.org/veranstaltungen.html",
+  "itemSelector": "#events .event",
+  "extract": {
+    "day": ".date .day",
+    "month": ".date .month",
+    "year": ".date .year",
+    "title": "h2",
+    "category": "a.category",
+    "link": { "selector": "h2 a", "attr": "href" },
+    "start": { "selector": "p.time", "regex": "(\d{1,2}:\d{2})" },
+    "end": { "selector": "p.time", "regex": "-\s*(\d{1,2}:\d{2})" },
+    "place": "p.place",
+    "description": { "selector": "p", "all": true, "skip": 2, "html": true }
+  },
+  "mapping": {
+    "title": { "path": "title" },
+    "description": { "path": "description" },
+    "category": { "path": "category" },
+    "url": { "path": "link", "default": "https://example.org/veranstaltungen.html" },
+    "locationName": { "path": "place", "default": "Beispiel-Stadtteilzentrum" },
+    "locationAddress": { "default": "Musterstraße 23, 10115 Berlin" },
+    "start": { "template": "{day} {month} {year} {start}", "format": "2 Jan 2006 15:04|2 Jan 2006" },
+    "end": { "template": "{day} {month} {year} {end}", "format": "2 Jan 2006 15:04" }
+  },
+  "daysAhead": 60
+}

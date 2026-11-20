@@ -55,7 +55,7 @@ ortsbezogenen Inhalte:
 gemeinsame Liste. `sources.All()` (in `internal/sources/source.go`) liest
 beim Start jede `*.json`-Datei in diesem Verzeichnis (alphabetisch, für
 deterministische Runs) und baut daraus automatisch einen `RSSSource`,
-`JSONSource`, `ICalSource` oder `WCSSource` — **für RSS-Feeds, JSON-APIs, iCal-Kalender und WordPress
+`JSONSource`, `ICalSource`, `HTMLSource` oder `WCSSource` — **für RSS-Feeds, JSON-APIs, iCal-Kalender, HTML-Seiten und WordPress
 "Weekly Class Schedule"-Kalender muss kein Go-Code geschrieben werden**, nur
 eine neue Datei angelegt werden.
 
@@ -71,14 +71,15 @@ zum Kopieren). Vorlagen für alle drei Typen liegen in
 - `beispiel-rss.example.json` — RSS
 - `beispiel-json.example.json` — JSON-API
 - `beispiel-ical.example.json` — `type: "ical"` (siehe Abschnitt "ical-Quellen")
+- `beispiel-html.example.json` — `type: "html"` (siehe Abschnitt "html-Quellen")
 - `beispiel-wcs.example.json` — `type: "wcs"` (siehe Abschnitt "wcs-Quellen")
 
 Eine Quelle lässt sich mit `"disabled": true` abschalten, ohne die Datei zu
 löschen. Das `"status"`-Feld verwaltet die Pipeline selbst (siehe
 "Health-Status"), nicht von Hand pflegen.
 
-Nur für Formate, die auch da nicht reinpassen (HTML-Scraping,
-paginierte/authentifizierte APIs, …), muss man selbst eine `Source`
+Nur für Formate, die auch da nicht reinpassen (Logins, POST-Anfragen,
+authentifizierte APIs, …), muss man selbst eine `Source`
 implementieren — siehe `internal/sources/example.go` als Vorlage.
 
 ## Wie das Feld-Mapping funktioniert
@@ -357,6 +358,65 @@ werden berücksichtigt. Aufgefaltet wird nur innerhalb des Fensters
 (höchstens 500 Termine). Nicht unterstützte Regeln (z.B. "jeder erste
 Montag", `BYDAY=1MO` bei `MONTHLY`) liefern nur den ersten Termin und eine
 Log-Zeile. Abgesagte Termine (`STATUS:CANCELLED`) werden übersprungen.
+
+## html-Quellen (Seiten ohne Feed)
+
+Für Veranstaltungsseiten ohne RSS/iCal/API: Termine werden per
+CSS-Selektor aus dem HTML gelesen. Drei Teile:
+
+1. `itemSelector` – findet jeden Termin-Container auf der Seite.
+2. `extract` – zieht benannte Werte aus einem Container. Kurzform
+   `"title": "h2"` (Text des ersten Treffers) oder als Objekt:
+
+   | Feld | Bedeutung |
+   |---|---|
+   | `selector` | CSS-Selektor relativ zum Container (leer = Container selbst) |
+   | `attr` | Attribut statt Text, z.B. `"href"` (relative URLs werden aufgelöst) |
+   | `html` | inneres HTML statt Text – für Beschreibungen, damit Absätze erhalten bleiben |
+   | `all` / `skip` | alle Treffer verbinden (statt nur des ersten), die ersten `skip` überspringen |
+   | `regex` | Teil des Werts herausziehen (Gruppe `value`, sonst erste Gruppe) |
+
+3. `mapping` – wie bei `json`-Quellen; `path` verweist auf die Namen aus
+   `extract`.
+
+```jsonc
+{
+  "type": "html",
+  "url": "https://example.org/veranstaltungen.html",
+  "itemSelector": "#events .event",
+  "extract": {
+    "day": ".date .day", "month": ".date .month", "year": ".date .year",
+    "title": "h2",
+    "start": { "selector": "p.time", "regex": "(\d{1,2}:\d{2})" },
+    "end":   { "selector": "p.time", "regex": "-\s*(\d{1,2}:\d{2})" },
+    "description": { "selector": "p", "all": true, "skip": 2, "html": true }
+  },
+  "mapping": {
+    "title": { "path": "title" },
+    "description": { "path": "description" },
+    "start": { "template": "{day} {month} {year} {start}", "format": "2 Jan 2006 15:04|2 Jan 2006" },
+    "end":   { "template": "{day} {month} {year} {end}", "format": "2 Jan 2006 15:04" }
+  }
+}
+```
+
+Vollständige Vorlage: `example-instance/sources/beispiel-html.example.json`.
+
+Unterstützte Selektoren: `tag`, `*`, `.klasse`, `#id`, `[attr]`,
+`[attr=wert]`, `[attr~=wort]`, `[attr*=teil]`, `:first-of-type`,
+`:nth-of-type(n)`, Nachfahre (`a b`) und Kind (`a > b`). Keine
+Selektor-Listen (`,`) und keine Geschwister-Kombinatoren.
+
+**Datum aus Einzelteilen:** `format` darf mehrere Layouts mit `|` angeben
+(`"2 Jan 2006 15:04|2 Jan 2006"`); passt nur ein Layout ohne Uhrzeit, ist der
+Termin ganztägig. Deutsche Monatsnamen und -kürzel ("Nov.", "März",
+"Dezember") werden bei Layouts mit Monatsnamen verstanden.
+
+**Robustheit:** Findet `itemSelector` nichts, ist das ein Fehler der Quelle
+(steht im `status`) – meist hat die Seite ihr Layout geändert, und das soll
+auffallen statt still null Termine zu liefern. HTML-Quellen sind von Natur
+aus empfindlicher als Feeds: bei einer Seite mit Feed oder API immer diese
+nehmen.
 
 ## Fehlertoleranz
 
@@ -710,4 +770,6 @@ dazu, sobald das Hosting feststeht.
   Filter/`categoryMap` und das Zurückschreiben der Quelldateien.
 - `ical` gegen einen echten Events-Manager-Export (Freilichtbühne Weißensee) als
   Test-Fixture plus Tests für Zeitzonen, ganztägig, RRULE, EXDATE, RECURRENCE-ID.
+- `html` mit einer selbst geschriebenen Fixture im Aufbau einer Joomla-JEvents-Liste;
+  Selektor-Engine, deutsche Monatsnamen, ganztägige Termine, Absage-Erkennung im Titel.
 - `rss` ist noch nicht gegen eine echte Quelle gelaufen.
