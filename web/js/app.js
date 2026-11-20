@@ -23,8 +23,18 @@
   const STR = {
     today: "Heute",
     tomorrow: "Morgen",
-    all: "Alle",
-    weekend: "Wochenende",
+    periodDay: "Tag",
+    periodWeekend: "Wochenende",
+    periodWeek: "Woche",
+    period: "Zeitraum",
+    earlier: "Früher",
+    later: "Später",
+    pickDate: "Datum wählen",
+    allDates: "Alle Termine",
+    backToToday: "zurück zu heute",
+    nextEvent: "Nächster Termin:",
+    filterBy: "Filter:",
+    emptyRange: ["Keine Termine in diesem Zeitraum.", ""],
     allDay: "ganztägig",
     free: "Kostenlos",
     ticket: "Ticket nötig",
@@ -41,7 +51,7 @@
     emptySaved: ["Noch nichts gemerkt.", "Tipp auf den Stern in einem Termin, um ihn hier zu sammeln."],
     resetFilters: "Filter zurücksetzen",
     clearCategories: "Kategorien zurücksetzen",
-    clearQuick: "Zeitraum und Merkmale zurücksetzen",
+    clearQuick: "Merkmale zurücksetzen",
     clearSearch: "Suche leeren",
     loadError: "Die Termine konnten nicht geladen werden. Bitte später erneut versuchen.",
     back: "Zurück",
@@ -88,6 +98,7 @@
     external: ["M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6", "M11 13l9 -9", "M15 4h5v5"],
     star: ["M12 17.75l-6.172 3.245l1.179 -6.873l-5 -4.867l6.9 -1l3.086 -6.253l3.086 6.253l6.9 1l-5 4.867l1.179 6.873l-6.158 -3.245"],
     back: ["M15 6l-6 6l6 6"],
+    forward: ["M9 6l6 6l-6 6"],
     clear: ["M18 6l-12 12", "M6 6l12 12"]
   };
 
@@ -102,10 +113,15 @@
     { key: "ticket", label: STR.ticket, icon: ICON.ticket, test: (ev) => ev.ticketRequired },
     { key: "registration", label: STR.registration, icon: ICON.registration, test: (ev) => ev.registrationRequired }
   ];
-  const WHEN = [
-    { key: "all", label: STR.all },
-    { key: "today", label: STR.today },
-    { key: "weekend", label: STR.weekend }
+  // Zeiträume der Datumsleiste: die Pfeile blättern um genau diese Einheit.
+  // Eigene Symbole aus einer Familie (Tabler-Stil): derselbe Kalender, die
+  // Markierung zeigt den Zeitraum - ein Punkt = Tag, zwei Punkte rechts =
+  // die letzten beiden Wochentage, ein Balken = die ganze Woche.
+  const CAL = ["M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12", "M16 3v4", "M8 3v4", "M4 11h16"];
+  const PERIODS = [
+    { key: "tag", label: STR.periodDay, icon: CAL.concat(["M10.5 14.5h3v2.5h-3z"]) },
+    { key: "wochenende", label: STR.periodWeekend, icon: CAL.concat(["M12 14.5h2v2.5h-2z", "M15.5 14.5h2v2.5h-2z"]) },
+    { key: "woche", label: STR.periodWeek, icon: CAL.concat(["M6.5 14.5h11v2.5h-11z"]) }
   ];
 
   // ---- State ----
@@ -120,7 +136,8 @@
     search: "",
     categoriesOn: new Set(),
     attrsOn: new Set(),
-    when: "all",
+    period: "tag",   // tag | wochenende | woche
+    anchor: "",      // erster Tag des gewählten Zeitraums (YYYY-MM-DD); "" = heute
     view: "list",
     cameFromList: false
   };
@@ -132,6 +149,7 @@
     searchBar: $("searchBar"),
     searchInput: $("searchInput"),
     categoryMenu: $("categoryMenu"),
+    dateNav: $("dateNav"),
     quickFilters: $("quickFilters"),
     main: $("main"),
     viewList: $("viewList"),
@@ -200,12 +218,54 @@
     const d = parseDate(dateStr);
     return `${WEEKDAYS[d.getDay()]}, ${d.getDate()}. ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
   }
-  function weekendRange() {
-    const now = new Date();
-    const dow = now.getDay();
-    if (dow === 0) return [todayISO(), todayISO()];
-    const sat = addDays(now, 6 - dow);
-    return [iso(sat), iso(addDays(sat, 1))];
+  // ---- Zeitraum (Datumsleiste) ----
+  // Normalisiert ein Datum auf den Anfang seines Zeitraums: Tag = der Tag,
+  // Wochenende = dessen Samstag (am Sonntag: der Samstag davor), Woche = Montag.
+  function periodStart(period, dateStr) {
+    const d = parseDate(dateStr);
+    const dow = d.getDay(); // 0 = So
+    if (period === "wochenende") return iso(dow === 0 ? addDays(d, -1) : addDays(d, 6 - dow));
+    if (period === "woche") return iso(addDays(d, -((dow + 6) % 7)));
+    return dateStr;
+  }
+  function periodLength(period) {
+    return period === "woche" ? 7 : period === "wochenende" ? 2 : 1;
+  }
+  function periodStep(period) {
+    return period === "tag" ? 1 : 7;
+  }
+  // [erster, letzter] Tag des aktuellen Zeitraums; nie vor heute beginnend
+  // (der Kalender hat keine vergangenen Termine).
+  function currentRange() {
+    const today = todayISO();
+    const start = periodStart(state.period, state.anchor || today);
+    const end = iso(addDays(parseDate(start), periodLength(state.period) - 1));
+    return [start < today ? today : start, end];
+  }
+  function shortDate(dateStr, withWeekday) {
+    const d = parseDate(dateStr);
+    return `${withWeekday ? WEEKDAYS_SHORT[d.getDay()] + " " : ""}${d.getDate()}.${d.getMonth() + 1}.`;
+  }
+  function rangeLabel() {
+    if (state.search) return STR.allDates;
+    const today = todayISO();
+    const start = periodStart(state.period, state.anchor || today);
+    const end = iso(addDays(parseDate(start), periodLength(state.period) - 1));
+    if (state.period === "tag") {
+      if (start === today) return `${STR.today}, ${shortDate(start)}`;
+      if (start === iso(addDays(new Date(), 1))) return `${STR.tomorrow}, ${shortDate(start)}`;
+      const d = parseDate(start);
+      return `${WEEKDAYS_SHORT[d.getDay()]}, ${shortDate(start)}`;
+    }
+    // Beschriftet wird, was sichtbar ist: die laufende Woche beginnt heute,
+    // nicht am vergangenen Montag.
+    const visibleStart = currentRange()[0];
+    if (visibleStart === end) return shortDate(end);
+    const s = parseDate(visibleStart), e = parseDate(end);
+    // Kompakt, damit die Leiste auf 320-px-Handys einzeilig bleibt; dass es
+    // ein Wochenende ist, zeigt der aktive Zeitraum-Knopf.
+    const left = s.getMonth() === e.getMonth() ? `${s.getDate()}.` : shortDate(visibleStart);
+    return `${left}–${shortDate(end)}`;
   }
   function timeText(ev) {
     if (!ev.startTime) return STR.allDay;
@@ -265,6 +325,7 @@
     state.byId = new Map(state.events.map((ev) => [ev.id, ev]));
 
     buildCategoryMenu();
+    buildDateNav();
     buildQuickFilters();
     renderFooter();
     updateSavedCount();
@@ -295,10 +356,54 @@
     el.categoryMenu.hidden = state.categories.length === 0;
   }
 
-  function buildQuickFilters() {
-    const when = WHEN.map((w) =>
-      `<button type="button" class="chip" data-when="${w.key}" aria-pressed="false">${escapeHtml(w.label)}</button>`
+  // Datumsleiste: [‹] [Datum + Kalender-Symbol] [›] [Tag|Wochenende|Woche].
+  // Das Datum öffnet die native Datumsauswahl des Browsers (auf dem Handy
+  // das gewohnte Datumsrad).
+  function buildDateNav() {
+    const periods = PERIODS.map((p) =>
+      `<button type="button" class="period-btn" data-period="${p.key}" aria-pressed="false" ` +
+      `aria-label="${escapeHtml(p.label)}" title="${escapeHtml(p.label)}">${svg(p.icon)}</button>`
     ).join("");
+    el.dateNav.innerHTML =
+      `<button type="button" class="date-step" data-step="-1" aria-label="${STR.earlier}" title="${STR.earlier}">${svg(ICON.back)}</button>` +
+      `<label class="date-label" title="${STR.pickDate}"><span class="date-label__text" id="dateText"></span>${svg(ICON.calendar)}` +
+      `<input type="date" class="date-input" id="dateInput" aria-label="${STR.pickDate}"></label>` +
+      `<button type="button" class="date-step" data-step="1" aria-label="${STR.later}" title="${STR.later}">${svg(ICON.forward)}</button>` +
+      `<span class="period" role="group" aria-label="${STR.period}">${periods}</span>`;
+    el.dateText = $("dateText");
+    el.dateInput = $("dateInput");
+  }
+
+  function syncDateNav() {
+    if (!el.dateText) return;
+    const today = todayISO();
+    const [start] = currentRange();
+    el.dateText.textContent = rangeLabel();
+    el.dateInput.min = today;
+    el.dateInput.value = start;
+    el.dateNav.classList.toggle("is-searching", Boolean(state.search));
+    const prev = el.dateNav.querySelector('[data-step="-1"]');
+    prev.disabled = Boolean(state.search) || start <= today;
+    el.dateNav.querySelector('[data-step="1"]').disabled = Boolean(state.search);
+    el.dateNav.querySelectorAll("[data-period]").forEach((b) => setPressed(b, b.dataset.period === state.period));
+  }
+
+  // Setzt Zeitraum/Datum und schreibt es in die Adresse (teilbar), ohne
+  // für jeden Pfeil-Klick einen Verlaufseintrag anzulegen.
+  function setRange(period, anchor) {
+    const today = todayISO();
+    state.period = period;
+    let a = periodStart(period, anchor || today);
+    if (a < periodStart(period, today)) a = periodStart(period, today);
+    state.anchor = a;
+    const isDefault = period === "tag" && a === today;
+    history.replaceState(null, "", isDefault ? location.pathname + location.search : `#${period}/${a}`);
+    syncDateNav();
+    renderList();
+    window.scrollTo({ top: 0 });
+  }
+
+  function buildQuickFilters() {
     const attrs = ATTRS.map((a) =>
       `<button type="button" class="chip chip--icon" data-attr="${a.key}" aria-pressed="false" ` +
       `aria-label="${escapeHtml(a.label)}" title="${escapeHtml(a.label)}">${svg(a.icon)}</button>`
@@ -306,7 +411,7 @@
     // Löschen-Button vorne: die Zeile scrollt horizontal, hinten wäre er
     // auf schmalen Bildschirmen oft nicht zu sehen.
     el.quickFilters.innerHTML = clearButton("quick", STR.clearQuick, "chip chip--icon chip--clear") +
-      when + `<span class="quick-filters__sep" aria-hidden="true"></span>` + attrs;
+      `<span class="quick-filters__label">${STR.filterBy}</span>` + attrs;
     el.searchBar.insertAdjacentHTML("beforeend", clearButton("search", STR.clearSearch, "icon-btn search-clear"));
     el.searchClear = el.searchBar.querySelector("[data-clear]");
     el.searchClear.addEventListener("click", () => {
@@ -318,21 +423,18 @@
 
   function syncFilterButtons() {
     el.categoryMenu.querySelectorAll(".cm-item[data-category]").forEach((b) => setPressed(b, state.categoriesOn.has(b.dataset.category)));
-    el.quickFilters.querySelectorAll("[data-when]").forEach((b) => setPressed(b, b.dataset.when === state.when));
     el.quickFilters.querySelectorAll("[data-attr]").forEach((b) => setPressed(b, state.attrsOn.has(b.dataset.attr)));
     const catClear = el.categoryMenu.querySelector("[data-clear]");
     if (catClear) catClear.hidden = state.categoriesOn.size === 0;
     const quickClear = el.quickFilters.querySelector("[data-clear]");
-    if (quickClear) quickClear.hidden = state.when === "all" && state.attrsOn.size === 0;
+    if (quickClear) quickClear.hidden = state.attrsOn.size === 0;
     if (el.searchClear) el.searchClear.hidden = !state.search;
+    syncDateNav();
   }
 
   function clearRow(row) {
     if (row === "categories") state.categoriesOn.clear();
-    if (row === "quick") {
-      state.when = "all";
-      state.attrsOn.clear();
-    }
+    if (row === "quick") state.attrsOn.clear();
     if (row === "search") {
       state.search = "";
       el.searchInput.value = "";
@@ -372,7 +474,33 @@
     el.searchInput.addEventListener("input", (e) => {
       state.search = e.target.value.trim().toLowerCase();
       if (el.searchClear) el.searchClear.hidden = !state.search;
+      syncDateNav();
       renderList();
+    });
+
+    el.dateNav.addEventListener("click", (e) => {
+      const step = e.target.closest("[data-step]");
+      if (step && !step.disabled) {
+        const [start] = currentRange();
+        const base = periodStart(state.period, state.anchor || todayISO());
+        const from = step.dataset.step === "1" ? base : start;
+        setRange(state.period, iso(addDays(parseDate(from), Number(step.dataset.step) * periodStep(state.period))));
+        return;
+      }
+      const p = e.target.closest("[data-period]");
+      if (p) setRange(p.dataset.period, currentRange()[0]);
+    });
+    // Klick aufs Datum öffnet den Picker (showPicker, wo vorhanden; sonst
+    // reicht der Klick auf das darüberliegende, unsichtbare Datumsfeld).
+    el.dateNav.querySelector(".date-label").addEventListener("click", (e) => {
+      if (state.search) { e.preventDefault(); return; }
+      if (el.dateInput.showPicker) {
+        e.preventDefault();
+        try { el.dateInput.showPicker(); } catch (_) { el.dateInput.focus(); }
+      }
+    });
+    el.dateInput.addEventListener("change", () => {
+      if (el.dateInput.value) setRange(state.period, el.dateInput.value);
     });
 
     el.categoryMenu.addEventListener("click", (e) => {
@@ -386,7 +514,6 @@
       const b = e.target.closest(".chip");
       if (!b) return;
       if (b.dataset.clear) { clearRow("quick"); return; }
-      if (b.dataset.when) state.when = b.dataset.when;
       if (b.dataset.attr) toggleIn(state.attrsOn, b.dataset.attr);
       afterFilterChange();
     });
@@ -413,7 +540,6 @@
     el.searchInput.value = "";
     state.categoriesOn.clear();
     state.attrsOn.clear();
-    state.when = "all";
     afterFilterChange();
   }
 
@@ -421,7 +547,16 @@
   function route() {
     const hash = decodeURIComponent(location.hash.replace(/^#/, ""));
     let view = "list";
-    if (hash === "gemerkt") view = "saved";
+    // Zeitraum in der Adresse: #tag/2026-11-22, #wochenende/…, #woche/…
+    const rangeMatch = hash.match(/^(tag|wochenende|woche)\/(\d{4}-\d{2}-\d{2})$/);
+    if (rangeMatch) {
+      state.period = rangeMatch[1];
+      state.anchor = periodStart(rangeMatch[1], rangeMatch[2]);
+    }
+    // Ohne Hash (Startseite, Zurück aus der Detailansicht) bleibt der
+    // zuletzt gewählte Zeitraum.
+    if (rangeMatch || hash === "") view = "list";
+    else if (hash === "gemerkt") view = "saved";
     else if (hash === "ueber") view = "about";
     else if (hash && state.byId.has(hash)) view = "detail";
 
@@ -432,7 +567,9 @@
     el.viewAbout.hidden = view !== "about";
     const filtersVisible = view === "list";
     el.categoryMenu.hidden = !filtersVisible || state.categories.length === 0;
+    el.dateNav.hidden = !filtersVisible;
     el.quickFilters.hidden = !filtersVisible;
+    syncDateNav();
     el.navItems.forEach((a) => a.classList.toggle("is-active", a.dataset.view === view || (view === "detail" && a.dataset.view === "list")));
 
     if (view === "list" || view === "saved") {
@@ -455,20 +592,22 @@
     const root = document.documentElement.style;
     root.setProperty("--hdr", `${el.header.offsetHeight}px`);
     root.setProperty("--cm", `${el.categoryMenu.hidden ? 0 : el.categoryMenu.offsetHeight}px`);
-    root.setProperty("--qf", `${el.quickFilters.hidden ? 0 : el.quickFilters.offsetHeight}px`);
+    root.setProperty("--dn", `${el.dateNav.hidden ? 0 : el.dateNav.offsetHeight}px`);
   }
 
   // ---- Liste ----
-  function filteredEvents() {
+  // ignoreRange: für die Suche nach dem nächsten Termin außerhalb des
+  // gewählten Zeitraums (Leerzustand).
+  function filteredEvents(ignoreRange) {
     const today = todayISO();
-    const [wkStart, wkEnd] = weekendRange();
     const savedOnly = state.view === "saved";
+    // Die Suche gilt über alle Daten hinweg, nicht nur im Zeitraum.
+    const [from, to] = ignoreRange || state.search ? [today, "9999-12-31"] : currentRange();
 
     return state.events.filter((ev) => {
       if (ev.date < today) return false;
       if (savedOnly) return saved.has(ev.id);
-      if (state.when === "today" && ev.date !== today) return false;
-      if (state.when === "weekend" && (ev.date < wkStart || ev.date > wkEnd)) return false;
+      if (ev.date < from || ev.date > to) return false;
       if (state.categoriesOn.size && !state.categoriesOn.has(ev.category)) return false;
       for (const a of ATTRS) {
         if (state.attrsOn.has(a.key) && !a.test(ev)) return false;
@@ -483,7 +622,7 @@
   }
 
   function hasActiveFilters() {
-    return state.search || state.categoriesOn.size || state.attrsOn.size || state.when !== "all";
+    return state.search || state.categoriesOn.size || state.attrsOn.size;
   }
 
   function renderList() {
@@ -508,15 +647,45 @@
       `<ul class="event-list">${evs.map(cardHtml).join("")}</ul></section>`
     ).join("");
 
+    // "Zurück zu heute", wenn ein anderer Zeitraum gewählt ist.
+    if (!savedView && !state.search && currentRange()[0] > todayISO()) {
+      el.resultCount.hidden = false;
+      el.resultCount.insertAdjacentHTML("beforeend",
+        ` · <button type="button" class="link-btn" id="backToToday">${STR.backToToday}</button>`);
+      $("backToToday").addEventListener("click", () => setRange(state.period, todayISO()));
+    }
+
     el.empty.hidden = results.length > 0;
     if (results.length === 0) {
       let msg = STR.emptyNoData;
-      if (savedView) msg = STR.emptySaved;
-      else if (hasActiveFilters()) msg = STR.emptyFiltered;
-      el.empty.innerHTML = `<strong>${escapeHtml(msg[0])}</strong>${msg[1] ? `<span>${escapeHtml(msg[1])}</span>` : ""}` +
-        (!savedView && hasActiveFilters() ? `<br><button type="button" class="btn" id="emptyReset">${STR.resetFilters}</button>` : "");
-      const btn = $("emptyReset");
-      if (btn) btn.addEventListener("click", resetFilters);
+      let action = "";
+      if (savedView) {
+        msg = STR.emptySaved;
+      } else if (!state.search) {
+        // Leerer Zeitraum: zum nächsten Tag mit passenden Terminen springen.
+        const [, to] = currentRange();
+        const next = filteredEvents(true).find((ev) => ev.date > to);
+        if (next) {
+          msg = STR.emptyRange;
+          action = `<br><button type="button" class="btn" id="emptyNext">${STR.nextEvent} ${escapeHtml(dayHeading(next.date))}</button>`;
+        } else if (hasActiveFilters()) {
+          msg = STR.emptyFiltered;
+        }
+      } else {
+        msg = STR.emptyFiltered;
+      }
+      if (!action && !savedView && hasActiveFilters()) {
+        action = `<br><button type="button" class="btn" id="emptyReset">${STR.resetFilters}</button>`;
+      }
+      el.empty.innerHTML = `<strong>${escapeHtml(msg[0])}</strong>${msg[1] ? `<span>${escapeHtml(msg[1])}</span>` : ""}` + action;
+      const reset = $("emptyReset");
+      if (reset) reset.addEventListener("click", resetFilters);
+      const nextBtn = $("emptyNext");
+      if (nextBtn) {
+        const [, to] = currentRange();
+        const next = filteredEvents(true).find((ev) => ev.date > to);
+        nextBtn.addEventListener("click", () => setRange(state.period, next.date));
+      }
     }
   }
 

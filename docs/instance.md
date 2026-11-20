@@ -57,8 +57,15 @@ von `fetch` erzeugt).
 
 Die Standard-Oberfläche (`web/`) bringt mit:
 
-- Liste nach Tagen gruppiert, Kategorie-Menü, Schnellfilter (Heute,
-  Wochenende, Kostenlos, Familie, Ticket, Anmeldung), Suche
+- Datumsleiste `[‹] [Datum 📅] [›] [Tag | Wochenende | Woche]`: die Pfeile
+  blättern um den gewählten Zeitraum, das Datum öffnet die native
+  Datumsauswahl; startet auf "Heute", nie vor heute. Der Zeitraum steht in
+  der Adresse (`#tag/2026-11-22`, `#wochenende/…`, `#woche/…`). Ist er leer,
+  springt "Nächster Termin" zum nächsten passenden Tag.
+- Liste nach Tagen gruppiert, Kategorie-Menü, Merkmal-Filter (Kostenlos,
+  Familie, Ticket, Anmeldung) in einer eigenen Zeile, Suche (gilt über alle
+  Daten, nicht nur den Zeitraum); jede Filterzeile hat einen eigenen
+  Löschen-Knopf
 - Detailansicht je Termin mit teilbarer Adresse (`/#<event-id>`), Kartenlink
   (OpenStreetMap), "In Kalender" (.ics) und "Teilen"
 - "Gemerkt": Sterne werden nur lokal im Browser gespeichert, kein Konto

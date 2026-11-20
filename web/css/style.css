@@ -37,7 +37,7 @@
 
   --header-h: 56px;
   --category-menu-h: 56px;
-  --quick-filters-h: 51px;
+
   --bottom-nav-h: 60px;
 
   --safe-top: env(safe-area-inset-top, 0px);
@@ -188,9 +188,7 @@ button { font: inherit; }
 
 /* ---------- Schnellfilter (Zeitraum + Attribute) ---------- */
 .quick-filters {
-  position: sticky;
-  top: calc(var(--hdr, calc(var(--header-h) + var(--safe-top))) + var(--cm, var(--category-menu-h)));
-  z-index: 18;
+  /* scrollt mit weg - oben fest bleiben nur Kopf, Kategorien und Datum */
   display: flex;
   gap: var(--space-2);
   align-items: center;
@@ -248,7 +246,7 @@ button { font: inherit; }
 .day-group { margin-bottom: var(--space-4); }
 .day-heading {
   position: sticky;
-  top: calc(var(--hdr, calc(var(--header-h) + var(--safe-top))) + var(--cm, var(--category-menu-h)) + var(--qf, var(--quick-filters-h)));
+  top: calc(var(--hdr, calc(var(--header-h) + var(--safe-top))) + var(--cm, var(--category-menu-h)) + var(--dn, 51px));
   z-index: 5;
   margin: 0 calc(-1 * var(--space-4)) var(--space-2);
   padding: var(--space-2) var(--space-4);
@@ -513,3 +511,95 @@ button { font: inherit; }
   :root:not([data-theme="light"]) .cancelled-notice { background: #3a1d1a; color: #f5dfdd; }
 }
 [data-theme="dark"] .cancelled-notice { background: #3a1d1a; color: #f5dfdd; }
+
+/* ---------- Datumsleiste: [‹] [Datum 📅] [›] [Tag|WE|Woche] ----------
+   Bleibt beim Scrollen oben (unter dem Kategorie-Menü). Eine Zeile bis
+   herunter auf 320 px: Pfeile und Zeitraum-Umschalter haben feste Breiten,
+   das Datum nimmt den Rest und kürzt notfalls mit "…". */
+.date-nav {
+  position: sticky;
+  top: calc(var(--hdr, calc(var(--header-h) + var(--safe-top))) + var(--cm, var(--category-menu-h)));
+  z-index: 18;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+.date-step,
+.date-label,
+.period-btn {
+  height: 36px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-primary-text);
+  border-radius: var(--radius-s);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.date-step { flex: 0 0 36px; padding: 0; }
+.date-step:disabled { opacity: 0.35; cursor: default; }
+.date-step svg, .period-btn svg { width: 20px; height: 20px; }
+.date-label {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 5px;
+  padding: 0 6px;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.date-label__text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.date-label svg { width: 16px; height: 16px; flex: 0 0 auto; }
+/* Unsichtbares natives Datumsfeld über der Beschriftung: Browser ohne
+   showPicker() öffnen den Picker über den direkten Klick darauf. */
+.date-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.date-nav.is-searching .date-label { color: var(--color-text-muted); cursor: default; }
+.date-nav.is-searching .date-input { pointer-events: none; }
+.period {
+  flex: 0 0 auto;
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-s);
+  overflow: hidden;
+}
+.period .period-btn {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-left: 1px solid var(--color-border);
+  border-radius: 0;
+}
+.period .period-btn:first-child { border-left: 0; }
+.period-btn.is-active {
+  background: var(--accent-primary, var(--color-primary));
+  color: var(--accent-primary-text, #fff);
+}
+.date-step:not(:disabled):hover, .date-label:hover, .period-btn:hover { border-color: var(--color-primary-text); }
+
+.quick-filters__label {
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+.link-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--color-primary-text);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
