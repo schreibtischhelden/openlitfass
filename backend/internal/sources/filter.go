@@ -2,6 +2,7 @@ package sources
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"openlitfass/backend/internal/config"
@@ -44,6 +45,14 @@ func applyCommonFilters(events []model.Event, cfg config.SourceConfig) []model.E
 		}
 	}
 
+	var categoryMap map[string]string
+	if len(cfg.CategoryMap) > 0 {
+		categoryMap = make(map[string]string, len(cfg.CategoryMap))
+		for k, v := range cfg.CategoryMap {
+			categoryMap[strings.ToLower(strings.TrimSpace(k))] = v
+		}
+	}
+
 	var allowedCategories map[string]bool
 	if len(cfg.Categories) > 0 {
 		allowedCategories = make(map[string]bool, len(cfg.Categories))
@@ -59,6 +68,9 @@ func applyCommonFilters(events []model.Event, cfg config.SourceConfig) []model.E
 		}
 		if maxDate != "" && e.Date > maxDate {
 			continue // beyond the configured daysAhead window
+		}
+		if mapped, ok := categoryMap[strings.ToLower(strings.TrimSpace(e.Category))]; ok {
+			e.Category = mapped
 		}
 		if allowedCategories != nil && !allowedCategories[e.Category] {
 			continue

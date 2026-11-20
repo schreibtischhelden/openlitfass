@@ -113,11 +113,14 @@ type SourceConfig struct {
 	Organizer string `json:"organizer,omitempty"`
 	// LocationDefault is used when an event has no "wcs_room" term.
 	LocationDefault string `json:"locationDefault,omitempty"`
-	// CategoryMap translates the plugin's wcs_type term slug to this
-	// project's category vocabulary (see <instance>/categories.json), so
-	// events get an icon in the frontend instead of falling back to the raw
-	// (usually English/generic) term name. Unmapped slugs keep the term's
-	// display name as-is.
+	// CategoryMap translates the source's own category names to the
+	// instance's vocabulary (see <instance>/categories.json), e.g.
+	// {"Kino": "Kultur", "Kurs": "Kultur"}, so events get an icon instead
+	// of showing up as an unknown category. Works for every source type
+	// (applied in withCommonFilters, keys matched case-insensitively,
+	// before the Categories allowlist). For "wcs" sources the keys can also
+	// be wcs_type slugs (matched against the slug first, see wcs.go).
+	// Unmapped values are kept as-is.
 	CategoryMap map[string]string `json:"categoryMap,omitempty"`
 	// FamilyFriendly is applied to every event this source produces (see
 	// model.Event.FamilyFriendly) - a per-event signal isn't available from
