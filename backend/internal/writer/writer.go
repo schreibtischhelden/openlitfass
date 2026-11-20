@@ -33,8 +33,8 @@ type Output struct {
 // internal/categories for what goes into "categories" and why this file
 // exists as a one-way, backend-writes/frontend-reads interface.
 type CategoriesOutput struct {
-	GeneratedAt time.Time           `json:"generatedAt"`
-	Categories  []categories.Entry  `json:"categories"`
+	GeneratedAt time.Time          `json:"generatedAt"`
+	Categories  []categories.Entry `json:"categories"`
 }
 
 var nonSlugChars = regexp.MustCompile(`[^a-z0-9]+`)

@@ -150,8 +150,8 @@ func (s *WCSSource) Fetch(ctx context.Context) ([]model.Event, error) {
 			// these, so both are always false here - a known limitation,
 			// not a claim that no wcs class ever requires booking. Revisit
 			// if a real per-event field turns up in the API response.
-			TicketRequired:        false,
-			RegistrationRequired:  false,
+			TicketRequired:       false,
+			RegistrationRequired: false,
 			// Per-source, not per-event (see config.SourceConfig.FamilyFriendly
 			// doc comment) - true only if this source's config says so.
 			FamilyFriendly: s.cfg.FamilyFriendly,
