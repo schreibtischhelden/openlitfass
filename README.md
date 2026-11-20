@@ -32,9 +32,12 @@ openlitfass (dieses Repo)                       Instanz-Repo (z.B. weissens.ee)
 
 ```sh
 docker build -t openlitfass -f Containerfile .
-docker run --rm -v "$PWD/example-instance:/instance" -w /instance openlitfass build-site .
-docker run --rm -p 8080:80 -v "$PWD/example-instance/public:/usr/share/nginx/html:ro" nginx:alpine
+docker run --rm -v "$PWD/example-instance:/instance" -p 8080:8080 -e FETCH_INTERVAL=0 openlitfass
 ```
+
+(`FETCH_INTERVAL=0`: die Beispiel-Quellen sind nur Vorlagen. Für eine echte
+Instanz weglassen, dann wird alle 6 Stunden abgerufen – siehe
+`docs/instance.md` → "Betrieb".)
 
 Dann <http://localhost:8080> öffnen.
 

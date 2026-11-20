@@ -80,6 +80,46 @@ Die Standard-Oberfläche (`web/`) bringt mit:
 5. In `.github/workflows/update-events.yml` den Image-Pfad (`IMAGE`)
    anpassen, pushen.
 
+## Betrieb: eine Instanz je Container
+
+Der einfachste Betrieb – ohne CI, ohne separaten Webserver: das
+Instanz-Verzeichnis in den Container hängen, fertig.
+
+```sh
+docker run -d --name weissens --restart unless-stopped \
+  -v /pfad/zu/weissens.ee:/instance \
+  -p 8080:8080 \
+  ghcr.io/<owner>/openlitfass
+```
+
+Der Standardbefehl des Images ist `serve /instance`:
+
+- liefert die Seite auf Port 8080 aus – aus den vorhandenen Daten schon
+  Sekunden nach dem Start,
+- ruft sofort und dann alle `FETCH_INTERVAL` (Standard `6h`) alle Quellen ab
+  und baut die Seite neu; jeder Build landet in einem neuen Verzeichnis unter
+  `.openlitfass-serve/` und wird erst live geschaltet, wenn er vollständig ist
+  (ein fehlgeschlagener Build lässt die alte Version stehen),
+- schreibt dabei wie `fetch` in das Instanz-Verzeichnis: `data/`, das
+  `status`-Feld der Quellen, abgelaufene Inbox-Dateien werden gelöscht,
+- `/healthz` liefert den Zustand als JSON (letzter Abruf, Anzahl Termine,
+  ausgefallene Quellen, nächster Abruf) und dient dem `HEALTHCHECK` des
+  Images.
+
+| Variable / Flag | Standard | Bedeutung |
+|---|---|---|
+| `FETCH_INTERVAL` / `-interval` | `6h` | Abruf-Intervall; `0` = nur ausliefern |
+| `ADDR` / `-addr` | `:8080` | Listen-Adresse |
+| `PUBLIC_DIR` / `-public` | `<instance>/.openlitfass-serve` | Build-Verzeichnis |
+
+HTTPS, eigene Domain: einen Reverse-Proxy davor setzen (Caddy, Traefik,
+nginx). `serve` setzt passende Cache-Header (Daten, Startseite und Service
+Worker werden nie gecacht).
+
+Wer die Daten zusätzlich im Git-Repo der Instanz versionieren möchte, nimmt
+stattdessen (oder zusätzlich) den CI-Workflow `update-events.yml`; mit
+`FETCH_INTERVAL=0` liefert `serve` dann nur aus.
+
 ## Lokal testen
 
 Siehe `docs/backend.md` → "Lokal ausführen", mit dem Pfad der eigenen

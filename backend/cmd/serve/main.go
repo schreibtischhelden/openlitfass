@@ -29,7 +29,7 @@ func main() {
 	addr := flag.String("addr", envOr("ADDR", ":8080"), "listen address")
 	interval := flag.Duration("interval", envDuration("FETCH_INTERVAL", 6*time.Hour), "fetch interval (0 = never fetch)")
 	webDir := flag.String("web", envOr("WEB_DIR", "/opt/openlitfass/web"), "core frontend directory")
-	publicDir := flag.String("public", os.Getenv("PUBLIC_DIR"), "build directory (default <instance>/public)")
+	publicDir := flag.String("public", os.Getenv("PUBLIC_DIR"), "build directory (default <instance>/.openlitfass-serve)")
 	flag.Parse()
 
 	inst, err := instance.Load(instance.Dir(flag.Args()))

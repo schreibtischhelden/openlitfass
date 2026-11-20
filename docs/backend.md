@@ -7,6 +7,9 @@ gegen ein **Instanz-Verzeichnis** laufen (Aufbau: `docs/instance.md`):
   schreibt `<instance>/data/events.json`, `categories.json` und `sources.json`.
   Das Frontend (`web/js/app.js`) lädt diese Dateien direkt per `fetch()` —
   kein API-Server nötig.
+- **`serve`** (Standardbefehl des Images) macht beides im Intervall und liefert
+  die Seite selbst aus – eine Instanz je Container, siehe `docs/instance.md` →
+  "Betrieb".
 - **`build-site`** setzt daraus die fertige statische Seite zusammen:
   Kern-Frontend (`web/`) + Instanz-Overrides (`<instance>/site/`) + Daten,
   `web/index.html` gerendert mit den Werten aus `instance.json`.

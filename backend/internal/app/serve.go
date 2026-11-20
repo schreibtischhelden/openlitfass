@@ -27,7 +27,7 @@ import (
 type Server struct {
 	Instance  instance.Instance
 	WebDir    string        // core frontend (image: /opt/openlitfass/web)
-	PublicDir string        // where builds go (default <instance>/public)
+	PublicDir string        // where builds go (default <instance>/.openlitfass-serve)
 	Interval  time.Duration // fetch interval; 0 = never fetch, only serve
 
 	current atomic.Pointer[string] // live build directory
@@ -38,15 +38,15 @@ type Server struct {
 
 // Status is what /healthz reports.
 type Status struct {
-	Instance      string    `json:"instance"`
-	Serving       bool      `json:"serving"`
-	LastFetch     time.Time `json:"lastFetch,omitempty"`
-	LastFetchOK   bool      `json:"lastFetchOk"`
-	LastError     string    `json:"lastError,omitempty"`
-	Events        int       `json:"events"`
-	FailedSources []string  `json:"failedSources,omitempty"`
-	LastBuild     time.Time `json:"lastBuild,omitempty"`
-	NextFetch     time.Time `json:"nextFetch,omitempty"`
+	Instance      string     `json:"instance"`
+	Serving       bool       `json:"serving"`
+	LastFetch     *time.Time `json:"lastFetch,omitempty"`
+	LastFetchOK   bool       `json:"lastFetchOk"`
+	LastError     string     `json:"lastError,omitempty"`
+	Events        int        `json:"events"`
+	FailedSources []string   `json:"failedSources,omitempty"`
+	LastBuild     *time.Time `json:"lastBuild,omitempty"`
+	NextFetch     *time.Time `json:"nextFetch,omitempty"`
 }
 
 func (s *Server) setStatus(f func(*Status)) {
@@ -76,7 +76,10 @@ func (s *Server) Rebuild() error {
 		return err
 	}
 	old := s.current.Swap(&dir)
-	s.setStatus(func(st *Status) { st.LastBuild = time.Now() })
+	s.setStatus(func(st *Status) {
+		now := time.Now()
+		st.LastBuild = &now
+	})
 	if old != nil && *old != dir {
 		// Give in-flight requests a moment before removing the old build.
 		go func(p string) {
@@ -116,7 +119,8 @@ func (s *Server) cleanupStale(live string) {
 func (s *Server) FetchAndRebuild(ctx context.Context) {
 	res, err := Fetch(ctx, s.Instance)
 	s.setStatus(func(st *Status) {
-		st.LastFetch = time.Now()
+		now := time.Now()
+		st.LastFetch = &now
 		st.LastFetchOK = err == nil && res.Written
 		st.FailedSources = res.Failed
 		st.LastError = ""
@@ -145,7 +149,9 @@ func (s *Server) FetchAndRebuild(ctx context.Context) {
 // every Interval.
 func (s *Server) Run(ctx context.Context, addr string) error {
 	if s.PublicDir == "" {
-		s.PublicDir = s.Instance.Path("public")
+		// Not "public": that is build-site's default output, which wipes
+		// its directory on every run.
+		s.PublicDir = s.Instance.Path(".openlitfass-serve")
 	}
 	if err := s.Rebuild(); err != nil {
 		log.Printf("initial build from existing data failed: %v", err)
@@ -169,7 +175,7 @@ func (s *Server) Run(ctx context.Context, addr string) error {
 			for {
 				s.FetchAndRebuild(ctx)
 				next := time.Now().Add(s.Interval)
-				s.setStatus(func(st *Status) { st.NextFetch = next })
+				s.setStatus(func(st *Status) { st.NextFetch = &next })
 				select {
 				case <-ctx.Done():
 					return
