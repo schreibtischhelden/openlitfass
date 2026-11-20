@@ -37,6 +37,9 @@
     emptyFiltered: ["Keine Termine für diese Auswahl.", ""],
     emptySaved: ["Noch nichts gemerkt.", "Tipp auf den Stern in einem Termin, um ihn hier zu sammeln."],
     resetFilters: "Filter zurücksetzen",
+    clearCategories: "Kategorien zurücksetzen",
+    clearQuick: "Zeitraum und Merkmale zurücksetzen",
+    clearSearch: "Suche leeren",
     loadError: "Die Termine konnten nicht geladen werden. Bitte später erneut versuchen.",
     back: "Zurück",
     save: "Merken",
@@ -80,7 +83,8 @@
     share: ["M6 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0", "M18 6m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0", "M18 18m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0", "M8.7 10.7l6.6 -3.4", "M8.7 13.3l6.6 3.4"],
     external: ["M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6", "M11 13l9 -9", "M15 4h5v5"],
     star: ["M12 17.75l-6.172 3.245l1.179 -6.873l-5 -4.867l6.9 -1l3.086 -6.253l3.086 6.253l6.9 1l-5 4.867l1.179 6.873l-6.158 -3.245"],
-    back: ["M15 6l-6 6l6 6"]
+    back: ["M15 6l-6 6l6 6"],
+    clear: ["M18 6l-12 12", "M6 6l12 12"]
   };
 
   function svg(paths, cls) {
@@ -270,11 +274,20 @@
   }
 
   // ---- Aufbau ----
+  // Jede Filterzeile (Suche, Kategorien, Schnellfilter) hat einen eigenen
+  // Löschen-Button, der nur sichtbar ist, solange in genau dieser Zeile
+  // etwas gesetzt ist - so lässt sich eine Zeile zurücksetzen, ohne die
+  // anderen zu verlieren.
+  function clearButton(row, label, cls) {
+    return `<button type="button" class="${cls}" data-clear="${row}" hidden ` +
+      `aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${svg(ICON.clear)}</button>`;
+  }
+
   function buildCategoryMenu() {
     el.categoryMenu.innerHTML = state.categories.map((c) =>
       `<button type="button" class="cm-item" data-category="${escapeHtml(c.name)}" aria-pressed="false" ` +
       `aria-label="${escapeHtml(c.name)}" title="${escapeHtml(c.name)}">${svg(c.icon, "cm-icon")}</button>`
-    ).join("");
+    ).join("") + clearButton("categories", STR.clearCategories, "cm-item cm-clear");
     el.categoryMenu.hidden = state.categories.length === 0;
   }
 
@@ -286,14 +299,41 @@
       `<button type="button" class="chip chip--icon" data-attr="${a.key}" aria-pressed="false" ` +
       `aria-label="${escapeHtml(a.label)}" title="${escapeHtml(a.label)}">${svg(a.icon)}</button>`
     ).join("");
-    el.quickFilters.innerHTML = when + `<span class="quick-filters__sep" aria-hidden="true"></span>` + attrs;
+    // Löschen-Button vorne: die Zeile scrollt horizontal, hinten wäre er
+    // auf schmalen Bildschirmen oft nicht zu sehen.
+    el.quickFilters.innerHTML = clearButton("quick", STR.clearQuick, "chip chip--icon chip--clear") +
+      when + `<span class="quick-filters__sep" aria-hidden="true"></span>` + attrs;
+    el.searchBar.insertAdjacentHTML("beforeend", clearButton("search", STR.clearSearch, "icon-btn search-clear"));
+    el.searchClear = el.searchBar.querySelector("[data-clear]");
+    el.searchClear.addEventListener("click", () => {
+      clearRow("search");
+      el.searchInput.focus();
+    });
     syncFilterButtons();
   }
 
   function syncFilterButtons() {
-    el.categoryMenu.querySelectorAll(".cm-item").forEach((b) => setPressed(b, state.categoriesOn.has(b.dataset.category)));
+    el.categoryMenu.querySelectorAll(".cm-item[data-category]").forEach((b) => setPressed(b, state.categoriesOn.has(b.dataset.category)));
     el.quickFilters.querySelectorAll("[data-when]").forEach((b) => setPressed(b, b.dataset.when === state.when));
     el.quickFilters.querySelectorAll("[data-attr]").forEach((b) => setPressed(b, state.attrsOn.has(b.dataset.attr)));
+    const catClear = el.categoryMenu.querySelector("[data-clear]");
+    if (catClear) catClear.hidden = state.categoriesOn.size === 0;
+    const quickClear = el.quickFilters.querySelector("[data-clear]");
+    if (quickClear) quickClear.hidden = state.when === "all" && state.attrsOn.size === 0;
+    if (el.searchClear) el.searchClear.hidden = !state.search;
+  }
+
+  function clearRow(row) {
+    if (row === "categories") state.categoriesOn.clear();
+    if (row === "quick") {
+      state.when = "all";
+      state.attrsOn.clear();
+    }
+    if (row === "search") {
+      state.search = "";
+      el.searchInput.value = "";
+    }
+    afterFilterChange();
   }
   function setPressed(btn, on) {
     btn.classList.toggle("is-active", on);
@@ -327,18 +367,21 @@
     });
     el.searchInput.addEventListener("input", (e) => {
       state.search = e.target.value.trim().toLowerCase();
+      if (el.searchClear) el.searchClear.hidden = !state.search;
       renderList();
     });
 
     el.categoryMenu.addEventListener("click", (e) => {
       const b = e.target.closest(".cm-item");
       if (!b) return;
+      if (b.dataset.clear) { clearRow("categories"); return; }
       toggleIn(state.categoriesOn, b.dataset.category);
       afterFilterChange();
     });
     el.quickFilters.addEventListener("click", (e) => {
       const b = e.target.closest(".chip");
       if (!b) return;
+      if (b.dataset.clear) { clearRow("quick"); return; }
       if (b.dataset.when) state.when = b.dataset.when;
       if (b.dataset.attr) toggleIn(state.attrsOn, b.dataset.attr);
       afterFilterChange();
