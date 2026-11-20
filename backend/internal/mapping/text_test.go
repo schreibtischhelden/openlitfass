@@ -26,7 +26,9 @@ func TestCleanText(t *testing.T) {
 
 func TestCleanMultilineKeepsParagraphs(t *testing.T) {
 	in := "<p class=\"p2\"><strong>16.10. – 29.11.26</strong></p>\n<div><b>Geräusche</b></div>\n<div></div>\n<div><i>Soundprojekt</i><br />\nzweite Zeile</div>"
-	want := "16.10. – 29.11.26\n\nGeräusche\n\nSoundprojekt\n\nzweite Zeile"
+	// Raw newlines in HTML are whitespace; <br> is a line break, block ends
+	// are paragraph breaks.
+	want := "16.10. – 29.11.26\n\nGeräusche\n\nSoundprojekt\nzweite Zeile"
 	if got := CleanMultiline(in); got != want {
 		t.Errorf("CleanMultiline =\n%q\nwant\n%q", got, want)
 	}

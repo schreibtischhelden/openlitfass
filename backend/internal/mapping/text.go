@@ -13,10 +13,13 @@ import (
 const MaxDescriptionRunes = 1200
 
 var (
-	// Block-level tags and <br> become line breaks before all tags are
-	// stripped, so paragraphs survive as paragraphs (the frontend renders
-	// descriptions with white-space: pre-line).
-	blockBreakRe = regexp.MustCompile(`(?i)<\s*(br\s*/?|/p|/div|/li|/h[1-6]|/tr)\s*>`)
+	// In HTML input, the end of a block becomes a paragraph break and <br>
+	// a line break before all tags are stripped, so paragraphs survive (the
+	// frontend renders descriptions with white-space: pre-line). Raw
+	// newlines in HTML are just whitespace.
+	blockEndRe   = regexp.MustCompile(`(?i)<\s*(/p|/div|/li|/h[1-6]|/tr|/ul|/ol|/blockquote)\s*>`)
+	lineBreakRe  = regexp.MustCompile(`(?i)<\s*br\s*/?\s*>`)
+	looksHTMLRe  = regexp.MustCompile(`(?i)<\s*/?\s*(p|br|div|li|ul|ol|h[1-6]|strong|em|b|i|a|span|tr|td|blockquote)\b[^>]*>`)
 	tagRe        = regexp.MustCompile(`<[^>]*>`)
 	spacesRe     = regexp.MustCompile(`[ \t\f\v\x{00A0}]+`)
 	blankLinesRe = regexp.MustCompile(`\n\s*\n\s*\n+`)
@@ -51,7 +54,11 @@ func CleanMultiline(s string) string {
 		return s
 	}
 	s = strings.ReplaceAll(s, "\r\n", "\n")
-	s = blockBreakRe.ReplaceAllString(s, "\n")
+	if looksHTMLRe.MatchString(s) {
+		s = strings.ReplaceAll(s, "\n", " ")
+		s = blockEndRe.ReplaceAllString(s, "\n\n")
+		s = lineBreakRe.ReplaceAllString(s, "\n")
+	}
 	s = tagRe.ReplaceAllString(s, " ")
 	s = html.UnescapeString(s)
 	s = stripInvisible(s)
