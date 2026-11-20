@@ -15,7 +15,7 @@ nur Konfiguration, Quellen und Gestaltung.
 openlitfass (dieses Repo)                       Instanz-Repo (z.B. weissens.ee)
   backend/  Go: fetch, build-site               instance.json
   web/      Frontend (HTML/CSS/JS)              sources/  inbox/  categories.json
-  Containerfile ──► Container-Image ──────────► update-events.yml (Cron)
+  Containerfile ──► ghcr.io-Image ────────────► update-events.yml (Cron)
   example-instance/  Vorlage                    site/  (Theme, Logo)
                                                 data/  (generiert)
 ```
@@ -37,3 +37,6 @@ docker run --rm -p 8080:80 -v "$PWD/example-instance/public:/usr/share/nginx/htm
 ```
 
 Dann <http://localhost:8080> öffnen.
+
+Fertige Images: `ghcr.io/<owner>/openlitfass` (amd64/arm64), gebaut von
+`.github/workflows/image.yml`.

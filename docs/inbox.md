@@ -39,7 +39,7 @@ den bestehenden zu aktualisieren.
    Event bleibt so lange sichtbar. Erst sobald das Datum in der
    Vergangenheit liegt, löscht `InboxSource` (`internal/sources/inbox.go`)
    die Datei automatisch und committet das mit (siehe
-   `.forgejo/workflows/update-events.yml (Instanz)`) — genau der Zeitpunkt, an dem das
+   `.github/workflows/update-events.yml` der Instanz) — genau der Zeitpunkt, an dem das
    Event ohnehin aus dem Kalender fallen würde.
 
 Warum nicht sofort nach der ersten Verarbeitung löschen: `cmd/fetch`

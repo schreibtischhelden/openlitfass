@@ -561,44 +561,48 @@ und `inbox/` kein Event enthält, schreibt es absichtlich nichts.
 es das Verzeichnis selbst angelegt hat (Marker-Datei
 `.openlitfass-build`).
 
-## Workflows
+## Workflows (GitHub Actions)
 
-**Kern: `.forgejo/workflows/build-image.yml`** — läuft bei Push auf
-`backend/**`, `web/**`, `Containerfile` oder manuell. Baut das Image
-(Multi-Stage: Go-Toolchain kompiliert statische Binaries, Runtime ist
-`alpine` + `ca-certificates` + `git` + `nodejs` + Binaries + `web/`) und
-pusht es in die Container-Registry von Codeberg/Forgejo.
+**Kern: `.github/workflows/ci.yml`** — bei jedem Push und Pull Request:
+`gofmt`, `go vet`, `go build`, `go test` und ein kompletter
+`build-site`-Lauf gegen `example-instance/`.
 
-Gebaut wird mit `buildah`, nicht `docker build`: Codebergs gehostete Runner
-(und viele selbstgehostete Setups) sind rootless Podman-in-LXC — kein
-Docker-Daemon. `buildah` braucht dort `--storage-driver=vfs` und
-`--isolation=chroot`. Quelle:
-[christof.damian.net – Building and pushing container images on Codeberg CI](https://christof.damian.net/2026/04/building-containers-on-codeberg.html/).
+**Kern: `.github/workflows/image.yml`** — bei Push auf `main` (nur wenn sich
+`backend/`, `web/` oder das `Containerfile` ändern), bei Tags `v*` oder
+manuell. Baut das Image für `linux/amd64` und `linux/arm64` und pusht es
+nach `ghcr.io/<owner>/<repo>`:
 
-Der automatische `FORGEJO_TOKEN` kann nicht in die Registry pushen — dafür
-ein Personal Access Token mit Scope `write:packages` anlegen (Settings →
-Applications → Access Tokens) und im **Kern-Repo** als Secret
-`REGISTRY_TOKEN` hinterlegen (Settings → Actions → Secrets). Das Package
-öffentlich machen, dann können Instanzen das Image ohne Zugangsdaten ziehen.
+| Tag | wann |
+|---|---|
+| `latest` | jeder Build von `main` |
+| `sha-<kurz>` | jeder Build, zum Festpinnen |
+| `1.2.3`, `1.2` | Git-Tag `v1.2.3` |
 
-**Instanz: `.forgejo/workflows/update-events.yml`** (Vorlage in
+Gepusht wird mit dem eingebauten `GITHUB_TOKEN` (`permissions: packages:
+write`), ein eigenes Token ist nicht nötig. Damit Instanzen das Image ohne
+Login ziehen können, das Package einmalig auf **public** stellen (GitHub →
+Packages → openlitfass → Package settings → Change visibility).
+
+Im `Containerfile` läuft die Go-Stufe immer auf der Architektur des
+Build-Rechners und cross-kompiliert für das Ziel (`--platform=$BUILDPLATFORM`,
+`GOARCH=$TARGETARCH`) — deutlich schneller als unter QEMU.
+
+**Instanz: `.github/workflows/update-events.yml`** (Vorlage in
 `example-instance/`) — Cron alle 6 Stunden, manuell, und bei Push auf
-`sources/`, `inbox/`, `site/`, `instance.json`, `categories.json`. Läuft im
-Kern-Image (kein Kompilieren), führt `fetch` und `build-site` aus und
-committet `data/`, `sources/` (Status) und `inbox/` (gelöschte Dateien)
-zurück. Das Veröffentlichen von `public/` kommt dazu, sobald das Hosting
-feststeht.
+`sources/`, `inbox/`, `site/`, `instance.json`, `categories.json`. Startet
+das Image per `docker run` (nicht als Job-Container: GitHubs
+JavaScript-Actions wie `checkout` laufen nicht in Alpine-Containern),
+führt `fetch` und `build-site` aus und committet `data/`, `sources/`
+(Status) und `inbox/` (gelöschte Dateien) zurück. Läuft genauso auf
+Forgejo/Gitea-Runnern mit Docker. Das Veröffentlichen von `public/` kommt
+dazu, sobald das Hosting feststeht.
 
-**Vor dem ersten Lauf anpassen:**
-- `runs-on`-Labels auf die tatsächlich registrierten Runner-Labels setzen.
-- `IMAGE`/`REGISTRY_USER` in `build-image.yml` und `container.image` in
-  `update-events.yml` auf euren Nutzer/eure Organisation setzen.
-- `REGISTRY_TOKEN`-Secret im Kern-Repo anlegen.
-- Einmal `build-image.yml` manuell auslösen, bevor eine Instanz zum ersten
-  Mal läuft.
+**Vor dem ersten Lauf einer Instanz:** in `update-events.yml` `IMAGE` auf
+`ghcr.io/<owner>/openlitfass:<tag>` setzen.
 
 ## Bekannte Einschränkung
 
 Der Code wurde bisher in keiner Umgebung kompiliert. Vor dem ersten
 produktiven Lauf einmal `go build ./...` und `go vet ./...` in `backend/`
-ausführen (oder das Image bauen, siehe "Lokal ausführen").
+ausführen (oder das Image bauen, siehe "Lokal ausführen"). Der erste Push nach
+GitHub erledigt das über `ci.yml`.

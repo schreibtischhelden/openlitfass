@@ -19,7 +19,7 @@ Kern-Repos.
     …                              beliebige weitere Dateien (Fonts, Favicon, …)
   data/                            von fetch erzeugt (events, categories, sources), wird committet
   public/                          von build-site erzeugt, nicht committen
-  .forgejo/workflows/update-events.yml
+  .github/workflows/update-events.yml
 ```
 
 ## instance.json
@@ -77,7 +77,7 @@ Die Standard-Oberfläche (`web/`) bringt mit:
    Quellen findet: `docs/source-discovery.md`.
 4. Gestaltung: `site/css/theme.css` (Tokens aus `web/css/tokens.css`
    überschreiben) und optional `site/logo.svg`.
-5. In `.forgejo/workflows/update-events.yml` Runner-Label und Image-Pfad
+5. In `.github/workflows/update-events.yml` den Image-Pfad (`IMAGE`)
    anpassen, pushen.
 
 ## Lokal testen
