@@ -82,29 +82,31 @@ func applyCommonFilters(events []model.Event, cfg config.SourceConfig) []model.E
 	return kept
 }
 
-// Title markers for cancelled events, as organisers commonly write them
-// into the title instead of a status field: "ABGESAGT: Lesung",
-// "+++ Entfällt +++ Konzert", "Konzert (abgesagt)", "Konzert – ABGESAGT".
+// Title markers for events that don't take place on this date, as
+// organisers commonly write them into the title instead of a status field:
+// "ABGESAGT: Lesung", "+++ Entfällt +++ Konzert", "Konzert (abgesagt)",
+// "Konzert – ABGESAGT", "Neu-Zeit [VERSCHOBEN!]". A postponed event counts
+// as cancelled for this slot - the new date is usually listed separately.
 // A word alone at the start is not enough ("Abgesagt – ein Theaterstück"
 // could be a title), it needs a separator or brackets.
+//
+// The title itself is never changed: we take over what the organiser
+// wrote and only derive the cancelled flag. Other title hints
+// ("ausverkauft", "Zusatztermin", "Terminverschiebung") are deliberately
+// not interpreted.
 var (
-	cancelWords        = `(?:abgesagt|entfällt|entfaellt|fällt aus|faellt aus|ausgefallen|cancelled|canceled)`
-	cancelPrefixRe     = regexp.MustCompile(`(?i)^\s*(?:\+{2,3}\s*` + cancelWords + `\s*\+{2,3}|[\[(]\s*` + cancelWords + `\s*[\])]|` + cancelWords + `\s*[:!])\s*[-–—:]?\s*`)
-	cancelSuffixRe     = regexp.MustCompile(`(?i)\s*(?:[\[(]\s*` + cancelWords + `\s*[\])]|[-–—:]\s*` + cancelWords + `!?|\+{2,3}\s*` + cancelWords + `\s*\+{2,3})\s*$`)
-	cancelUpperStartRe = regexp.MustCompile(`^\s*(?:ABGESAGT|ENTFÄLLT|FÄLLT AUS|CANCELLED|CANCELED)\s+[-–—]?\s*`)
+	cancelWords        = `(?:abgesagt|entfällt|entfaellt|fällt aus|faellt aus|ausgefallen|verschoben|cancelled|canceled|postponed)`
+	cancelPrefixRe     = regexp.MustCompile(`(?i)^\s*(?:\+{2,3}\s*` + cancelWords + `!?\s*\+{2,3}|[\[(]\s*` + cancelWords + `!?\s*[\])]|` + cancelWords + `\s*[:!])`)
+	cancelSuffixRe     = regexp.MustCompile(`(?i)(?:[\[(]\s*` + cancelWords + `!?\s*[\])]|[-–—:]\s*` + cancelWords + `!?|\+{2,3}\s*` + cancelWords + `!?\s*\+{2,3})\s*$`)
+	cancelUpperStartRe = regexp.MustCompile(`^\s*(?:ABGESAGT|ENTFÄLLT|FÄLLT AUS|VERSCHOBEN|CANCELLED|CANCELED|POSTPONED)\s+[-–—]?\s*\S`)
 )
 
-// markCancelledByTitle sets e.Cancelled and strips the marker from the
-// title if the title carries one of the markers above.
+// markCancelledByTitle sets e.Cancelled if the title carries one of the
+// markers above. The title stays exactly as the source wrote it.
 func markCancelledByTitle(e *model.Event) {
 	for _, re := range []*regexp.Regexp{cancelPrefixRe, cancelSuffixRe, cancelUpperStartRe} {
-		if loc := re.FindStringIndex(e.Title); loc != nil {
-			rest := strings.TrimSpace(e.Title[:loc[0]] + e.Title[loc[1]:])
-			if rest == "" {
-				return // the title is nothing but the marker - leave it alone
-			}
+		if re.MatchString(e.Title) {
 			e.Cancelled = true
-			e.Title = rest
 			return
 		}
 	}

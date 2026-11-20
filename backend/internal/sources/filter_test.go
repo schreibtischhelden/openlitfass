@@ -35,30 +35,39 @@ func TestCommonFiltersCategoryMap(t *testing.T) {
 
 func TestMarkCancelledByTitle(t *testing.T) {
 	tests := []struct {
-		in        string
-		cancelled bool
 		title     string
+		cancelled bool
 	}{
-		{"ABGESAGT: Lesung im Hof", true, "Lesung im Hof"},
-		{"Abgesagt! Konzert", true, "Konzert"},
-		{"+++ Entfällt +++ Repair-Café", true, "Repair-Café"},
-		{"[abgesagt] Flohmarkt", true, "Flohmarkt"},
-		{"Konzert (abgesagt)", true, "Konzert"},
-		{"Konzert – ABGESAGT", true, "Konzert"},
-		{"Kinderdisco - fällt aus!", true, "Kinderdisco"},
-		{"ABGESAGT Sommerfest", true, "Sommerfest"},
-		{"Cancelled: Jazz Night", true, "Jazz Night"},
-		// no marker / ambiguous - unchanged
-		{"Abgesagt – ein Theaterstück über Absagen", false, "Abgesagt – ein Theaterstück über Absagen"},
-		{"Die abgesagte Party", false, "Die abgesagte Party"},
-		{"Lesung", false, "Lesung"},
-		{"ABGESAGT", false, "ABGESAGT"},
+		{"ABGESAGT: Lesung im Hof", true},
+		{"Abgesagt! Konzert", true},
+		{"+++ Entfällt +++ Repair-Café", true},
+		{"[abgesagt] Flohmarkt", true},
+		{"Konzert (abgesagt)", true},
+		{"Konzert – ABGESAGT", true},
+		{"Kinderdisco - fällt aus!", true},
+		{"ENTFÄLLT - Tanztee für alle", true},
+		{"ABGESAGT Sommerfest", true},
+		{"Cancelled: Jazz Night", true},
+		{"Neu-Zeit: Dr. Neu trifft Gabriele Gysi [VERSCHOBEN!]", true}, // old slot of a postponed event
+		{"Lesung (verschoben)", true},
+		// not interpreted
+		{"SONNTAGSSCHÖN [Achtung: Terminverschiebung!]", false},
+		{"FIL - MIT NEUER SHOW - AUSVERKAUFT!", false},
+		{"Rudelsingen [AUSVERKAUFT!]", false},
+		{"Talkshow [ZUSATZTERMIN]", false},
+		{"Abgesagt – ein Theaterstück über Absagen", false},
+		{"Die abgesagte Party", false},
+		{"Das verschobene Fest", false},
+		{"Lesung", false},
 	}
 	for _, tt := range tests {
-		e := model.Event{Title: tt.in}
+		e := model.Event{Title: tt.title}
 		markCancelledByTitle(&e)
-		if e.Cancelled != tt.cancelled || e.Title != tt.title {
-			t.Errorf("%q -> cancelled=%v title=%q, want %v %q", tt.in, e.Cancelled, e.Title, tt.cancelled, tt.title)
+		if e.Cancelled != tt.cancelled {
+			t.Errorf("%q -> cancelled=%v, want %v", tt.title, e.Cancelled, tt.cancelled)
+		}
+		if e.Title != tt.title {
+			t.Errorf("title must stay unchanged: %q -> %q", tt.title, e.Title)
 		}
 	}
 }

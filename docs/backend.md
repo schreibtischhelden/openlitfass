@@ -549,10 +549,16 @@ verschwindet. Erkannt wird eine Absage über:
 | `wcs` | ausgeblendetes Vorkommen (`visible: false`, entspricht `_wcs_canceled`) |
 | `rss`/`json` | Mapping-Regel `cancelled`, z.B. `{"path": "status", "equals": "cancelled|canceled"}` |
 | Inbox | `"cancelled": true` in der Datei |
-| alle | Titel-Markierung, die dabei aus dem Titel entfernt wird: `ABGESAGT: …`, `Abgesagt! …`, `+++ Entfällt +++ …`, `[abgesagt] …`, `… (abgesagt)`, `… – ABGESAGT`, `… - fällt aus!` |
+| alle | Markierung im Titel: `ABGESAGT: …`, `Abgesagt! …`, `+++ Entfällt +++ …`, `[abgesagt] …`, `… (abgesagt)`, `… – ABGESAGT`, `… - fällt aus!`, `… [VERSCHOBEN!]` |
 
-Die Titel-Heuristik verlangt ein Trennzeichen oder Klammern (bzw. Großschreibung
-am Anfang): "Abgesagt – ein Theaterstück" bleibt ein normaler Titel.
+**Der Titel wird nie verändert** – wir übernehmen, was der Veranstalter
+schreibt, und leiten nur das Kennzeichen ab. Ein verschobener Termin gilt auf
+seinem alten Datum als abgesagt (der neue Termin steht meist separat in der
+Quelle). Die Erkennung verlangt ein Trennzeichen oder Klammern (bzw.
+Großschreibung am Anfang): "Abgesagt – ein Theaterstück" bleibt ein normaler
+Titel. Andere Hinweise im Titel werden bewusst nicht ausgewertet –
+"ausverkauft" (wir zeigen Termine, verkaufen keine Tickets), "Zusatztermin",
+"Achtung: Terminverschiebung" (unklar, ob alter oder neuer Termin).
 
 Merkmal-Regeln (`ticketRequired`, `registrationRequired`, `familyFriendly`,
 `cancelled`) lesen den Wert als Boolean; mit `"equals": "a|b"` werden sie
