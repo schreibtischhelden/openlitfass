@@ -546,7 +546,8 @@
     facts.push(fact(ICON.calendar, escapeHtml(longDate(ev.date))));
     facts.push(fact(ICON.clock, escapeHtml(timeText(ev))));
     if (ev.location && (ev.location.name || ev.location.address)) {
-      const q = [ev.location.name, ev.location.address].filter(Boolean).join(", ");
+      // Adresse bevorzugen: der Name ist manchmal nur ein Raum ("Bewegungsraum").
+      const q = ev.location.address || ev.location.name;
       const mapUrl = `https://www.openstreetmap.org/search?query=${encodeURIComponent(q)}`;
       facts.push(fact(ICON.pin, `${escapeHtml(ev.location.name || ev.location.address)}` +
         `<small>${ev.location.name && ev.location.address ? escapeHtml(ev.location.address) + " · " : ""}` +

@@ -130,9 +130,12 @@ func (s *WCSSource) Fetch(ctx context.Context) ([]model.Event, error) {
 			}
 		}
 
-		location := s.cfg.LocationDefault
+		// With a room term: room as name, the venue (locationDefault) as
+		// address, so the frontend shows "Bewegungsraum" plus where the
+		// house is (and its map link finds the house, not the room).
+		location := model.Location{Name: s.cfg.LocationDefault}
 		if len(e.Terms.WcsRoom) > 0 {
-			location = e.Terms.WcsRoom[0].Name
+			location = model.Location{Name: e.Terms.WcsRoom[0].Name, Address: s.cfg.LocationDefault}
 		}
 
 		events = append(events, model.Event{
@@ -142,7 +145,7 @@ func (s *WCSSource) Fetch(ctx context.Context) ([]model.Event, error) {
 			Date:        date,
 			StartTime:   startTime,
 			EndTime:     endTime,
-			Location:    model.Location{Name: location},
+			Location:    location,
 			Price:       model.Price{Free: true, Amount: nil},
 			Organizer:   s.cfg.Organizer,
 			URL:         e.Permalink,
