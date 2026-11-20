@@ -1,0 +1,13 @@
+{
+  "label": "Beispiel-Bühne",
+  "homepage": "https://example.org",
+  "type": "ical",
+  "url": "https://example.org/events.ics",
+  "daysAhead": 120,
+  "organizer": "Beispiel-Bühne",
+  "locationDefault": "Beispiel-Bühne, Musterstraße 5",
+  "categoryMap": {
+    "Konzert": "Kultur",
+    "Theater": "Kultur"
+  }
+}

@@ -55,7 +55,7 @@ ortsbezogenen Inhalte:
 gemeinsame Liste. `sources.All()` (in `internal/sources/source.go`) liest
 beim Start jede `*.json`-Datei in diesem Verzeichnis (alphabetisch, für
 deterministische Runs) und baut daraus automatisch einen `RSSSource`,
-`JSONSource` oder `WCSSource` — **für RSS-Feeds, JSON-APIs und WordPress
+`JSONSource`, `ICalSource` oder `WCSSource` — **für RSS-Feeds, JSON-APIs, iCal-Kalender und WordPress
 "Weekly Class Schedule"-Kalender muss kein Go-Code geschrieben werden**, nur
 eine neue Datei angelegt werden.
 
@@ -70,13 +70,14 @@ zum Kopieren). Vorlagen für alle drei Typen liegen in
 
 - `beispiel-rss.example.json` — RSS
 - `beispiel-json.example.json` — JSON-API
+- `beispiel-ical.example.json` — `type: "ical"` (siehe Abschnitt "ical-Quellen")
 - `beispiel-wcs.example.json` — `type: "wcs"` (siehe Abschnitt "wcs-Quellen")
 
 Eine Quelle lässt sich mit `"disabled": true` abschalten, ohne die Datei zu
 löschen. Das `"status"`-Feld verwaltet die Pipeline selbst (siehe
 "Health-Status"), nicht von Hand pflegen.
 
-Nur für Formate, die auch da nicht reinpassen (iCal, HTML-Scraping,
+Nur für Formate, die auch da nicht reinpassen (HTML-Scraping,
 paginierte/authentifizierte APIs, …), muss man selbst eine `Source`
 implementieren — siehe `internal/sources/example.go` als Vorlage.
 
@@ -310,6 +311,52 @@ zufällig richtig war.
 Abgesagte Termine (`"visible": false` in der Antwort, korrespondiert mit
 `meta._wcs_canceled` auf Seiten der Quelle) werden herausgefiltert statt
 angezeigt.
+
+## ical-Quellen (iCalendar / .ics)
+
+Für Kalender-Exporte — Google Kalender, Nextcloud, Outlook und die meisten
+WordPress-Event-Plugins (Events Manager `/events.ics`, The Events Calendar
+`?ical=1`, …). Kein `mapping`-Block nötig, die Felder sind durch den
+Standard festgelegt:
+
+```jsonc
+{
+  "type": "ical",
+  "url": "https://example.org/events.ics",
+  "daysAhead": 120,                 // Fenster; ohne Angabe 180 Tage für Wiederholungen
+  "organizer": "Beispiel-Bühne",    // falls ORGANIZER;CN fehlt
+  "locationDefault": "Beispiel-Bühne, Musterstraße 5",  // falls LOCATION fehlt
+  "categoryMap": { "Konzert": "Kultur" },
+  "familyFriendly": false
+}
+```
+
+| iCal | Event |
+|---|---|
+| `SUMMARY` | `title` |
+| `DESCRIPTION` | `description` (bereinigt, gekürzt) |
+| `URL` | `url` |
+| erster Wert von `CATEGORIES` | `category` (über `categoryMap` übersetzen) |
+| `ORGANIZER;CN=…` | `organizer`, sonst `organizer` aus der Konfiguration |
+| `X-APPLE-STRUCTURED-LOCATION` (`X-TITLE`/`X-ADDRESS`) | `location.name`/`address` |
+| sonst `LOCATION` | `location.name`, sonst `locationDefault` |
+| `UID` (+ Datum bei Wiederholungen) | stabile ID |
+| — | Preis: unbekannt (iCal kennt keinen Preis) |
+
+Zeiten: UTC (`…Z`), `TZID=…` und "schwebende" Zeiten ohne Zone (dann
+`X-WR-TIMEZONE` des Kalenders, sonst die Instanz-Zeitzone); ganztägige
+Termine (`VALUE=DATE`); `DURATION` statt `DTEND`. Ist das Ende gleich dem
+Start (Events Manager macht das, wenn keine Endzeit gepflegt ist), bleibt
+die Endzeit leer. Unbekannte Zonennamen (z.B. Windows-Namen) fallen auf die
+Instanz-Zeitzone zurück.
+
+Wiederholungen (`RRULE`): `DAILY`, `WEEKLY` (auch mit `BYDAY=TU,TH`),
+`MONTHLY` (gleicher Tag im Monat), `YEARLY`, jeweils mit `INTERVAL`,
+`COUNT`, `UNTIL`; `EXDATE` und geänderte Einzeltermine (`RECURRENCE-ID`)
+werden berücksichtigt. Aufgefaltet wird nur innerhalb des Fensters
+(höchstens 500 Termine). Nicht unterstützte Regeln (z.B. "jeder erste
+Montag", `BYDAY=1MO` bei `MONTHLY`) liefern nur den ersten Termin und eine
+Log-Zeile. Abgesagte Termine (`STATUS:CANCELLED`) werden übersprungen.
 
 ## Fehlertoleranz
 
@@ -636,4 +683,6 @@ dazu, sobald das Hosting feststeht.
   `categoryMap` und HTML-Bereinigung.
 - Go-Unit-Tests für Text-Bereinigung, Template, Preis, Paginierung,
   Filter/`categoryMap` und das Zurückschreiben der Quelldateien.
+- `ical` gegen einen echten Events-Manager-Export (Freilichtbühne Weißensee) als
+  Test-Fixture plus Tests für Zeitzonen, ganztägig, RRULE, EXDATE, RECURRENCE-ID.
 - `rss` ist noch nicht gegen eine echte Quelle gelaufen.

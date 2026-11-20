@@ -50,7 +50,8 @@ type SourceConfig struct {
 	// Homepage is the public website of the source (not the feed URL),
 	// linked from the frontend's source list. Optional.
 	Homepage string `json:"homepage,omitempty"`
-	// Type selects the fetcher: "rss", "json", or "wcs" (WordPress "Weekly
+	// Type selects the fetcher: "rss", "json", "ical" (see
+	// internal/sources/ical.go) or "wcs" (WordPress "Weekly
 	// Class Schedule" plugin by CurlyThemes — see internal/sources/wcs.go).
 	Type string `json:"type"`
 	// URL is the feed/API endpoint to fetch. For "wcs" this is the site's
@@ -95,7 +96,8 @@ type SourceConfig struct {
 	// = no category filter.
 	Categories []string `json:"categories,omitempty"`
 
-	// The fields below only apply to "wcs" sources.
+	// The fields below apply to "wcs" and "ical" sources (WCSTypeIDs: wcs
+	// only; CategoryMap: every type).
 
 	// WCSTypeIDs filters by the plugin's "wcs_type" taxonomy term IDs at
 	// request time (not a post-filter like Categories above — this changes
@@ -108,10 +110,11 @@ type SourceConfig struct {
 	// to admin-ajax.php?action=wcs_get_events_json, and reading off the
 	// content[wcs_type][] values used there.
 	WCSTypeIDs []int `json:"wcsTypeIds,omitempty"`
-	// Organizer is used verbatim for every event (the plugin's API doesn't
-	// expose one).
+	// Organizer is used for every event (wcs: the plugin's API doesn't
+	// expose one; ical: when an event has no ORGANIZER;CN).
 	Organizer string `json:"organizer,omitempty"`
-	// LocationDefault is used when an event has no "wcs_room" term.
+	// LocationDefault is used when an event has no "wcs_room" term (wcs,
+	// then as address) or no LOCATION (ical).
 	LocationDefault string `json:"locationDefault,omitempty"`
 	// CategoryMap translates the source's own category names to the
 	// instance's vocabulary (see <instance>/categories.json), e.g.
