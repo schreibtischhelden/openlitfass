@@ -32,6 +32,9 @@
     family: "Familie & Kinder",
     resultOne: "1 Termin",
     resultMany: (n) => `${n} Termine`,
+    resultCancelled: (n) => ` · davon ${n} abgesagt`,
+    cancelled: "Abgesagt",
+    cancelledNotice: "Laut Veranstalter findet dieser Termin nicht statt.",
     savedHeading: "Gemerkt",
     emptyNoData: ["Gerade stehen keine Termine an.", "Schau bald wieder vorbei."],
     emptyFiltered: ["Keine Termine für diese Auswahl.", ""],
@@ -487,8 +490,10 @@
     const results = filteredEvents();
     const savedView = state.view === "saved";
 
+    const cancelledCount = results.filter((ev) => ev.cancelled).length;
     el.resultCount.textContent = (savedView ? `${STR.savedHeading} · ` : "") +
-      (results.length === 1 ? STR.resultOne : STR.resultMany(results.length));
+      (results.length === 1 ? STR.resultOne : STR.resultMany(results.length)) +
+      (cancelledCount ? STR.resultCancelled(cancelledCount) : "");
     el.resultCount.hidden = results.length === 0;
 
     const groups = new Map();
@@ -531,9 +536,15 @@
       .map((a) => `<span title="${escapeHtml(a.label)}" aria-label="${escapeHtml(a.label)}">${svg(a.icon)}</span>`).join("");
     if (attrIcons) meta.push(attrIcons);
 
-    return `<li><a class="event-card" href="#${encodeURIComponent(ev.id)}">` +
+    // Abgesagte Termine bleiben in der Liste (wer hingehen wollte, soll es
+    // erfahren), sind aber deutlich gekennzeichnet: Etikett + durchgestrichener
+    // Titel + gedämpfte Karte. Das Etikett ist Text, nicht nur Farbe.
+    const cancelled = ev.cancelled
+      ? `<span class="cancelled-badge">${STR.cancelled}</span>`
+      : "";
+    return `<li><a class="event-card${ev.cancelled ? " event-card--cancelled" : ""}" href="#${encodeURIComponent(ev.id)}">` +
       `<div class="event-card__time">${time}</div>` +
-      `<div class="event-card__body">${categoryLabelHtml(ev.category)}` +
+      `<div class="event-card__body">${cancelled}${categoryLabelHtml(ev.category)}` +
       `<h3 class="event-card__title">${escapeHtml(ev.title)}</h3>` +
       `<p class="event-card__meta">${meta.join("")}</p></div>` +
       (saved.has(ev.id) ? `<span class="event-card__saved" aria-label="${STR.savedHeading}">${svg(ICON.star)}</span>` : "") +
@@ -576,8 +587,11 @@
       `<button type="button" class="icon-btn star-btn${isSaved ? " is-active" : ""}" id="detailStar" aria-pressed="${isSaved}" ` +
       `aria-label="${isSaved ? STR.unsave : STR.save}" title="${isSaved ? STR.unsave : STR.save}">${svg(ICON.star)}</button>` +
       `</div>` +
+      (ev.cancelled
+        ? `<div class="cancelled-notice" role="status"><strong>${STR.cancelled}</strong> ${STR.cancelledNotice}</div>`
+        : "") +
       categoryLabelHtml(ev.category) +
-      `<h1 class="detail__title">${escapeHtml(ev.title)}</h1>` +
+      `<h1 class="detail__title${ev.cancelled ? " is-cancelled" : ""}">${escapeHtml(ev.title)}</h1>` +
       `<ul class="facts">${facts.join("")}</ul>` +
       (ev.description ? `<p class="detail__desc">${escapeHtml(ev.description)}</p>` : "") +
       `<div class="btn-row">` +
@@ -617,7 +631,7 @@
 
   function shareEvent(ev) {
     const url = eventLink(ev);
-    const text = `${ev.title} · ${dayHeading(ev.date)}${ev.startTime ? ", " + ev.startTime : ""}`;
+    const text = `${ev.cancelled ? STR.cancelled + ": " : ""}${ev.title} · ${dayHeading(ev.date)}${ev.startTime ? ", " + ev.startTime : ""}`;
     if (navigator.share) {
       navigator.share({ title: ev.title, text, url }).catch(() => {});
       return;
@@ -651,7 +665,8 @@
       lines.push(`DTSTART;VALUE=DATE:${icsDate(ev.date)}`);
       lines.push(`DTEND;VALUE=DATE:${icsDate(iso(addDays(parseDate(ev.date), 1)))}`);
     }
-    lines.push(`SUMMARY:${icsEscape(ev.title)}`);
+    lines.push(`SUMMARY:${icsEscape((ev.cancelled ? STR.cancelled + ": " : "") + ev.title)}`);
+    if (ev.cancelled) lines.push("STATUS:CANCELLED");
     if (ev.description) lines.push(`DESCRIPTION:${icsEscape(ev.description)}`);
     const loc = ev.location ? [ev.location.name, ev.location.address].filter(Boolean).join(", ") : "";
     if (loc) lines.push(`LOCATION:${icsEscape(loc)}`);

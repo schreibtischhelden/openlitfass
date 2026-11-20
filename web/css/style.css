@@ -473,3 +473,43 @@ button { font: inherit; }
   color: var(--color-accent);
 }
 .chip.chip--clear:hover { background: var(--color-accent); color: #fff; }
+
+/* ---------- Abgesagte Termine ----------
+   Bleiben sichtbar, sind aber eindeutig markiert: Text-Etikett (nicht nur
+   Farbe, für Screenreader und Farbfehlsichtige), durchgestrichener Titel,
+   gedämpfte Karte. Farben aus den Fehler-Tokens (tokens.css). */
+.cancelled-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--color-fehler-500, #C1392B);
+  color: var(--color-fehler-text-on-500, #fff);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+.event-card--cancelled { background: var(--color-bg); border-style: dashed; }
+.event-card--cancelled .event-card__title,
+.detail__title.is-cancelled {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  color: var(--color-text-muted);
+}
+.event-card--cancelled .event-card__time,
+.event-card--cancelled .category-label { opacity: 0.7; }
+
+.cancelled-notice {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-s);
+  border-left: 4px solid var(--color-fehler-500, #C1392B);
+  background: var(--color-fehler-100, #F5DFDD);
+  color: #5a1a13;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .cancelled-notice { background: #3a1d1a; color: #f5dfdd; }
+}
+[data-theme="dark"] .cancelled-notice { background: #3a1d1a; color: #f5dfdd; }
