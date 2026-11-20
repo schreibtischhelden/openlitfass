@@ -1,0 +1,16 @@
+{
+  "label": "Beispiel-Kulturzentrum",
+  "homepage": "https://example.org",
+  "type": "rss",
+  "url": "https://example.org/events/feed",
+  "mapping": {
+    "sourceId": { "path": "guid" },
+    "title": { "path": "title" },
+    "description": { "path": "description" },
+    "url": { "path": "link" },
+    "category": { "path": "category", "default": "Kultur" },
+    "organizer": { "default": "Beispiel-Kulturzentrum" },
+    "locationName": { "default": "Beispiel-Kulturzentrum" },
+    "start": { "path": "pubdate", "format": "RFC1123Z" }
+  }
+}

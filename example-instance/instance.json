@@ -1,0 +1,14 @@
+{
+  "name": "example.events",
+  "shortName": "Kiez-Termine",
+  "title": "example.events – Veranstaltungen im Kiez",
+  "description": "Der Event-Kalender für deinen Kiez.",
+  "about": "example.events sammelt Veranstaltungen aus dem Kiez an einem Ort: Märkte, Konzerte, Lesungen, Sport und alles, was die Nachbarschaft auf die Beine stellt.\n\nDie Termine kommen automatisch von den Websites der Veranstalter und werden mehrmals täglich aktualisiert. Für die Richtigkeit sind die jeweiligen Veranstalter verantwortlich.",
+  "baseUrl": "https://example.events",
+  "timezone": "Europe/Berlin",
+  "language": "de",
+  "themeColor": "#2F3E4E",
+  "imprintUrl": "impressum.html",
+  "privacyUrl": "datenschutz.html",
+  "submitUrl": "mailto:termine@example.events?subject=Termin%20f%C3%BCr%20example.events"
+}

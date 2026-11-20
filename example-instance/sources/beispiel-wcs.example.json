@@ -1,0 +1,15 @@
+{
+  "label": "Beispiel-Familienzentrum",
+  "homepage": "https://example.org",
+  "type": "wcs",
+  "url": "https://example.org",
+  "daysAhead": 30,
+  "organizer": "Beispiel-Familienzentrum",
+  "locationDefault": "Beispiel-Familienzentrum, Musterstraße 1",
+  "wcsTypeIds": [1, 2, 3],
+  "familyFriendly": true,
+  "categoryMap": {
+    "bewegung": "Sport",
+    "kreatives": "Kultur"
+  }
+}

@@ -1,0 +1,233 @@
+// Package config loads <instance>/sources/*.json — one file per event
+// source, declaring where to fetch it and how to map its fields onto
+// model.Event. Adding, editing or removing a source touches exactly one
+// file, which keeps git history/diffs/merges clean.
+package config
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+
+	"openlitfass/backend/internal/mapping"
+)
+
+// SourceStatus records the outcome of the most recent fetch attempts for a
+// source, written back into the source's own config file (see
+// RecordAttempt) rather than a separate report file - so the error and the
+// URL/mapping that produced it live in the same place.
+type SourceStatus struct {
+	// LastAttempt is when this source was last fetched at all, successful
+	// or not.
+	LastAttempt string `json:"lastAttempt,omitempty"`
+	// LastSuccess is when this source last returned events without error.
+	// Kept from the previous run if the most recent attempt failed, so you
+	// can see both "when did it last work" and "when did it last try".
+	LastSuccess string `json:"lastSuccess,omitempty"`
+	// LastError is the plain-text error from the most recent attempt (e.g.
+	// "fetch https://...: unexpected status 404 Not Found", "timestamp too
+	// short", "panic: ..."). Empty when the most recent attempt succeeded.
+	LastError string `json:"lastError,omitempty"`
+}
+
+// SourceConfig declares one event source. See
+// <instance>/sources/*.example.json for fully worked RSS and JSON
+// examples, and docs/backend.md for the mapping syntax.
+type SourceConfig struct {
+	// Name is a short, stable identifier (Event.Source.Name, stable id
+	// derivation, log lines). Optional: defaults to the filename (without
+	// .json) if omitted, so the file itself can be the single source of
+	// truth for identity.
+	Name string `json:"name,omitempty"`
+	// Label is the human-readable source name shown in the frontend (event
+	// detail "Quelle: ...", "Über"-Seite). Optional: defaults to Name.
+	Label string `json:"label,omitempty"`
+	// Homepage is the public website of the source (not the feed URL),
+	// linked from the frontend's source list. Optional.
+	Homepage string `json:"homepage,omitempty"`
+	// Type selects the fetcher: "rss", "json", or "wcs" (WordPress "Weekly
+	// Class Schedule" plugin by CurlyThemes — see internal/sources/wcs.go).
+	Type string `json:"type"`
+	// URL is the feed/API endpoint to fetch. For "wcs" this is the site's
+	// base URL (e.g. "https://example.org"), not the ajax endpoint itself.
+	URL string `json:"url"`
+	// Disabled skips this source entirely (no fetch attempt, no status
+	// update) without deleting or renaming the file - useful when a source
+	// is temporarily broken or a venue is on hiatus.
+	Disabled bool `json:"disabled,omitempty"`
+	// ItemsPath (JSON sources only) is a dot-path to the array of items
+	// within the decoded response, e.g. "data.items". Empty means the
+	// top-level response is itself the array.
+	ItemsPath string `json:"itemsPath,omitempty"`
+	// Mapping declares how to translate one item into a model.Event. Only
+	// used by "rss"/"json" sources. Pointer + omitempty so "wcs" sources
+	// (which don't use it) don't get a large empty "mapping" block written
+	// back into their file every time RecordAttempt runs.
+	Mapping *mapping.SourceMapping `json:"mapping,omitempty"`
+
+	// The two fields below apply uniformly to every source type ("rss",
+	// "json", "wcs", ...) — enforced by withCommonFilters in
+	// internal/sources/filter.go, wrapped around every source built in
+	// All(). Already-past events are always dropped regardless of these
+	// settings; that part isn't configurable.
+
+	// DaysAhead, if set, drops events further out than today+N days
+	// (instance timezone). Unset/0 = no window filter (rss/json keep whatever
+	// the feed/API returns). "wcs" sources additionally use this to build
+	// an efficient request window (defaulting to 30 there if unset) rather
+	// than fetching everything and filtering client-side.
+	DaysAhead int `json:"daysAhead,omitempty"`
+	// Categories, if set, keeps only events whose resolved Category (after
+	// any source-specific mapping/CategoryMap) is in this list. Unset/empty
+	// = no category filter.
+	Categories []string `json:"categories,omitempty"`
+
+	// The fields below only apply to "wcs" sources.
+
+	// WCSTypeIDs filters by the plugin's "wcs_type" taxonomy term IDs at
+	// request time (not a post-filter like Categories above — this changes
+	// what the remote endpoint returns in the first place).
+	// Important: WCS sites are commonly set up from a plugin demo/template
+	// and can still carry unrelated demo classes (dance/gym/school sample
+	// data) with no bearing on the real venue — always set this explicitly
+	// rather than leaving it empty. Find the IDs by opening the site's own
+	// calendar in a browser, checking the network request its widget makes
+	// to admin-ajax.php?action=wcs_get_events_json, and reading off the
+	// content[wcs_type][] values used there.
+	WCSTypeIDs []int `json:"wcsTypeIds,omitempty"`
+	// Organizer is used verbatim for every event (the plugin's API doesn't
+	// expose one).
+	Organizer string `json:"organizer,omitempty"`
+	// LocationDefault is used when an event has no "wcs_room" term.
+	LocationDefault string `json:"locationDefault,omitempty"`
+	// CategoryMap translates the plugin's wcs_type term slug to this
+	// project's category vocabulary (see <instance>/categories.json), so
+	// events get an icon in the frontend instead of falling back to the raw
+	// (usually English/generic) term name. Unmapped slugs keep the term's
+	// display name as-is.
+	CategoryMap map[string]string `json:"categoryMap,omitempty"`
+	// FamilyFriendly is applied to every event this source produces (see
+	// model.Event.FamilyFriendly) - a per-event signal isn't available from
+	// the wcs API, but for a source that IS a family/parenting venue this is
+	// a verified fact about the source itself, not a guess. Leave unset
+	// (false) for sources where family-friendliness varies event to event.
+	FamilyFriendly bool `json:"familyFriendly,omitempty"`
+
+	// Status is maintained by the pipeline itself (see RecordAttempt) - not
+	// something you write by hand. Absent until the first fetch attempt.
+	Status *SourceStatus `json:"status,omitempty"`
+
+	// Path is the file this config was loaded from. Not part of the JSON -
+	// set by Load, used by internal/sources to call RecordAttempt after a
+	// fetch so status lands back in the right file.
+	Path string `json:"-"`
+}
+
+// Load reads every *.json file directly inside dir — one source per file
+// (see <instance>/sources/) — and returns their parsed SourceConfigs,
+// ordered by filename for deterministic runs.
+//
+// Files ending in ".example.json" are skipped: they're copy-paste templates,
+// not live sources. A missing directory is treated as zero configured
+// sources rather than an error, so the repo works before any source file
+// has been added.
+//
+// A single malformed source file is logged and skipped rather than failing
+// the whole load — one typo in one file shouldn't take every other,
+// perfectly valid source down with it. Load only returns an error if the
+// directory itself can't be listed.
+func Load(dir string) ([]SourceConfig, error) {
+	entries, err := os.ReadDir(dir)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", dir, err)
+	}
+
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !strings.HasSuffix(name, ".json") || strings.HasSuffix(name, ".example.json") {
+			continue
+		}
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	configs := make([]SourceConfig, 0, len(names))
+	for _, name := range names {
+		path := filepath.Join(dir, name)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			log.Printf("skipping %s: %v", path, err)
+			continue
+		}
+		var c SourceConfig
+		if err := json.Unmarshal(data, &c); err != nil {
+			log.Printf("skipping %s: invalid json: %v", path, err)
+			continue
+		}
+		if c.Name == "" {
+			c.Name = strings.TrimSuffix(name, ".json")
+		}
+		c.Path = path
+		configs = append(configs, c)
+	}
+	return configs, nil
+}
+
+// RecordAttempt writes the outcome of a fetch attempt back into path's own
+// JSON, updating only the "status" field. fetchErr is nil on success.
+//
+// It re-reads path fresh from disk rather than reusing an in-memory
+// SourceConfig, so it never re-derives/writes a "name" that the file didn't
+// already have (Load's filename-fallback is a runtime convenience, not
+// something that should leak into the file on disk).
+//
+// This re-serializes the whole file via SourceConfig, so field order
+// follows the Go struct's declared order (stable across runs, but not
+// necessarily how a human originally formatted it), and any JSON keys not
+// modeled by SourceConfig are dropped. Given the schema is the single
+// source of truth for what a source file may contain, that's an accepted
+// trade-off for keeping this simple.
+func RecordAttempt(path string, fetchErr error) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	var c SourceConfig
+	if err := json.Unmarshal(data, &c); err != nil {
+		return fmt.Errorf("parse %s: %w", path, err)
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	status := SourceStatus{LastAttempt: now}
+	if c.Status != nil {
+		status.LastSuccess = c.Status.LastSuccess
+	}
+	if fetchErr != nil {
+		status.LastError = fetchErr.Error()
+	} else {
+		status.LastSuccess = now
+	}
+	c.Status = &status
+	c.Path = "" // json:"-" anyway, but be explicit that it never gets written
+
+	out, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal %s: %w", path, err)
+	}
+	if err := os.WriteFile(path, append(out, '\n'), 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	return nil
+}

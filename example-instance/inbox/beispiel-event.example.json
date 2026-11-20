@@ -1,0 +1,11 @@
+{
+  "title": "Nachbarschaftsfest",
+  "description": "Kleines Fest mit Kaffee und Kuchen - kein offizieller Feed dafür vorhanden.",
+  "category": "Kultur",
+  "date": "2027-06-12",
+  "startTime": "15:00",
+  "endTime": "18:00",
+  "location": { "name": "Marktplatz", "address": "Musterstraße 1" },
+  "organizer": "Nachbarschaftsinitiative",
+  "familyFriendly": true
+}

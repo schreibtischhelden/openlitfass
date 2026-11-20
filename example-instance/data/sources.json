@@ -1,0 +1,9 @@
+{
+  "generatedAt": "2026-11-20T08:00:00Z",
+  "sources": [
+    { "name": "beispiel-json", "label": "Beispiel-Veranstaltungs-API", "homepage": "https://example.org", "lastSuccess": "2026-11-20T08:00:00Z" },
+    { "name": "beispiel-rss", "label": "Beispiel-Kulturzentrum", "homepage": "https://example.org", "lastSuccess": "2026-11-20T08:00:00Z" },
+    { "name": "beispiel-wcs", "label": "Beispiel-Familienzentrum", "homepage": "https://example.org", "lastSuccess": "2026-11-20T08:00:00Z" },
+    { "name": "inbox", "label": "Von Hand eingetragen" }
+  ]
+}

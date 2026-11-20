@@ -1,0 +1,21 @@
+{
+  "label": "Beispiel-Veranstaltungs-API",
+  "homepage": "https://example.org",
+  "type": "json",
+  "url": "https://example.org/api/events",
+  "itemsPath": "data.items",
+  "daysAhead": 60,
+  "mapping": {
+    "sourceId": { "path": "id" },
+    "title": { "path": "name" },
+    "description": { "path": "text" },
+    "url": { "path": "detailUrl" },
+    "category": { "path": "tags.0", "default": "Unkategorisiert" },
+    "organizer": { "path": "organizer.name" },
+    "locationName": { "path": "location.title" },
+    "locationAddress": { "path": "location.address" },
+    "start": { "path": "startDateTime", "format": "2006-01-02T15:04:05Z07:00" },
+    "end": { "path": "endDateTime", "format": "2006-01-02T15:04:05Z07:00" },
+    "price": { "amountPath": "price.amount" }
+  }
+}
