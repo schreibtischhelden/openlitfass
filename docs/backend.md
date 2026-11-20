@@ -90,13 +90,30 @@ Eintrag darin ist eine **FieldRule**:
   "path": "location.title",   // Dot-Pfad in das Item, z.B. "a.b.0" für Array-Index 0
   "regex": "Beginn (?P<value>\\d{2}:\\d{2})",  // optional: Wert per Regex aus dem String extrahieren
   "format": "RFC1123Z",        // optional: nur für start/end – Zeit-Layout zum Parsen
-  "default": "Marktplatz"      // optional: Fallback, wenn path nichts liefert
+  "default": "Marktplatz",     // optional: Fallback, wenn path nichts liefert
+  "template": "{venue.address}, {venue.zip} {venue.city}"  // statt path: mehrere Werte kombinieren
 }
 ```
+
+`template` setzt jeden `{dot.pfad}` durch seinen Wert und räumt Trennzeichen
+neben leeren Werten auf (fehlt die Straße, wird daraus "13086 Berlin", nicht
+", 13086 Berlin").
+
+**Text wird immer bereinigt:** Alle Textfelder aus `rss`/`json`-Quellen
+laufen durch `mapping.CleanText` — HTML-Tags raus, Entitäten dekodiert
+(`&#8211;` → `–`, `&#038;` → `&`), weiche Trennstriche und Nullbreite-Zeichen
+entfernt, Leerraum zusammengefasst. `description` behält Absätze und wird bei
+1200 Zeichen mit "…" gekürzt.
 
 **Für JSON-Quellen** ist `path` ein Dot-Pfad in die dekodierte JSON-Antwort
 (`itemsPath` zeigt vorher auf das Array der Einzel-Items, z.B. `"data.items"`;
 leer = die Antwort selbst ist bereits das Array).
+
+**Paginierte JSON-APIs:** `nextPath` zeigt auf die URL der nächsten Seite in
+der Antwort (z.B. `"next_rest_url"` bei WordPress "The Events Calendar").
+Gefolgt wird, bis keine nächste Seite mehr kommt, `maxPages` (Standard 10)
+erreicht ist oder eine ganze Seite hinter dem `daysAhead`-Fenster liegt.
+Schlägt eine spätere Seite fehl, bleiben die bisherigen Termine erhalten.
 
 **Für RSS-Quellen** ist `path` der kleingeschriebene, Namespace-freie
 Tag-Name innerhalb von `<item>` – Standardfelder sind `title`, `link`,
@@ -120,8 +137,11 @@ sinnvolles Ergebnis braucht's mindestens `title`):
   - `date`, `startTime`, `endTime` direkt – wenn die Quelle diese Teile
     schon einzeln in exakt diesem Format liefert (`YYYY-MM-DD` / `HH:MM`);
     werden 1:1 übernommen (ggf. per `regex` extrahiert), nicht umformatiert
-- `price` – eigenes Objekt: `amountPath` (Zahl in Euro; 0/fehlend = kostenlos)
-  und/oder `freePath` (expliziter Boolean, hat Vorrang)
+- `price` – eigenes Objekt: `amountPath` (Zahl in Euro, auch als String;
+  0/fehlend = kostenlos) und/oder `freePath` (expliziter Boolean, hat
+  Vorrang). Mit `"unknownIfMissing": true` bedeutet ein fehlender Betrag
+  "Preis unbekannt" (keine Anzeige) statt "kostenlos" — für Quellen, die den
+  Preis weglassen, wenn sie ihn nicht kennen.
 
 `format` akzeptiert entweder einen Go-Referenz-Layout-String
 (`2006-01-02T15:04:05Z07:00`) oder die Aliase `RFC3339`, `RFC1123Z`
@@ -129,7 +149,7 @@ sinnvolles Ergebnis braucht's mindestens `title`):
 
 ## Gemeinsame Filter (alle Quelltypen)
 
-Zwei Felder gelten unabhängig vom `type` (`rss`, `json`, `wcs`, ...) für jede
+Drei Felder gelten unabhängig vom `type` (`rss`, `json`, `wcs`, ...) für jede
 Quelle gleichermaßen — durchgesetzt von `withCommonFilters` in
 `internal/sources/filter.go`, das sich in `source.go` → `All()` um jede
 Quelle wickelt:
@@ -137,6 +157,7 @@ Quelle wickelt:
 ```jsonc
 {
   "daysAhead": 30,                       // optional: Fenster ab heute
+  "categoryMap": { "Kino": "Kultur" },   // optional: Quell-Kategorie -> Instanz-Kategorie
   "categories": ["Kultur", "Markt"]      // optional: Kategorie-Allowlist
 }
 ```
@@ -144,10 +165,13 @@ Quelle wickelt:
 - `daysAhead` – lässt Events raus, die mehr als N Tage in der Zukunft liegen
   (Instanz-Zeitzone). Ohne dieses Feld: kein Fenster, es bleibt, was die Quelle
   liefert. Bei `wcs`-Quellen steuert es zusätzlich das Zeitfenster der
-  Anfrage selbst (effizienter als alles zu holen und dann zu filtern).
-- `categories` – Allowlist auf das bereits aufgelöste `category`-Feld (nach
-  Mapping bzw. `categoryMap` bei `wcs`). Ohne dieses Feld: keine
-  Einschränkung.
+  Anfrage selbst, bei paginierten `json`-Quellen das Ende der Paginierung.
+- `categoryMap` – übersetzt die Kategorie-Namen der Quelle in das Vokabular
+  der Instanz (`categories.json`), Schlüssel ohne Rücksicht auf
+  Groß-/Kleinschreibung. Nicht zugeordnete Werte bleiben, wie sie sind (und
+  erscheinen dann mit Ersatz-Piktogramm, siehe unten).
+- `categories` – Allowlist auf das aufgelöste `category`-Feld (nach Mapping
+  und `categoryMap`). Ohne dieses Feld: keine Einschränkung.
 - **Bereits vergangene Events werden immer verworfen**, unabhängig von
   diesen beiden Feldern — das ist kein Feature-Flag, sondern fixes Verhalten
   für einen Event-Kalender.
@@ -607,5 +631,9 @@ dazu, sobald das Hosting feststeht.
   Status-Feld, `sources.json` korrekt; Inbox-Event wird übernommen.
 - `build-site` gegen `example-instance` und weissens.ee: vollständige Seite
   inkl. Manifest, `site.json` und gestempeltem Service Worker.
-- Noch keine Go-Unit-Tests (`go test` findet keine Testdateien).
-- RSS- und JSON-Quelltyp sind noch nicht gegen eine echte Quelle gelaufen.
+- `json` gegen eine echte Quelle: Brotfabrik (WordPress "The Events Calendar",
+  4 Seiten, 192 Termine in 30 Tagen) mit Paginierung, Template-Adresse,
+  `categoryMap` und HTML-Bereinigung.
+- Go-Unit-Tests für Text-Bereinigung, Template, Preis, Paginierung,
+  Filter/`categoryMap` und das Zurückschreiben der Quelldateien.
+- `rss` ist noch nicht gegen eine echte Quelle gelaufen.
