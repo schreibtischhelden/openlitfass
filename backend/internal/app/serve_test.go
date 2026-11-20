@@ -120,3 +120,84 @@ func TestHealthz(t *testing.T) {
 		t.Errorf("healthz: %d %+v %v", r.StatusCode, st, err)
 	}
 }
+
+func TestMetrics(t *testing.T) {
+	inst, web := testInstance(t)
+	// Two events, one cancelled, one merged from two sources.
+	if err := os.WriteFile(inst.EventsOutput(), []byte(`{"events":[
+	  {"id":"a","title":"A","date":"2030-01-01","category":"Kultur","source":"brot","sources":["brot","agg"],"price":{"free":true}},
+	  {"id":"b","title":"B \"x\"","date":"2030-01-02","category":"Sport","source":"fz","cancelled":true,"price":{"free":true}}
+	]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(inst.SourcesDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(inst.SourcesDir(), "brot.json"), []byte(`{"type":"json","status":{"lastSuccess":"2030-01-01T10:00:00Z"}}`), 0o644)
+	os.WriteFile(filepath.Join(inst.SourcesDir(), "fz.json"), []byte(`{"type":"wcs","status":{"lastSuccess":"2029-12-31T10:00:00Z","lastError":"timeout"}}`), 0o644)
+
+	s := &Server{Instance: inst, WebDir: web, PublicDir: inst.Path("public")}
+	if err := s.Rebuild(); err != nil {
+		t.Fatal(err)
+	}
+	h := s.Handler()
+	get(t, h, "/")
+	get(t, h, "/nope")
+
+	r := get(t, h, "/metrics")
+	if ct := r.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/plain; version=0.0.4") {
+		t.Errorf("Content-Type = %q", ct)
+	}
+	body, _ := io.ReadAll(r.Body)
+	out := string(body)
+	for _, want := range []string{
+		`openlitfass_info{version="dev",instance="test.events"} 1`,
+		"openlitfass_up 1",
+		"openlitfass_events 2",
+		"openlitfass_events_cancelled 1",
+		"openlitfass_events_merged 1",
+		`openlitfass_events_by_source{source="brot"} 1`,
+		`openlitfass_events_by_category{category="Sport"} 1`,
+		`openlitfass_source_up{source="brot"} 1`,
+		`openlitfass_source_up{source="fz"} 0`,
+		`openlitfass_source_last_success_timestamp_seconds{source="brot"} 1893492000`,
+		`openlitfass_builds_total{result="ok"} 1`,
+		`openlitfass_http_requests_total{code="2xx"} 1`,
+		`openlitfass_http_requests_total{code="4xx"} 1`,
+		"# TYPE openlitfass_fetch_runs_total counter",
+	} {
+		if !strings.Contains(out, want+"\n") {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+	// Every non-comment line is "name{labels} value".
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		if f := strings.Fields(line); len(f) < 2 {
+			t.Errorf("malformed line %q", line)
+		}
+	}
+	// Healthz now knows the event count even without fetching.
+	if st := s.Status(); st.Events != 2 {
+		t.Errorf("healthz events = %d, want 2", st.Events)
+	}
+}
+
+func TestMetricsSeparateAddrHidesThemFromSite(t *testing.T) {
+	inst, web := testInstance(t)
+	s := &Server{Instance: inst, WebDir: web, PublicDir: inst.Path("public"), MetricsAddr: ":0"}
+	if err := s.Rebuild(); err != nil {
+		t.Fatal(err)
+	}
+	if code := get(t, s.Handler(), "/metrics").StatusCode; code != http.StatusNotFound {
+		t.Errorf("with MetricsAddr, /metrics must not be on the site, got %d", code)
+	}
+}
+
+func TestEscapeLabel(t *testing.T) {
+	if got := labelString([]string{"t", "a\"b\\c\nd"}); got != `{t="a\"b\\c\nd"}` {
+		t.Errorf("got %s", got)
+	}
+}

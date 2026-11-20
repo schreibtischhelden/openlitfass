@@ -6,9 +6,9 @@
 //
 // Usage:
 //
-//	serve [-addr :8080] [-interval 6h] [-web DIR] [-public DIR] [INSTANCE_DIR]
+//	serve [-addr :8080] [-interval 6h] [-metrics-addr :9090] [-web DIR] [-public DIR] [INSTANCE_DIR]
 //
-// Flags fall back to $ADDR, $FETCH_INTERVAL, $WEB_DIR, $PUBLIC_DIR,
+// Flags fall back to $ADDR, $FETCH_INTERVAL, $METRICS_ADDR, $WEB_DIR, $PUBLIC_DIR,
 // $INSTANCE_DIR. -interval 0 only serves (data updated elsewhere, e.g. CI).
 package main
 
@@ -30,6 +30,7 @@ func main() {
 	interval := flag.Duration("interval", envDuration("FETCH_INTERVAL", 6*time.Hour), "fetch interval (0 = never fetch)")
 	webDir := flag.String("web", envOr("WEB_DIR", "/opt/openlitfass/web"), "core frontend directory")
 	publicDir := flag.String("public", os.Getenv("PUBLIC_DIR"), "build directory (default <instance>/.openlitfass-serve)")
+	metricsAddr := flag.String("metrics-addr", os.Getenv("METRICS_ADDR"), "separate listen address for /metrics (default: on -addr)")
 	flag.Parse()
 
 	inst, err := instance.Load(instance.Dir(flag.Args()))
@@ -40,8 +41,8 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	s := &app.Server{Instance: inst, WebDir: *webDir, PublicDir: *publicDir, Interval: *interval}
-	log.Printf("instance %q (%s), fetch interval %s", inst.Config.Name, inst.Dir, *interval)
+	s := &app.Server{Instance: inst, WebDir: *webDir, PublicDir: *publicDir, Interval: *interval, MetricsAddr: *metricsAddr}
+	log.Printf("openLitfass %s, instance %q (%s), fetch interval %s", app.Version, inst.Config.Name, inst.Dir, *interval)
 	if err := s.Run(ctx, *addr); err != nil {
 		log.Fatal(err)
 	}

@@ -29,11 +29,16 @@ type Server struct {
 	WebDir    string        // core frontend (image: /opt/openlitfass/web)
 	PublicDir string        // where builds go (default <instance>/.openlitfass-serve)
 	Interval  time.Duration // fetch interval; 0 = never fetch, only serve
+	// MetricsAddr, if set (e.g. ":9090"), serves /metrics on a separate
+	// listener instead of next to the site - so metrics don't have to be
+	// public. Empty: /metrics on the main address.
+	MetricsAddr string
 
 	current atomic.Pointer[string] // live build directory
 
-	mu     sync.Mutex
-	status Status
+	mu      sync.Mutex
+	status  Status
+	metrics metricsState
 }
 
 // Status is what /healthz reports.
@@ -73,13 +78,24 @@ func (s *Server) Rebuild() error {
 	dir := filepath.Join(s.PublicDir, "build-"+time.Now().UTC().Format("20060102T150405.000000000"))
 	if err := BuildSite(s.Instance, s.WebDir, dir); err != nil {
 		os.RemoveAll(dir)
+		s.mu.Lock()
+		s.metrics.init()
+		s.metrics.builds["failed"]++
+		s.mu.Unlock()
 		return err
 	}
 	old := s.current.Swap(&dir)
-	s.setStatus(func(st *Status) {
-		now := time.Now()
-		st.LastBuild = &now
-	})
+	ev := s.loadEventStats()
+	s.mu.Lock()
+	now := time.Now()
+	s.status.LastBuild = &now
+	if ev.loaded {
+		s.status.Events = ev.total
+	}
+	s.metrics.init()
+	s.metrics.builds["ok"]++
+	s.metrics.events = ev
+	s.mu.Unlock()
 	if old != nil && *old != dir {
 		// Give in-flight requests a moment before removing the old build.
 		go func(p string) {
@@ -131,6 +147,12 @@ func (s *Server) FetchAndRebuild(ctx context.Context) {
 			st.Events = res.Events
 		}
 	})
+	s.mu.Lock()
+	s.metrics.init()
+	s.metrics.fetchRuns[fetchResultLabel(res, err)]++
+	r := res
+	s.metrics.lastFetch = &r
+	s.mu.Unlock()
 	if err != nil {
 		log.Printf("fetch: %v", err)
 		return
@@ -162,13 +184,25 @@ func (s *Server) Run(ctx context.Context, addr string) error {
 		Handler:           s.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	errc := make(chan error, 1)
+	errc := make(chan error, 2)
 	go func() {
 		log.Printf("serving %q on %s", s.Instance.Config.Name, addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errc <- err
 		}
 	}()
+	var metricsSrv *http.Server
+	if s.MetricsAddr != "" {
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", s.metricsHandler())
+		metricsSrv = &http.Server{Addr: s.MetricsAddr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+		go func() {
+			log.Printf("metrics on %s/metrics", s.MetricsAddr)
+			if err := metricsSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errc <- err
+			}
+		}()
+	}
 
 	if s.Interval > 0 {
 		go func() {
@@ -193,6 +227,9 @@ func (s *Server) Run(ctx context.Context, addr string) error {
 	shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	log.Printf("shutting down")
+	if metricsSrv != nil {
+		_ = metricsSrv.Shutdown(shutdown)
+	}
 	return srv.Shutdown(shutdown)
 }
 
@@ -217,7 +254,10 @@ func (s *Server) Handler() http.Handler {
 		setCacheHeaders(w, r.URL.Path)
 		http.FileServer(noListing{http.Dir(*dir)}).ServeHTTP(w, r)
 	})
-	return mux
+	if s.MetricsAddr == "" {
+		mux.Handle("/metrics", s.metricsHandler())
+	}
+	return s.countRequests(mux)
 }
 
 // setCacheHeaders: data, the page itself, the manifest and the service

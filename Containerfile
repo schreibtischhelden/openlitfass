@@ -13,6 +13,7 @@
 FROM --platform=$BUILDPLATFORM golang:1.22-alpine AS build
 ARG TARGETOS=linux
 ARG TARGETARCH
+ARG VERSION=dev
 WORKDIR /src
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
@@ -21,7 +22,8 @@ COPY backend/internal/ internal/
 # CGO_ENABLED=0: fully static binaries, no libc dependency.
 # -trimpath -ldflags="-s -w": drop local build paths and debug symbols.
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -trimpath -ldflags="-s -w" -o /out/ ./cmd/fetch ./cmd/build-site ./cmd/serve
+    go build -trimpath -ldflags="-s -w -X openlitfass/backend/internal/app.Version=$VERSION" \
+      -o /out/ ./cmd/fetch ./cmd/build-site ./cmd/serve
 
 # Runtime stage. Deliberately alpine, not scratch: CI "run:" steps and
 # `docker run … sh -c` need a shell. git so a workflow can commit updated
@@ -45,6 +47,7 @@ LABEL org.opencontainers.image.title="openLitfass" \
 WORKDIR /instance
 ENV FETCH_INTERVAL=6h
 EXPOSE 8080
+# Optional: METRICS_ADDR=:9090 serves /metrics on its own port (not public).
 HEALTHCHECK --interval=1m --timeout=5s --start-period=30s \
   CMD wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1
 CMD ["serve", "/instance"]

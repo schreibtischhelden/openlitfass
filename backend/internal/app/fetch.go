@@ -20,10 +20,21 @@ import (
 
 // FetchResult summarises one fetch run.
 type FetchResult struct {
-	Sources int      // configured sources incl. inbox
-	Failed  []string // names of sources that failed this run
-	Events  int      // events written (0 if nothing was written)
-	Written bool     // data/*.json were (re)written
+	Sources   int           // configured sources incl. inbox
+	Failed    []string      // names of sources that failed this run
+	Events    int           // events written (0 if nothing was written)
+	Written   bool          // data/*.json were (re)written
+	Duration  time.Duration // whole run
+	PerSource []SourceRun   // one entry per source, in run order
+}
+
+// SourceRun is the outcome of one source in one fetch run.
+type SourceRun struct {
+	Name     string
+	Events   int // events returned (0 on error)
+	Carried  int // events kept from the previous run after an error
+	Duration time.Duration
+	Err      error
 }
 
 // FetchTimeout is a generous backstop for a whole run - each source already
@@ -43,8 +54,7 @@ const FetchTimeout = 5 * time.Minute
 // (broken category registry, write failure). "Nothing to write" is not an
 // error: Written is false then, and Failed tells whether that's because
 // sources failed.
-func Fetch(ctx context.Context, inst instance.Instance) (FetchResult, error) {
-	var res FetchResult
+func Fetch(ctx context.Context, inst instance.Instance) (res FetchResult, err error) {
 	if err := model.SetTimezone(inst.Config.Timezone); err != nil {
 		return res, fmt.Errorf("instance timezone %q: %w", inst.Config.Timezone, err)
 	}
@@ -67,12 +77,17 @@ func Fetch(ctx context.Context, inst instance.Instance) (FetchResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, FetchTimeout)
 	defer cancel()
 
+	started := time.Now()
+	defer func() { res.Duration = time.Since(started) }()
+
 	var events []model.Event
 	failed := map[string]bool{}
 	for _, src := range all {
 		// Every src went through sources.harden(): a panic or a hang inside
 		// one source surfaces as an ordinary error here.
+		t0 := time.Now()
 		got, err := src.Fetch(ctx)
+		res.PerSource = append(res.PerSource, SourceRun{Name: src.Name(), Events: len(got), Duration: time.Since(t0), Err: err})
 		if err != nil {
 			log.Printf("source %q failed: %v", src.Name(), err)
 			failed[src.Name()] = true
@@ -96,6 +111,11 @@ func Fetch(ctx context.Context, inst instance.Instance) (FetchResult, error) {
 		today, _ := model.LocalParts(time.Now())
 		for _, name := range res.Failed {
 			carried := writer.CarryOver(prev, map[string]bool{name: true}, today)
+			for i := range res.PerSource {
+				if res.PerSource[i].Name == name {
+					res.PerSource[i].Carried = len(carried)
+				}
+			}
 			if len(carried) > 0 {
 				log.Printf("source %q: kept %d event(s) from the previous run", name, len(carried))
 				events = append(events, carried...)
