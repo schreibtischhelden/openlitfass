@@ -16,7 +16,7 @@ func TestWriteDerivesIDsForSourcesWithout(t *testing.T) {
 		{Title: "B", Date: day, StartTime: "12:00", Source: model.SourceRef{Name: "html"}, LastSeen: now},
 		{Title: "A", Date: day, StartTime: "10:00", Source: model.SourceRef{Name: "html"}, LastSeen: now}, // real duplicate
 	}
-	out, err := Write(filepath.Join(t.TempDir(), "events.json"), evs, "")
+	out, err := Write(filepath.Join(t.TempDir(), "events.json"), evs, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestWriteDerivesIDsForSourcesWithout(t *testing.T) {
 	// Stable across runs.
 	again, _ := Write(filepath.Join(t.TempDir(), "events.json"), []model.Event{
 		{Title: "A", Date: day, StartTime: "10:00", Source: model.SourceRef{Name: "html"}, LastSeen: now},
-	}, "")
+	}, "", nil)
 	if again[0].ID != out[0].ID {
 		t.Errorf("id not stable: %q vs %q", again[0].ID, out[0].ID)
 	}

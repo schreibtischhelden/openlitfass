@@ -5,8 +5,6 @@
 package writer
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -35,22 +33,6 @@ type Output struct {
 type CategoriesOutput struct {
 	GeneratedAt time.Time          `json:"generatedAt"`
 	Categories  []categories.Entry `json:"categories"`
-}
-
-var nonSlugChars = regexp.MustCompile(`[^a-z0-9]+`)
-
-func slugify(s string) string {
-	s = strings.ToLower(s)
-	s = nonSlugChars.ReplaceAllString(s, "-")
-	return strings.Trim(s, "-")
-}
-
-// MakeID derives a stable, readable id from a source name + its internal id,
-// so the same real-world event gets the same Event.ID across runs, e.g.
-// "kulturzentrum-tiefgrund-3f9a1b2c4d".
-func MakeID(sourceName, sourceID string) string {
-	sum := sha256.Sum256([]byte(sourceName + "|" + sourceID))
-	return slugify(sourceName) + "-" + hex.EncodeToString(sum[:])[:10]
 }
 
 // validate drops events too broken to show sensibly in the frontend
@@ -118,7 +100,13 @@ func SortEvents(events []model.Event) {
 		if a.StartTime != b.StartTime {
 			return a.StartTime < b.StartTime
 		}
-		return a.Title < b.Title
+		if a.Title != b.Title {
+			return a.Title < b.Title
+		}
+		if a.Source.Name != b.Source.Name {
+			return a.Source.Name < b.Source.Name
+		}
+		return a.Source.SourceID < b.Source.SourceID
 	})
 }
 
@@ -137,24 +125,18 @@ func SortEvents(events []model.Event) {
 // baseURL (instance.json "baseUrl") is the fallback link for events whose
 // source provides none: the instance site itself, anchored to the event id.
 // Empty baseURL leaves such events without a URL.
-func Write(path string, events []model.Event, baseURL string) ([]model.Event, error) {
+//
+// priority (source name -> "priority" from its source file, higher wins)
+// decides which source's version is kept when the same event arrives from
+// several sources (see MergeAcrossSources).
+func Write(path string, events []model.Event, baseURL string, priority map[string]int) ([]model.Event, error) {
 	for i := range events {
 		// Sources without their own ids (html pages, feeds without guid):
 		// derive one from what identifies the event, so Dedupe doesn't
-		// collapse all of them into one and the id stays stable across
-		// runs as long as date, time, title and place don't change.
+		// collapse all of them into one.
 		if events[i].Source.SourceID == "" {
 			e := events[i]
 			events[i].Source.SourceID = strings.Join([]string{e.Date, e.StartTime, e.Title, e.Location.Name}, "|")
-		}
-		if events[i].ID == "" {
-			events[i].ID = MakeID(events[i].Source.Name, events[i].Source.SourceID)
-		}
-		if events[i].SourceName == "" {
-			events[i].SourceName = events[i].Source.Name
-		}
-		if events[i].URL == "" && baseURL != "" {
-			events[i].URL = strings.TrimRight(baseURL, "/") + "/#" + events[i].ID
 		}
 	}
 
@@ -163,8 +145,31 @@ func Write(path string, events []model.Event, baseURL string) ([]model.Event, er
 		return nil, fmt.Errorf("refusing to write %s: zero valid events (would overwrite existing data)", path)
 	}
 
-	events = Dedupe(events)
+	events = Dedupe(events)                       // same source, same item
+	events = MergeAcrossSources(events, priority) // same event, several sources
 	SortEvents(events)
+
+	// Public ids from the source-independent match key (see EventID);
+	// assigned after sorting so the suffix for genuinely different events
+	// with the same key (e.g. same title, same time, two rooms of one
+	// venue) is deterministic.
+	used := map[string]int{}
+	for i := range events {
+		e := &events[i]
+		if e.ID == "" { // inbox files may set an explicit id
+			e.ID = EventID(MatchKey(*e), e.Title)
+		}
+		if n := used[e.ID]; n > 0 {
+			used[e.ID]++
+			e.ID = fmt.Sprintf("%s-%d", e.ID, n+1)
+		} else {
+			used[e.ID] = 1
+		}
+		e.SourceName = e.Source.Name
+		if e.URL == "" && baseURL != "" {
+			e.URL = strings.TrimRight(baseURL, "/") + "/#" + e.ID
+		}
+	}
 
 	out := Output{
 		GeneratedAt: time.Now().UTC(),

@@ -142,7 +142,7 @@ func parseInboxFile(path string, now time.Time) (model.Event, error) {
 	}
 
 	// The filename (without extension) is this event's stable identity
-	// across runs (see writer.MakeID) - if the file itself sets "id"
+	// across runs within the inbox (Dedupe) - if the file itself sets "id"
 	// explicitly, writer.Write respects that instead (only fills it in if
 	// still empty).
 	base := strings.TrimSuffix(filepath.Base(path), ".json")

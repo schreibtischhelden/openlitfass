@@ -51,6 +51,10 @@ type SourceConfig struct {
 	// Homepage is the public website of the source (not the feed URL),
 	// linked from the frontend's source list. Optional.
 	Homepage string `json:"homepage,omitempty"`
+	// Priority decides which source's version of an event is shown when
+	// the same event arrives from several sources (higher wins, default 0).
+	// Give a venue's own source a higher value than an aggregator calendar.
+	Priority int `json:"priority,omitempty"`
 	// Type selects the fetcher: "rss", "json", "ical" (see
 	// internal/sources/ical.go) or "wcs" (WordPress "Weekly
 	// Class Schedule" plugin by CurlyThemes — see internal/sources/wcs.go).

@@ -90,7 +90,7 @@ func main() {
 		return
 	}
 
-	final, err := writer.Write(outPath, events, inst.Config.BaseURL)
+	final, err := writer.Write(outPath, events, inst.Config.BaseURL, sourcePriorities(inst))
 	if err != nil {
 		log.Fatalf("write output: %v", err)
 	}
@@ -115,6 +115,17 @@ func main() {
 	if failed > 0 {
 		log.Printf("warning: %d of %d source(s) failed this run", failed, len(all))
 	}
+}
+
+// sourcePriorities maps source name -> "priority" from its source file, for
+// choosing the shown version when several sources report the same event.
+func sourcePriorities(inst instance.Instance) map[string]int {
+	configs, _ := config.Load(inst.SourcesDir())
+	p := make(map[string]int, len(configs))
+	for _, c := range configs {
+		p[c.Name] = c.Priority
+	}
+	return p
 }
 
 // sourceInfos lists every enabled configured source plus the inbox, in the

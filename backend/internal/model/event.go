@@ -99,6 +99,10 @@ type Event struct {
 	// so the frontend can look up the source's label in data/sources.json.
 	// "inbox" for hand-authored events.
 	SourceName string `json:"source,omitempty"`
+	// Sources lists every source that reported this event (winner first)
+	// when the same event came from several sources and was merged (see
+	// writer.MergeAcrossSources); a single entry otherwise.
+	Sources []string `json:"sources,omitempty"`
 
 	// Cross-cutting attributes, not categories: an event can be all, some or
 	// none of these regardless of its Category. Deliberately real bool
