@@ -1,0 +1,64 @@
+name: Image
+
+# Builds the openLitfass runtime image (Containerfile: compiled fetch +
+# build-site binaries and the core frontend) and pushes it to the GitHub
+# Container Registry as ghcr.io/<owner>/<repo>. Instances never compile
+# anything - their workflow just runs this image (see docs/instance.md).
+#
+# Tags: latest (main), sha-<short> (every main build), and v1.2.3 / 1.2
+# for git tags like v1.2.3.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths:
+      - 'backend/**'
+      - 'web/**'
+      - 'Containerfile'
+      - '.github/workflows/image.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      # The built-in GITHUB_TOKEN may push to this repository's packages
+      # (permissions: packages: write above) - no personal token needed.
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      # amd64 for hosted runners/servers, arm64 for small self-hosted boxes
+      # (Raspberry Pi & co.).
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Containerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

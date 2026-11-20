@@ -1,0 +1,45 @@
+name: CI
+
+# Compiles and checks the Go backend on every push and pull request.
+# (Also the first place the code gets compiled at all - see docs/backend.md
+# "Bekannte Einschränkung".)
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Not gofmt-formatted:"; echo "$unformatted"; exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go build
+        run: go build ./...
+
+      - name: go test
+        run: go test ./...
+
+      # Smoke test: build the example instance site end to end.
+      - name: build-site (example-instance)
+        run: go run ./cmd/build-site -web ../web -out "$RUNNER_TEMP/site" ../example-instance && ls "$RUNNER_TEMP/site"
