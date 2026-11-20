@@ -14,7 +14,8 @@ FROM --platform=$BUILDPLATFORM golang:1.22-alpine AS build
 ARG TARGETOS=linux
 ARG TARGETARCH
 WORKDIR /src
-COPY backend/go.mod ./
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download
 COPY backend/cmd/ cmd/
 COPY backend/internal/ internal/
 # CGO_ENABLED=0: fully static binaries, no libc dependency.
