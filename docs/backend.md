@@ -99,7 +99,8 @@ Eintrag darin ist eine **FieldRule**:
 
 `template` setzt jeden `{dot.pfad}` durch seinen Wert und räumt Trennzeichen
 neben leeren Werten auf (fehlt die Straße, wird daraus "13086 Berlin", nicht
-", 13086 Berlin").
+", 13086 Berlin"). Mit `{a|b}` wird der erste nicht-leere Wert genommen
+(z.B. `{beginn|einlass}`).
 
 **Text wird immer bereinigt:** Alle Textfelder aus `rss`/`json`-Quellen
 laufen durch `mapping.CleanText` — HTML-Tags raus, Entitäten dekodiert
@@ -410,7 +411,9 @@ Selektor-Listen (`,`) und keine Geschwister-Kombinatoren.
 **Datum aus Einzelteilen:** `format` darf mehrere Layouts mit `|` angeben
 (`"2 Jan 2006 15:04|2 Jan 2006"`); passt nur ein Layout ohne Uhrzeit, ist der
 Termin ganztägig. Deutsche Monatsnamen und -kürzel ("Nov.", "März",
-"Dezember") werden bei Layouts mit Monatsnamen verstanden.
+"Dezember") werden bei Layouts mit Monatsnamen verstanden. Fehlt im Layout das
+Jahr (`"2.1. 15:04"` für "FR | 20.11."), wird das nächstliegende ergänzt:
+dieses Jahr, außer das Datum liegt mehr als einen Monat zurück, dann nächstes.
 
 **Robustheit:** Findet `itemSelector` nichts, ist das ein Fehler der Quelle
 (steht im `status`) – meist hat die Seite ihr Layout geändert, und das soll

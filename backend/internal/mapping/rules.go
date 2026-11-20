@@ -94,10 +94,26 @@ func (r FieldRule) resolveTimeClock(item interface{}) (t time.Time, hasClock boo
 		// "source gives UTC/offset timestamps" and "source gives naive local
 		// strings".
 		if t, err := time.ParseInLocation(layout, in, model.Local); err == nil {
+			if !strings.Contains(layout, "2006") && !strings.Contains(layout, "06") {
+				t = inferYear(t, time.Now().In(model.Local))
+			}
 			return t, layoutHasClock(layout), true
 		}
 	}
 	return time.Time{}, false, false
+}
+
+// inferYear completes a date parsed without a year ("FR | 20.11."): event
+// listings only show upcoming dates, so it's this year unless that lies
+// more than a month in the past - then it's next year (a December page
+// listing "12.01." means January of the next year).
+func inferYear(t, now time.Time) time.Time {
+	y := now.Year()
+	d := time.Date(y, t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), 0, model.Local)
+	if d.Before(now.AddDate(0, -1, 0)) {
+		d = d.AddDate(1, 0, 0)
+	}
+	return d
 }
 
 func layoutHasClock(layout string) bool {
@@ -136,8 +152,14 @@ var (
 )
 
 func renderTemplate(item interface{}, tmpl string) string {
+	// {a|b|c}: the first of these paths with a non-empty value.
 	s := placeholderRe.ReplaceAllStringFunc(tmpl, func(m string) string {
-		return strings.TrimSpace(String(item, strings.TrimSpace(m[1:len(m)-1])))
+		for _, p := range strings.Split(m[1:len(m)-1], "|") {
+			if v := strings.TrimSpace(String(item, strings.TrimSpace(p))); v != "" {
+				return v
+			}
+		}
+		return ""
 	})
 	s = multiSpaceRe.ReplaceAllString(s, " ")
 	s = emptySepRe.ReplaceAllString(s, ",")

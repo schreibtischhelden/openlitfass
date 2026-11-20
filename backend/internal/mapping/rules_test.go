@@ -109,3 +109,32 @@ func TestGermanMonthsLeaveWordsAlone(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+func TestTemplateFallback(t *testing.T) {
+	r := FieldRule{Template: "{d} {beginn|einlass}"}
+	for in, want := range map[string]string{
+		`{"d":"1.2.","beginn":"20:00","einlass":"19:00"}`: "1.2. 20:00",
+		`{"d":"1.2.","beginn":"","einlass":"19:00"}`:      "1.2. 19:00",
+		`{"d":"1.2."}`: "1.2.",
+	} {
+		if got := r.resolveString(item(t, in)); got != want {
+			t.Errorf("%s -> %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestInferYear(t *testing.T) {
+	now := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+	for in, want := range map[string]string{
+		"20.11.": "2026-11-20", // today
+		"02.11.": "2026-11-02", // a few weeks back: still this year (dropped later as past)
+		"12.10.": "2027-10-12", // more than a month back: next year
+		"12.01.": "2027-01-12",
+		"24.12.": "2026-12-24",
+	} {
+		p, _ := time.Parse("02.01.", in)
+		if got := inferYear(p, now).Format("2006-01-02"); got != want {
+			t.Errorf("%s -> %s, want %s", in, got, want)
+		}
+	}
+}
