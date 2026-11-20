@@ -2,6 +2,7 @@ package mapping
 
 import (
 	"regexp"
+	"strings"
 	"time"
 
 	"openlitfass/backend/internal/model"
@@ -169,16 +170,20 @@ type SourceMapping struct {
 // BuildEvent applies m to a single generic item (an unmarshalled JSON node,
 // or the tag-name map built from an RSS <item>) and produces a model.Event.
 // sourceName becomes Event.Source.Name and feeds the stable id derivation.
+//
+// Text fields are run through CleanText/CleanMultiline (HTML tags and
+// entities, soft hyphens, whitespace) - feeds and CMS APIs routinely ship
+// HTML where the event model expects plain text.
 func BuildEvent(item interface{}, m SourceMapping, sourceName string, now time.Time) model.Event {
 	ev := model.Event{
-		Title:       m.Title.resolveString(item),
-		Description: m.Description.resolveString(item),
-		Category:    m.Category.resolveString(item),
-		Organizer:   m.Organizer.resolveString(item),
-		URL:         m.URL.resolveString(item),
+		Title:       CleanText(m.Title.resolveString(item)),
+		Description: CleanMultiline(m.Description.resolveString(item)),
+		Category:    CleanText(m.Category.resolveString(item)),
+		Organizer:   CleanText(m.Organizer.resolveString(item)),
+		URL:         strings.TrimSpace(m.URL.resolveString(item)),
 		Location: model.Location{
-			Name:    m.LocationName.resolveString(item),
-			Address: m.LocationAddress.resolveString(item),
+			Name:    CleanText(m.LocationName.resolveString(item)),
+			Address: CleanText(m.LocationAddress.resolveString(item)),
 		},
 		Price:                m.Price.resolve(item),
 		TicketRequired:       m.TicketRequired.resolve(item),
