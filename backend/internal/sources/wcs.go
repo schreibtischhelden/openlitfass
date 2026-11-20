@@ -105,12 +105,10 @@ func (s *WCSSource) Fetch(ctx context.Context) ([]model.Event, error) {
 	now := time.Now().UTC()
 	events := make([]model.Event, 0, len(raw))
 	for _, e := range raw {
-		if !e.Visible {
-			// A canceled occurrence of a recurring class (mirrors the
-			// source's own meta._wcs_canceled list) - the frontend has no
-			// "canceled" state, so just omit it rather than show it.
-			continue
-		}
+		// visible == false: a canceled occurrence of a recurring class
+		// (mirrors the source's own meta._wcs_canceled list). Kept and
+		// flagged, see model.Event.Cancelled.
+		cancelled := !e.Visible
 
 		start, err := parseWCSLocal(e.Start)
 		if err != nil {
@@ -158,6 +156,7 @@ func (s *WCSSource) Fetch(ctx context.Context) ([]model.Event, error) {
 			// Per-source, not per-event (see config.SourceConfig.FamilyFriendly
 			// doc comment) - true only if this source's config says so.
 			FamilyFriendly: s.cfg.FamilyFriendly,
+			Cancelled:      cancelled,
 			Source: model.SourceRef{
 				Name:     s.cfg.Name,
 				SourceID: fmt.Sprintf("%d-%d", e.ID, e.Timestamp),

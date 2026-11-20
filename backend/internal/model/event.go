@@ -118,6 +118,14 @@ type Event struct {
 	RegistrationRequired bool `json:"registrationRequired"`
 	FamilyFriendly       bool `json:"familyFriendly"`
 
+	// Cancelled marks an event the source reports as called off. Such
+	// events are kept (and shown as "abgesagt" in the frontend) instead of
+	// silently disappearing, so people who planned to go find out. Set by
+	// the source (ical STATUS:CANCELLED, wcs hidden occurrences, a mapping
+	// rule, the inbox) or by the title heuristic in withCommonFilters
+	// ("Abgesagt: …").
+	Cancelled bool `json:"cancelled"`
+
 	Source   SourceRef `json:"-"`
 	LastSeen time.Time `json:"-"`
 }

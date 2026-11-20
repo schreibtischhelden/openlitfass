@@ -67,3 +67,17 @@ func TestSourceMappingMarshalOmitsEmptyRules(t *testing.T) {
 		t.Errorf("round trip mismatch: %+v (%v)", back, err)
 	}
 }
+
+func TestBoolRuleEquals(t *testing.T) {
+	r := BoolRule{Path: "status", Equals: "cancelled|canceled|abgesagt"}
+	for in, want := range map[string]bool{
+		`{"status":"Cancelled"}`: true,
+		`{"status":"abgesagt"}`:  true,
+		`{"status":"scheduled"}`: false,
+		`{}`:                     false,
+	} {
+		if got := r.resolve(item(t, in)); got != want {
+			t.Errorf("%s -> %v, want %v", in, got, want)
+		}
+	}
+}

@@ -154,10 +154,23 @@ type BoolRule struct {
 	// or a non-zero number all count as true). Empty Path means "this
 	// source doesn't say" - resolves to false, not an error.
 	Path string `json:"path,omitempty"`
+	// Equals, if set, makes the rule true when the resolved value equals one
+	// of these "|"-separated strings (case-insensitive) instead of being
+	// read as a boolean - e.g. {"path": "status", "equals": "cancelled|canceled"}.
+	Equals string `json:"equals,omitempty"`
 }
 
 func (r BoolRule) resolve(item interface{}) bool {
 	if r.Path == "" {
+		return false
+	}
+	if r.Equals != "" {
+		v := strings.TrimSpace(String(item, r.Path))
+		for _, want := range strings.Split(r.Equals, "|") {
+			if v != "" && strings.EqualFold(v, strings.TrimSpace(want)) {
+				return true
+			}
+		}
 		return false
 	}
 	return Bool(item, r.Path)
@@ -198,6 +211,9 @@ type SourceMapping struct {
 	TicketRequired       BoolRule `json:"ticketRequired"`
 	RegistrationRequired BoolRule `json:"registrationRequired"`
 	FamilyFriendly       BoolRule `json:"familyFriendly"`
+	// Cancelled marks events the source reports as called off (see
+	// model.Event.Cancelled), e.g. {"path": "status", "equals": "cancelled"}.
+	Cancelled BoolRule `json:"cancelled"`
 }
 
 // BuildEvent applies m to a single generic item (an unmarshalled JSON node,
@@ -222,6 +238,7 @@ func BuildEvent(item interface{}, m SourceMapping, sourceName string, now time.T
 		TicketRequired:       m.TicketRequired.resolve(item),
 		RegistrationRequired: m.RegistrationRequired.resolve(item),
 		FamilyFriendly:       m.FamilyFriendly.resolve(item),
+		Cancelled:            m.Cancelled.resolve(item),
 		Source: model.SourceRef{
 			Name:     sourceName,
 			SourceID: m.SourceID.resolveString(item),
@@ -283,10 +300,11 @@ func (m SourceMapping) MarshalJSON() ([]byte, error) {
 		TicketRequired       *BoolRule  `json:"ticketRequired,omitempty"`
 		RegistrationRequired *BoolRule  `json:"registrationRequired,omitempty"`
 		FamilyFriendly       *BoolRule  `json:"familyFriendly,omitempty"`
+		Cancelled            *BoolRule  `json:"cancelled,omitempty"`
 	}{
 		fr(m.SourceID), fr(m.Title), fr(m.Description), fr(m.Category), fr(m.Organizer), fr(m.URL),
 		fr(m.LocationName), fr(m.LocationAddress), fr(m.Start), fr(m.End),
 		fr(m.Date), fr(m.StartTime), fr(m.EndTime), price,
-		br(m.TicketRequired), br(m.RegistrationRequired), br(m.FamilyFriendly),
+		br(m.TicketRequired), br(m.RegistrationRequired), br(m.FamilyFriendly), br(m.Cancelled),
 	})
 }

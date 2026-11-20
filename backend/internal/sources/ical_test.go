@@ -71,6 +71,9 @@ func TestICalTimeForms(t *testing.T) {
 	got := map[string]string{}
 	for _, e := range evs {
 		got[e.Source.SourceID] = e.Title + "|" + e.Date + "|" + e.StartTime + "|" + e.EndTime
+		if e.Cancelled != (e.Source.SourceID == "cancel") {
+			t.Errorf("%s: cancelled = %v", e.Source.SourceID, e.Cancelled)
+		}
 	}
 	want := map[string]string{
 		"utc":    "UTC|2026-12-01|18:00|19:30",    // 17:00Z = 18:00 Berlin (winter)
@@ -78,6 +81,7 @@ func TestICalTimeForms(t *testing.T) {
 		"float":  "Floating|2026-12-03|20:00|",    // floating = instance time
 		"allday": "All day|2026-12-04||",
 		"alarm":  "With alarm|2026-12-06|10:00|",
+		"cancel": "Cancelled|2026-12-05|10:00|",
 	}
 	if len(got) != len(want) {
 		t.Errorf("got %v", got)

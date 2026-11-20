@@ -32,3 +32,33 @@ func TestCommonFiltersCategoryMap(t *testing.T) {
 		}
 	}
 }
+
+func TestMarkCancelledByTitle(t *testing.T) {
+	tests := []struct {
+		in        string
+		cancelled bool
+		title     string
+	}{
+		{"ABGESAGT: Lesung im Hof", true, "Lesung im Hof"},
+		{"Abgesagt! Konzert", true, "Konzert"},
+		{"+++ Entfällt +++ Repair-Café", true, "Repair-Café"},
+		{"[abgesagt] Flohmarkt", true, "Flohmarkt"},
+		{"Konzert (abgesagt)", true, "Konzert"},
+		{"Konzert – ABGESAGT", true, "Konzert"},
+		{"Kinderdisco - fällt aus!", true, "Kinderdisco"},
+		{"ABGESAGT Sommerfest", true, "Sommerfest"},
+		{"Cancelled: Jazz Night", true, "Jazz Night"},
+		// no marker / ambiguous - unchanged
+		{"Abgesagt – ein Theaterstück über Absagen", false, "Abgesagt – ein Theaterstück über Absagen"},
+		{"Die abgesagte Party", false, "Die abgesagte Party"},
+		{"Lesung", false, "Lesung"},
+		{"ABGESAGT", false, "ABGESAGT"},
+	}
+	for _, tt := range tests {
+		e := model.Event{Title: tt.in}
+		markCancelledByTitle(&e)
+		if e.Cancelled != tt.cancelled || e.Title != tt.title {
+			t.Errorf("%q -> cancelled=%v title=%q, want %v %q", tt.in, e.Cancelled, e.Title, tt.cancelled, tt.title)
+		}
+	}
+}

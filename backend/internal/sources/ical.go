@@ -22,7 +22,8 @@ import (
 //
 // Supported: folded lines, text escapes, DTSTART/DTEND/DURATION as UTC,
 // TZID or floating time (calendar X-WR-TIMEZONE, else the instance
-// timezone), all-day events (VALUE=DATE), STATUS:CANCELLED (skipped),
+// timezone), all-day events (VALUE=DATE), STATUS:CANCELLED (kept, flagged
+// as model.Event.Cancelled - also for a cancelled RECURRENCE-ID occurrence),
 // recurring events (RRULE: DAILY/WEEKLY/MONTHLY/YEARLY with INTERVAL,
 // COUNT, UNTIL, BYDAY for WEEKLY; EXDATE; RECURRENCE-ID overrides),
 // expanded only inside the fetch window.
@@ -285,9 +286,6 @@ func parseICal(body string, cfg config.SourceConfig, from, to time.Time, now tim
 
 	var events []model.Event
 	for _, v := range vevents {
-		if strings.EqualFold(v.text("STATUS"), "CANCELLED") {
-			continue
-		}
 		dtstart, ok := v.first("DTSTART")
 		if !ok {
 			continue
@@ -327,6 +325,7 @@ func parseICal(body string, cfg config.SourceConfig, from, to time.Time, now tim
 				continue // replaced by its own RECURRENCE-ID event
 			}
 			ev := buildICalEvent(v, cfg, occ, length, allDay, now)
+			ev.Cancelled = strings.EqualFold(strings.TrimSpace(v.text("STATUS")), "CANCELLED")
 			// Stable per-occurrence ids; an override keeps the id of the
 			// occurrence it replaces.
 			switch {
