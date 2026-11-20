@@ -18,7 +18,7 @@ entfernen). Die Felder entsprechen direkt dem Event-Schema aus
 - `price: { free, amount }` — **weggelassen = kostenlos** (nicht `false`/`null`
   angeben, das würde "null €" im Frontend erzeugen)
 - `organizer`, `url`
-- `ticketRequired`, `registrationRequired`, `familyFriendly` (alle optional,
+- `ticketRequired`, `registrationRequired`, `familyFriendly`, `cancelled` (alle optional,
   Standard `false`)
 
 Datum/Uhrzeit direkt als Europe/Berlin-Wanduhrzeit eintragen — keine

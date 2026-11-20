@@ -465,11 +465,36 @@ Das Ausgabe-Schema folgt exakt dem, was das Frontend erwartet
       "source": "beispiel-rss",                   // Quellen-Name, Label steht in data/sources.json
       "ticketRequired": false,
       "registrationRequired": false,
-      "familyFriendly": false
+      "familyFriendly": false,
+      "cancelled": false                          // abgesagt, siehe "Abgesagte Termine"
     }
   ]
 }
 ```
+
+## Abgesagte Termine
+
+Abgesagte Termine werden **nicht** verworfen, sondern mit `"cancelled": true`
+ausgeliefert und im Frontend deutlich gekennzeichnet (Etikett "Abgesagt",
+durchgestrichener Titel, Hinweis in der Detailansicht, `STATUS:CANCELLED` im
+.ics). Wer hingehen wollte, soll es erfahren, statt dass der Termin still
+verschwindet. Erkannt wird eine Absage über:
+
+| Quelle | Signal |
+|---|---|
+| `ical` | `STATUS:CANCELLED`, auch für ein einzelnes Vorkommen einer Serie (`RECURRENCE-ID`) |
+| `wcs` | ausgeblendetes Vorkommen (`visible: false`, entspricht `_wcs_canceled`) |
+| `rss`/`json` | Mapping-Regel `cancelled`, z.B. `{"path": "status", "equals": "cancelled|canceled"}` |
+| Inbox | `"cancelled": true` in der Datei |
+| alle | Titel-Markierung, die dabei aus dem Titel entfernt wird: `ABGESAGT: …`, `Abgesagt! …`, `+++ Entfällt +++ …`, `[abgesagt] …`, `… (abgesagt)`, `… – ABGESAGT`, `… - fällt aus!` |
+
+Die Titel-Heuristik verlangt ein Trennzeichen oder Klammern (bzw. Großschreibung
+am Anfang): "Abgesagt – ein Theaterstück" bleibt ein normaler Titel.
+
+Merkmal-Regeln (`ticketRequired`, `registrationRequired`, `familyFriendly`,
+`cancelled`) lesen den Wert als Boolean; mit `"equals": "a|b"` werden sie
+stattdessen wahr, wenn der Wert einem der Texte entspricht (ohne Rücksicht
+auf Groß-/Kleinschreibung).
 
 Events sind chronologisch sortiert (Datum, dann Startzeit). Wiederholte Runs
 mit unveränderten Daten erzeugen eine byte-identische Datei (sauberer git
