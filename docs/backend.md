@@ -600,9 +600,12 @@ dazu, sobald das Hosting feststeht.
 **Vor dem ersten Lauf einer Instanz:** in `update-events.yml` `IMAGE` auf
 `ghcr.io/<owner>/openlitfass:<tag>` setzen.
 
-## Bekannte Einschränkung
+## Teststand
 
-Der Code wurde bisher in keiner Umgebung kompiliert. Vor dem ersten
-produktiven Lauf einmal `go build ./...` und `go vet ./...` in `backend/`
-ausführen (oder das Image bauen, siehe "Lokal ausführen"). Der erste Push nach
-GitHub erledigt das über `ci.yml`.
+- Lokal mit Docker gebaut und geprüft: `go build`, `go vet`, `gofmt` sauber.
+- `fetch` gegen die echte wcs-Quelle Familienzentrum Weißensee: 95 Termine,
+  Status-Feld, `sources.json` korrekt; Inbox-Event wird übernommen.
+- `build-site` gegen `example-instance` und weissens.ee: vollständige Seite
+  inkl. Manifest, `site.json` und gestempeltem Service Worker.
+- Noch keine Go-Unit-Tests (`go test` findet keine Testdateien).
+- RSS- und JSON-Quelltyp sind noch nicht gegen eine echte Quelle gelaufen.

@@ -2,7 +2,6 @@ name: CI
 
 # Compiles and checks the Go backend on every push and pull request.
 # (Also the first place the code gets compiled at all - see docs/backend.md
-# "Bekannte Einschränkung".)
 on:
   push:
     branches: [main]
