@@ -64,6 +64,7 @@ func main() {
 
 	var events []model.Event
 	var failed int
+	failedNames := map[string]bool{}
 
 	for _, src := range all {
 		// Every src here already went through sources.harden(): a panic or a
@@ -73,10 +74,28 @@ func main() {
 		if err != nil {
 			log.Printf("source %q failed: %v", src.Name(), err)
 			failed++
+			failedNames[src.Name()] = true
 			continue
 		}
 		log.Printf("source %q: %d events", src.Name(), len(got))
 		events = append(events, got...)
+	}
+
+	// A failed source keeps its upcoming events from the last successful
+	// run instead of vanishing from the calendar (see writer.CarryOver).
+	if len(failedNames) > 0 && len(events) > 0 {
+		prev, err := writer.LoadPrevious(outPath)
+		if err != nil {
+			log.Printf("warning: could not read previous %s, failed sources lose their events this run: %v", outPath, err)
+		}
+		today, _ := model.LocalParts(time.Now())
+		for name := range failedNames {
+			carried := writer.CarryOver(prev, map[string]bool{name: true}, today)
+			if len(carried) > 0 {
+				log.Printf("source %q: kept %d event(s) from the previous run", name, len(carried))
+				events = append(events, carried...)
+			}
+		}
 	}
 
 	if len(events) == 0 {
