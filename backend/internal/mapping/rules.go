@@ -26,12 +26,21 @@ type FieldRule struct {
 	Format string `json:"format,omitempty"`
 	// Default is used verbatim when Path resolves to nothing/empty.
 	Default string `json:"default,omitempty"`
+	// Template combines several values into one, as an alternative to
+	// Path: every {dot.path} is replaced by its resolved value, e.g.
+	// "{venue.address}, {venue.zip} {venue.city}". Separators next to
+	// empty values are tidied up ("Musterweg 1, , Berlin" can't happen).
+	Template string `json:"template,omitempty"`
 }
+
+var placeholderRe = regexp.MustCompile(`\{([^{}]+)\}`)
 
 func (r FieldRule) resolveString(item interface{}) string {
 	s := ""
 	if r.Path != "" {
 		s = String(item, r.Path)
+	} else if r.Template != "" {
+		s = renderTemplate(item, r.Template)
 	}
 	if r.Regex != "" && s != "" {
 		if re, err := regexp.Compile(r.Regex); err == nil {
@@ -71,6 +80,21 @@ func (r FieldRule) resolveTime(item interface{}) (time.Time, bool) {
 	return t, true
 }
 
+var (
+	emptySepRe   = regexp.MustCompile(`\s*,(\s*,)+`)
+	multiSpaceRe = regexp.MustCompile(`\s{2,}`)
+)
+
+func renderTemplate(item interface{}, tmpl string) string {
+	s := placeholderRe.ReplaceAllStringFunc(tmpl, func(m string) string {
+		return strings.TrimSpace(String(item, strings.TrimSpace(m[1:len(m)-1])))
+	})
+	s = multiSpaceRe.ReplaceAllString(s, " ")
+	s = emptySepRe.ReplaceAllString(s, ",")
+	s = strings.ReplaceAll(s, " ,", ",")
+	return strings.Trim(s, " ,")
+}
+
 func resolveLayout(name string) string {
 	switch name {
 	case "", "RFC3339":
@@ -92,9 +116,17 @@ type PriceRule struct {
 	// FreePath, if set, resolves an explicit boolean and takes precedence
 	// over the amount-based inference.
 	FreePath string `json:"freePath,omitempty"`
+	// UnknownIfMissing: when AmountPath doesn't resolve at all, the price
+	// is unknown ({free: false, amount: null}, nothing shown in the
+	// frontend) instead of the default "missing = kostenlos". For sources
+	// that omit the price when they don't know it, not when it's free.
+	UnknownIfMissing bool `json:"unknownIfMissing,omitempty"`
 }
 
 func (r PriceRule) resolve(item interface{}) model.Price {
+	if r.UnknownIfMissing && r.AmountPath != "" && String(item, r.AmountPath) == "" {
+		return model.Price{Free: false, Amount: nil}
+	}
 	if r.FreePath != "" {
 		if Bool(item, r.FreePath) {
 			return model.Price{Free: true, Amount: nil}
