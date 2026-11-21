@@ -63,6 +63,15 @@
     save: "Merken",
     unsave: "Nicht mehr merken",
     newTab: "(öffnet externe Seite in neuem Tab)",
+    placesHeading: "Orte",
+    allPlaces: "Alle Orte",
+    upcomingHere: "Kommende Termine hier",
+    noUpcomingHere: "Zurzeit sind hier keine Termine bekannt.",
+    openingHours: "Öffnungszeiten",
+    season: "Saison",
+    website: "Website",
+    aboutPlace: "Mehr über diesen Ort",
+    moreEvents: (n) => `… und ${n} weitere Termine`,
     suggestPlace: "Ort",
     suggestType: "Typ",
     suggestName: "Termin",
@@ -145,6 +154,8 @@
     generatedAt: null,
     categories: [],
     categoryIcons: new Map(),
+    places: [], placeTypes: [], placeById: new Map(), placeTypeIcons: new Map(),
+    placeType: "",              // gewählte Ortsart in der Orte-Liste ("" = alle)
     categoryGroup: new Map(),   // Mitglied -> Gruppe (categories.json "group")
     groupMembers: new Map(),    // Gruppe -> [Mitglieder]
     sources: new Map(),
@@ -172,6 +183,9 @@
     viewList: $("viewList"),
     viewDetail: $("viewDetail"),
     viewAbout: $("viewAbout"),
+    viewPlaces: $("viewPlaces"),
+    viewPlace: $("viewPlace"),
+    navPlaces: $("navPlaces"),
     resultCount: $("resultCount"),
     groups: $("eventGroups"),
     empty: $("emptyState"),
@@ -340,8 +354,17 @@
     getJSON("data/events.json"),
     getJSON("data/categories.json"),
     getJSON("data/sources.json"),
-    getJSON("data/site.json")
-  ]).then(([events, cats, sources, site]) => {
+    getJSON("data/site.json"),
+    getJSON("data/places.json")
+  ]).then(([events, cats, sources, site, places]) => {
+    // Orte sind optional (Instanz ohne places.json: kein Reiter "Orte").
+    if (places.status === "fulfilled" && (places.value.places || []).length) {
+      state.placeTypes = places.value.types || [];
+      state.places = places.value.places;
+      state.placeById = new Map(state.places.map((p) => [p.id, p]));
+      state.placeTypeIcons = new Map(state.placeTypes.map((t) => [t.name, t.icon]));
+      el.navPlaces.hidden = false;
+    }
     if (site.status === "fulfilled") state.site = site.value || {};
     if (sources.status === "fulfilled") {
       (sources.value.sources || []).forEach((s) => state.sources.set(s.name, s));
@@ -887,6 +910,8 @@
     if (rangeMatch || hash === "") view = "list";
     else if (hash === "gemerkt") view = "saved";
     else if (hash === "ueber") view = "about";
+    else if (hash === "orte" && state.places.length) view = "places";
+    else if (hash.startsWith("ort/") && state.placeById.has(hash.slice(4))) view = "place";
     else if (hash && state.byId.has(hash)) view = "detail";
 
     const fromView = state.view;
@@ -894,17 +919,26 @@
     el.viewList.hidden = !(view === "list" || view === "saved");
     el.viewDetail.hidden = view !== "detail";
     el.viewAbout.hidden = view !== "about";
+    el.viewPlaces.hidden = view !== "places";
+    el.viewPlace.hidden = view !== "place";
     const filtersVisible = view === "list";
     el.toolbar.hidden = !filtersVisible;
     if (!filtersVisible) toggleFilterPanel(false);
     syncDateNav();
-    el.navItems.forEach((a) => a.classList.toggle("is-active", a.dataset.view === view || (view === "detail" && a.dataset.view === "list")));
+    const navView = view === "detail" ? "list" : view === "place" ? "places" : view;
+    el.navItems.forEach((a) => a.classList.toggle("is-active", a.dataset.view === navView));
 
     if (view === "list" || view === "saved") {
       renderList();
       if (fromView !== "detail") scrollToNow();
     } else if (view === "detail") {
       renderDetail(state.byId.get(hash));
+      window.scrollTo({ top: 0 });
+    } else if (view === "places") {
+      renderPlaces();
+      if (fromView !== "place") window.scrollTo({ top: 0 });
+    } else if (view === "place") {
+      renderPlace(state.placeById.get(hash.slice(4)));
       window.scrollTo({ top: 0 });
     } else {
       renderAbout();
@@ -1106,6 +1140,96 @@
   }
 
   // ---- Detail ----
+  // ---- Orte ----
+  // Gepflegte Orte der Instanz (data/places.json): Sehenswürdigkeiten,
+  // Parks, Spielstätten … ohne Datum. Ein Termin gehört zu einem Ort, wenn
+  // einer der "match"-Begriffe (sonst der Name) in Ortsname oder Adresse des
+  // Termins vorkommt - dieselbe Regel wie im Backend (places.Matches).
+  function placeMatches(place, ev) {
+    if (!ev.location) return false;
+    const hay = fold(`${ev.location.name || ""} ${ev.location.address || ""}`);
+    const terms = place.match && place.match.length ? place.match : [place.name];
+    return terms.some((t) => fold(t) && hay.includes(fold(t)));
+  }
+  function placeForEvent(ev) {
+    return state.places.find((p) => placeMatches(p, ev)) || null;
+  }
+  function upcomingAt(place) {
+    const today = todayISO();
+    return state.events.filter((ev) => ev.date >= today && placeMatches(place, ev));
+  }
+  function placeMapUrl(p) {
+    if (p.lat || p.lon) return `https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lon}#map=17/${p.lat}/${p.lon}`;
+    return `https://www.openstreetmap.org/search?query=${encodeURIComponent(p.address || p.name)}`;
+  }
+  function placeTypeLabel(type) {
+    return `<span class="category-label">${svg(state.placeTypeIcons.get(type) || ICON.pin)}${escapeHtml(type)}</span>`;
+  }
+
+  function renderPlaces() {
+    const types = state.placeTypes.filter((t) => state.places.some((p) => p.type === t.name));
+    if (state.placeType && !types.some((t) => t.name === state.placeType)) state.placeType = "";
+    const chips = [`<button type="button" class="chip" data-place-type="" aria-pressed="${!state.placeType}">${svg(ICON.pin)}<span>${STR.allPlaces}</span></button>`]
+      .concat(types.map((t) => `<button type="button" class="chip" data-place-type="${escapeHtml(t.name)}" aria-pressed="${state.placeType === t.name}">` +
+        `${svg(t.icon)}<span>${escapeHtml(t.name)}</span></button>`));
+    const shown = types.filter((t) => !state.placeType || t.name === state.placeType);
+    const groups = shown.map((t) => {
+      const list = state.places.filter((p) => p.type === t.name);
+      return `<section class="place-group"><h2 class="day-heading">${escapeHtml(t.name)}</h2><ul class="place-list">` +
+        list.map((p) => {
+          const n = upcomingAt(p).length;
+          return `<li><a class="event-card place-card" href="#ort/${encodeURIComponent(p.id)}">` +
+            `<div class="event-card__body">${placeTypeLabel(p.type)}` +
+            `<h3 class="event-card__title">${escapeHtml(p.name)}</h3>` +
+            `<p class="event-card__meta">${p.address ? `<span>${svg(ICON.pin)} ${escapeHtml(p.address)}</span>` : ""}` +
+            `${n ? `<span class="place-count">${n} ${n === 1 ? STR.suggestEventOne : STR.suggestEventMany}</span>` : ""}</p>` +
+            `</div></a></li>`;
+        }).join("") + `</ul></section>`;
+    }).join("");
+    el.viewPlaces.innerHTML =
+      `<h1 class="sr-only" id="placesHeading">${STR.placesHeading}</h1>` +
+      `<div class="fp-chips place-types" role="group" aria-label="${STR.placesHeading}">${chips.join("")}</div>` +
+      groups;
+    el.viewPlaces.querySelectorAll(".place-card").forEach((a) => a.addEventListener("click", () => { state.cameFromPlaces = true; }));
+    el.viewPlaces.querySelectorAll("[data-place-type]").forEach((b) => {
+      b.classList.toggle("is-active", b.getAttribute("aria-pressed") === "true");
+      b.addEventListener("click", () => { state.placeType = b.dataset.placeType; renderPlaces(); });
+    });
+  }
+
+  function renderPlace(p) {
+    const facts = [];
+    if (p.address) facts.push(fact(ICON.pin, `${escapeHtml(p.address)}<small>${extLink(placeMapUrl(p), STR.openMap)}</small>`));
+    else facts.push(fact(ICON.pin, extLink(placeMapUrl(p), STR.openMap)));
+    if (p.openingHours) facts.push(fact(ICON.clock, `${STR.openingHours}: ${escapeHtml(p.openingHours)}`));
+    if (p.season) facts.push(fact(ICON.calendar, `${STR.season}: ${escapeHtml(p.season)}`));
+    const events = upcomingAt(p);
+    const shown = events.slice(0, 30);
+    el.viewPlace.innerHTML =
+      `<div class="detail__bar"><button type="button" class="detail__back" id="placeBack">${svg(ICON.back)} ${STR.allPlaces}</button></div>` +
+      placeTypeLabel(p.type) +
+      `<h1 class="detail__title">${escapeHtml(p.name)}</h1>` +
+      `<ul class="facts">${facts.join("")}</ul>` +
+      (p.description ? `<p class="detail__desc">${linkify(p.description)}</p>` : "") +
+      (p.url ? `<div class="btn-row">${extLink(p.url, STR.website, "btn btn--primary")}</div>` : "") +
+      `<h2 class="place-events-heading">${STR.upcomingHere}${events.length ? ` (${events.length})` : ""}</h2>` +
+      (shown.length
+        ? `<ul class="event-list place-events">${shown.map(cardHtml).join("")}</ul>` +
+          (events.length > shown.length ? `<p class="static-more">${STR.moreEvents(events.length - shown.length)}</p>` : "")
+        : `<p class="place-none">${STR.noUpcomingHere}</p>`);
+    $("placeBack").addEventListener("click", () => {
+      if (history.length > 1 && state.cameFromPlaces) history.back();
+      else location.hash = "orte";
+    });
+    // Termin aus der Ortsseite öffnen: "Zurück" führt wieder hierher.
+    el.viewPlace.querySelector(".place-events") && el.viewPlace.querySelector(".place-events").addEventListener("click", (e) => {
+      if (e.target.closest(".event-card")) state.cameFromList = true;
+      const star = e.target.closest("[data-star]");
+      if (star) { toggleSaved(star.dataset.star); renderPlace(p); }
+    });
+    el.main.focus({ preventScroll: true });
+  }
+
   function renderDetail(ev) {
     const facts = [];
     facts.push(fact(ICON.calendar, escapeHtml(longDate(ev.date))));
@@ -1114,9 +1238,11 @@
       // Adresse bevorzugen: der Name ist manchmal nur ein Raum ("Bewegungsraum").
       const q = ev.location.address || ev.location.name;
       const mapUrl = `https://www.openstreetmap.org/search?query=${encodeURIComponent(q)}`;
+      const place = placeForEvent(ev);
       facts.push(fact(ICON.pin, `${escapeHtml(ev.location.name || ev.location.address)}` +
         `<small>${ev.location.name && ev.location.address ? escapeHtml(ev.location.address) + " · " : ""}` +
-        `${extLink(mapUrl, STR.openMap)}</small>`));
+        `${extLink(mapUrl, STR.openMap)}` +
+        `${place ? ` · <a href="#ort/${encodeURIComponent(place.id)}">${STR.aboutPlace}</a>` : ""}</small>`));
     }
     const priceBits = [priceText(ev)];
     if (ev.ticketRequired) priceBits.push(STR.ticket);

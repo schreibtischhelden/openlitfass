@@ -811,3 +811,41 @@ button { font: inherit; }
 .is-columns .event-card__title { clear: both; margin-top: 2px; font-size: 0.95rem; }
 .is-columns .event-card__meta { font-size: 0.78rem; }
 .is-columns .card-star { top: 2px; right: 2px; width: 36px; height: 36px; }
+
+/* ---------- Orte (data/places.json) ----------
+   Liste nach Art, Karten im Raster (schmal: eine Spalte, breit: mehrere,
+   min. 260 px wie die Tagesspalten). Ortsseite wie die Termindetails. */
+.place-types { margin: 0 0 var(--space-3); }
+.place-types .chip.is-active,
+.place-types .chip[aria-pressed="true"] {
+  background: var(--accent-primary, var(--color-primary));
+  border-color: var(--accent-primary, var(--color-primary));
+  color: var(--accent-primary-text, #fff);
+}
+.place-group + .place-group { margin-top: var(--space-4); }
+.place-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+.place-card { height: 100%; }
+.place-count {
+  padding: 0 7px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg);
+  font-variant-numeric: tabular-nums;
+}
+.place-events-heading {
+  margin: var(--space-5) 0 var(--space-2);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-primary-text);
+}
+.place-none { color: var(--color-text-muted); }
+.is-wide .view.places { max-width: 1960px; }
+.is-wide #viewPlace { max-width: 760px; margin-left: auto; margin-right: auto; }

@@ -11,6 +11,7 @@ core repository.
 <instance>/
   instance.json                    required: name, title, time zone, …
   categories.json                  categories and icons (order = menu order)
+  places.json                      optional: places without dates (see "Places" below)
   sources/*.json                   one file per source (*.example.json = template)
   inbox/*.json                     individual events added by hand (see docs/inbox.md)
   site/                            overlaid on top of web/
@@ -133,6 +134,46 @@ The default user interface (`web/`) provides:
   link is copied to the clipboard. The app shares its link `/#<id>`; the
   static event pages (see below) have their own share button, which shares
   their address `termine/<id>.html` (with a preview in messengers).
+
+### Places
+
+An optional `places.json` in the instance adds a **"Orte"** tab next to
+"Termine": sights, parks, venues, meeting points and markets - things
+without a date. Format:
+
+```json
+{
+  "types": [ { "name": "Sehenswürdigkeit", "icon": ["M…"] } ],
+  "places": [ {
+    "id": "theater-im-delphi",
+    "name": "Theater im Delphi",
+    "type": "Kultur & Bühne",
+    "description": "…",
+    "address": "Gustav-Adolf-Straße 2, 13086 Berlin",
+    "lat": 52.5519, "lon": 13.4312,
+    "url": "https://theater-im-delphi.de",
+    "openingHours": "…", "season": "…",
+    "match": ["Delphi"]
+  } ]
+}
+```
+
+- `id` (lower-case letters, digits, hyphens), `name` and `type` (one of
+  `types`) are required; everything else is optional. `build-site` checks
+  the file and writes `data/places.json`.
+- The **Orte** view lists the places by type with type chips. Each place
+  page shows the description, address with a map link (OpenStreetMap, at
+  `lat`/`lon` if given), opening hours, season, website and the
+  **upcoming events held there**.
+- An event belongs to a place when one of the `match` terms (default: the
+  name) occurs in the event's location name or address, ignoring case and
+  accents (ß = ss). Choose terms that are specific enough: `"Antonplatz"`
+  would also catch every event at "Antonplatz 1". Event details link to
+  their place ("Mehr über diesen Ort").
+- With `OL_STATIC_PAGES`, `build-site` also writes `orte/index.html` and
+  `orte/<id>.html` (schema.org `Place`, upcoming events) and adds them to
+  the sitemap.
+- Without `places.json` the tab is hidden.
 
 ### Static pages and SEO
 
