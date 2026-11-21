@@ -1,51 +1,59 @@
 # openLitfass
 
-**Die digitale Litfaßsäule für deinen Kiez.** · <https://openlitfass.org>
+**The digital advertising pillar for your neighbourhood.** · <https://openlitfass.org>
 
-Ein schlanker, statischer Event-Kalender für einen Kiez, ein Dorf oder einen
-Stadtteil: Events kommen automatisch aus RSS-Feeds, JSON-APIs und
-WordPress-Kalendern (plus Einzel-Events von Hand) und werden als statische
-Seite ausgeliefert, ohne Datenbank und ohne API-Server.
+openLitfass is a lightweight, static events calendar for a neighbourhood
+(*Kiez*), a village or a district. Events are collected automatically from
+RSS feeds, JSON APIs, iCalendar exports, HTML pages and WordPress calendars,
+complemented by individual events added by hand. The result is served as a
+static website: no database and no API server.
 
-Dieses Repo ist der **Kern**. Konkrete Kalender sind **Instanzen** in
-eigenen Repos, z.B. `weissens.ee` für Berlin-Weißensee. Eine Instanz enthält
-nur Konfiguration, Quellen und Gestaltung.
+This repository contains the **core**. Each calendar is an **instance** in a
+repository of its own, for example
+[`weissens.ee`](https://github.com/weissensee/weissens.ee) for
+Berlin-Weißensee. An instance contains only configuration, sources and
+styling.
 
 ```
-openlitfass (dieses Repo)                       Instanz-Repo (z.B. weissens.ee)
-  backend/  Go: fetch, build-site               instance.json
-  web/      Frontend (HTML/CSS/JS)              sources/  inbox/  categories.json
-  Containerfile ──► ghcr.io-Image ────────────► update-events.yml (Cron)
-  example-instance/  Vorlage                    site/  (Theme, Logo)
-                                                data/  (generiert)
+openlitfass (this repository)                   instance repository (e.g. weissens.ee)
+  backend/  Go: fetch, build-site, serve        instance.json
+  web/      front end (HTML/CSS/JS)             sources/  inbox/  categories.json
+  Containerfile ──► ghcr.io image ────────────► update-events.yml (cron)
+  example-instance/  template                   site/  (theme, logo)
+                                                data/  (generated)
 ```
 
-## Dokumentation
+## Documentation
 
-- [docs/instance.md](docs/instance.md): Instanz aufsetzen, `instance.json`
-- [docs/backend.md](docs/backend.md): Quelltypen, Feld-Mapping, Filter,
-  Fehlertoleranz, Event-Schema, lokal ausführen, Workflows
-- [docs/inbox.md](docs/inbox.md): Einzel-Events von Hand
-- [docs/source-discovery.md](docs/source-discovery.md): neue Quellen finden
-- [docs/pages.md](docs/pages.md): Veröffentlichen per GitHub Pages, DNS für eigene Domain
+- [Setting up an instance](docs/instance.md): directory layout,
+  `instance.json`, front end, operation, metrics
+- [Backend](docs/backend.md): source types, field mapping, filters, fault
+  tolerance, event schema, running locally, workflows
+- [Event inbox](docs/inbox.md): adding individual events by hand
+- [Finding sources](docs/source-discovery.md): a playbook for discovering new
+  event sources
+- [GitHub Pages](docs/pages.md): publishing via GitHub Pages and DNS for a
+  custom domain
 
-## Schnellstart (Docker)
+## Quick start (Docker)
 
 ```sh
 docker build -t openlitfass -f Containerfile .
 docker run --rm -v "$PWD/example-instance:/instance" -p 8080:8080 -e OL_FETCH_INTERVAL=0 openlitfass
 ```
 
-(`OL_FETCH_INTERVAL=0`: die Beispiel-Quellen sind nur Vorlagen. Für eine echte
-Instanz weglassen, dann wird alle 6 Stunden abgerufen – siehe
-`docs/instance.md` → "Betrieb".)
+Then open <http://localhost:8080>.
 
-Dann <http://localhost:8080> öffnen.
+`OL_FETCH_INTERVAL=0` disables fetching, because the example sources are
+templates only. Omit it for a real instance; sources are then fetched every
+six hours (see [Operation](docs/instance.md#operation-one-instance-per-container)).
 
-Fertige Images: `ghcr.io/schreibtischhelden/openlitfass` (amd64/arm64), gebaut von
-`.github/workflows/image.yml`.
+Prebuilt images for amd64 and arm64 are published as
+`ghcr.io/schreibtischhelden/openlitfass` by
+[`.github/workflows/image.yml`](.github/workflows/image.yml).
 
-## Lizenz
+## Licence
 
-[MIT](LICENSE). Die Kategorie- und Filter-Piktogramme stammen aus
-[Tabler Icons](https://tabler.io/icons) (ebenfalls MIT).
+Released under the [MIT Licence](LICENSE). The category and filter icons are
+taken from [Tabler Icons](https://tabler.io/icons), also under the MIT
+Licence.

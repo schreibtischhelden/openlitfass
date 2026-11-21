@@ -1,16 +1,16 @@
-# GitHub Pages mit eigener Domain
+# GitHub Pages with a custom domain
 
-Gilt für die Projektseite (`openlitfass.org`, Workflow
-`.github/workflows/pages.yml`) und genauso für Instanzen, die über GitHub
-Pages veröffentlichen (z. B. weissens.ee, Workflow `update-events.yml`).
-Beide Workflows schreiben die fertige Seite in den Branch `pages`, samt
-`CNAME`-Datei mit der Domain.
+This applies to the project website (`openlitfass.org`, workflow
+`.github/workflows/pages.yml`) and equally to instances that publish via GitHub
+Pages (for example weissens.ee, workflow `update-events.yml`). Both workflows
+write the finished site to the `pages` branch, including a `CNAME` file
+containing the domain.
 
-## 1. DNS beim Domain-Anbieter
+## 1. DNS at the domain registrar
 
-Für die Hauptdomain (Apex, z. B. `openlitfass.org`):
+For the apex domain (for example `openlitfass.org`):
 
-| Typ | Name | Wert |
+| Type | Name | Value |
 |---|---|---|
 | A | `@` | `185.199.108.153` |
 | A | `@` | `185.199.109.153` |
@@ -22,40 +22,41 @@ Für die Hauptdomain (Apex, z. B. `openlitfass.org`):
 | AAAA | `@` | `2606:50c0:8003::153` |
 | CNAME | `www` | `<organisation>.github.io.` |
 
-`<organisation>` ist der GitHub-Besitzer des Repos: für openlitfass
-`schreibtischhelden.github.io`, für weissens.ee `weissensee.github.io`. Der
-Repo-Name gehört **nicht** in den CNAME. GitHub leitet `www` automatisch auf
-die Hauptdomain um.
+`<organisation>` is the GitHub owner of the repository:
+`schreibtischhelden.github.io` for openlitfass and `weissensee.github.io` for
+weissens.ee. The repository name does **not** belong in the CNAME. GitHub
+automatically redirects `www` to the apex domain.
 
-Vorhandene A-/AAAA-Records des Anbieters (Parkseite) für `@` und `www`
-vorher löschen. Keine Wildcard-Records (`*`) anlegen.
+Delete any existing A or AAAA records set by the registrar (parking page) for
+`@` and `www` beforehand. Do not create wildcard records (`*`).
 
-## 2. Domain bei GitHub verifizieren (empfohlen)
+## 2. Verify the domain with GitHub (recommended)
 
-Organisation → Settings → Pages → "Add a domain": GitHub nennt einen
-TXT-Record der Form
+Organisation → Settings → Pages → "Add a domain": GitHub provides a TXT record
+of the form
 
-| Typ | Name | Wert |
+| Type | Name | Value |
 |---|---|---|
-| TXT | `_github-pages-challenge-<organisation>` | (Wert von GitHub) |
+| TXT | `_github-pages-challenge-<organisation>` | (value provided by GitHub) |
 
-Danach kann niemand sonst die Domain für eine eigene Pages-Seite verwenden.
+Once verified, nobody else can use the domain for their own Pages site.
 
-## 3. Pages im Repo einschalten
+## 3. Enable Pages in the repository
 
-Repo → Settings → Pages:
+Repository → Settings → Pages:
 
-1. Source: "Deploy from a branch", Branch `pages`, Ordner `/ (root)`.
-   (Der Branch entsteht beim ersten Lauf des Workflows.)
-2. Custom domain: ist durch die `CNAME`-Datei schon eingetragen.
-3. "Enforce HTTPS" anhaken, sobald GitHub das Zertifikat ausgestellt hat
-   (nach der DNS-Prüfung, meist Minuten, selten bis 24 h).
+1. Source: "Deploy from a branch", branch `pages`, folder `/ (root)`.
+   (The branch is created by the workflow's first run.)
+2. Custom domain: already set by the `CNAME` file.
+3. Tick "Enforce HTTPS" once GitHub has issued the certificate (after the DNS
+   check; usually minutes, occasionally up to 24 hours).
 
-## Prüfen
+## Checking
 
 ```sh
 dig +short openlitfass.org A
 dig +short www.openlitfass.org CNAME
 ```
 
-Erwartet: die vier `185.199.10x.153` bzw. `schreibtischhelden.github.io.`
+Expected: the four `185.199.10x.153` addresses and
+`schreibtischhelden.github.io.` respectively.

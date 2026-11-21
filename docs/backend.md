@@ -1,222 +1,229 @@
-# Backend: fetch & build-site
+# Backend: fetch, build-site and serve
 
-Zwei kleine Go-Programme (reine stdlib, keine externen Dependencies), die
-gegen ein **Instanz-Verzeichnis** laufen (Aufbau: `docs/instance.md`):
+The backend consists of three small Go programs that run against an
+**instance directory** (layout: [instance.md](instance.md)):
 
-- **`fetch`** ruft alle Quellen der Instanz ab, normalisiert die Events und
-  schreibt `<instance>/data/events.json`, `categories.json` und `sources.json`.
-  Das Frontend (`web/js/app.js`) lädt diese Dateien direkt per `fetch()` —
-  kein API-Server nötig.
-- **`serve`** (Standardbefehl des Images) macht beides im Intervall und liefert
-  die Seite selbst aus – eine Instanz je Container, siehe `docs/instance.md` →
-  "Betrieb".
-- **`build-site`** setzt daraus die fertige statische Seite zusammen:
-  Kern-Frontend (`web/`) + Instanz-Overrides (`<instance>/site/`) + Daten,
-  `web/index.html` gerendert mit den Werten aus `instance.json`.
-  Dazu erzeugt es `data/site.json` (instance.json für das Frontend),
-  `manifest.webmanifest` (PWA) und stempelt `sw.js` mit einer Build-ID.
+- **`fetch`** fetches all of the instance's sources, normalises the events and
+  writes `<instance>/data/events.json`, `categories.json` and `sources.json`.
+  The front end (`web/js/app.js`) loads these files directly with `fetch()`;
+  no API server is needed.
+- **`build-site`** assembles the finished static site from the core front end
+  (`web/`), the instance overrides (`<instance>/site/`) and the data, rendering
+  `web/index.html` with the values from `instance.json`. It also generates
+  `data/site.json` (`instance.json` for the front end) and
+  `manifest.webmanifest` (PWA), and stamps `sw.js` with a build ID.
+- **`serve`** (the image's default command) runs both at a regular interval
+  and serves the site itself: one instance per container, see
+  [Operation](instance.md#operation-one-instance-per-container).
 
-Beide laufen im Container-Image des Kerns (`Containerfile`), das der
-Workflow der Instanz (`update-events.yml`) alle 6 Stunden ausführt.
+All three are part of the core's container image (`Containerfile`), which the
+instance's workflow (`update-events.yml`) runs every six hours. Apart from
+`golang.org/x/net/html` for HTML parsing, only the Go standard library is
+used.
 
-## Struktur
+## Structure
 
 ```
 backend/
-  cmd/fetch/            Einstiegspunkt: Quellen abrufen, JSON schreiben
-  cmd/build-site/       Einstiegspunkt: statische Seite zusammensetzen
-  internal/instance/    Lädt <instance>/instance.json, kennt die Pfade
-  internal/model/       Event-Schema, Instanz-Zeitzone (model.Local)
-  internal/config/      Lädt <instance>/sources/*.json
-  internal/mapping/     Dot-Path-Resolver + Feld-Mapping-Engine (siehe unten)
-  internal/sources/     Source-Interface, generische RSS/JSON/wcs-Fetcher,
-                        Inbox, Resilienz-Wrapper (Timeout/Panic-Recovery/Filter)
-  internal/categories/  Kategorie -> Piktogramm (aus <instance>/categories.json)
-  internal/writer/      Validierung, Dedupe, Sortierung, stabile IDs, JSON-Ausgabe
+  cmd/fetch/            entry point: fetch sources, write JSON
+  cmd/build-site/       entry point: assemble the static site
+  cmd/serve/            entry point: fetch, build and serve in a loop
+  internal/app/         shared logic of the commands (environment, serve, metrics, static pages)
+  internal/instance/    loads <instance>/instance.json, knows the paths
+  internal/model/       event schema, instance time zone (model.Local)
+  internal/config/      loads <instance>/sources/*.json
+  internal/mapping/     dot-path resolver and field-mapping engine (see below)
+  internal/htmlsel/     small CSS selector engine for html sources
+  internal/sources/     Source interface, generic RSS/JSON/iCal/HTML/wcs fetchers,
+                        inbox, resilience wrappers (timeout, panic recovery, filters)
+  internal/categories/  category -> icon (from <instance>/categories.json)
+  internal/writer/      validation, merging, sorting, stable IDs, JSON output
 ```
 
-## Was ist instanzspezifisch?
+## What is instance-specific?
 
-Alles, was eine Instanz von einer anderen unterscheidet, steht in
-`instance.json` und den Dateien daneben — der Kern enthält keine
-ortsbezogenen Inhalte:
+Everything that distinguishes one instance from another lives in
+`instance.json` and the files next to it. The core contains no
+location-specific content:
 
-| Was | Wo |
+| What | Where |
 |---|---|
-| Name, Titel, Beschreibung, Sprache, Theme-Farbe, Über-Text | `instance.json` |
-| Impressum, Datenschutz, "Termin melden" | `instance.json` → `imprintUrl`, `privacyUrl`, `submitUrl` |
-| Zeitzone aller Event-Zeiten | `instance.json` → `timezone` (Standard `Europe/Berlin`) |
-| Fallback-Link für Events ohne eigene URL | `instance.json` → `baseUrl` (+ `#<event-id>`) |
-| Quellen | `sources/*.json` |
-| Einzel-Events | `inbox/*.json` |
-| Kategorien + Piktogramme | `categories.json` |
-| Farben, Logo, Schriften | `site/css/theme.css`, `site/logo.svg`, `site/…` |
+| Name, title, description, language, theme colour, About text | `instance.json` |
+| Legal notice, privacy policy, "submit an event" | `instance.json` → `imprintUrl`, `privacyUrl`, `submitUrl` |
+| Time zone of all event times | `instance.json` → `timezone` (default `Europe/Berlin`) |
+| Fallback link for events without their own URL | `instance.json` → `baseUrl` (+ `#<event-id>`) |
+| Sources | `sources/*.json` |
+| Individual events | `inbox/*.json` |
+| Categories and icons | `categories.json` |
+| Colours, logo, fonts | `site/css/theme.css`, `site/logo.svg`, `site/…` |
 
-## Woher weiß das Script, was es abrufen soll?
+## How does fetch know what to fetch?
 
-Über `<instance>/sources/` — **eine JSON-Datei pro Quelle**, keine
-gemeinsame Liste. `sources.All()` (in `internal/sources/source.go`) liest
-beim Start jede `*.json`-Datei in diesem Verzeichnis (alphabetisch, für
-deterministische Runs) und baut daraus automatisch einen `RSSSource`,
-`JSONSource`, `ICalSource`, `HTMLSource` oder `WCSSource` — **für RSS-Feeds, JSON-APIs, iCal-Kalender, HTML-Seiten und WordPress
-"Weekly Class Schedule"-Kalender muss kein Go-Code geschrieben werden**, nur
-eine neue Datei angelegt werden.
+Through `<instance>/sources/`: **one JSON file per source**, not a shared
+list. On start-up, `sources.All()` (in `internal/sources/source.go`) reads
+every `*.json` file in this directory (in alphabetical order, for
+deterministic runs) and builds an `RSSSource`, `JSONSource`, `ICalSource`,
+`HTMLSource` or `WCSSource` from it. **RSS feeds, JSON APIs, iCalendar
+exports, HTML pages and WordPress "Weekly Class Schedule" calendars require no
+Go code**, only a new file.
 
-Der Dateiname (ohne `.json`) wird automatisch der Quellen-Name, sofern die
-Datei kein eigenes `"name"`-Feld setzt. Damit betrifft das Hinzufügen,
-Ändern oder Entfernen einer Quelle immer genau eine Datei — sauberer git
-diff, keine Merge-Konflikte in einem gemeinsamen Array.
+Unless the file sets its own `"name"` field, the file name (without `.json`)
+becomes the source name. Adding, changing or removing a source therefore
+always affects exactly one file: a clean Git diff and no merge conflicts in a
+shared array.
 
-Dateien, die auf `.example.json` enden, werden **nicht** geladen (Vorlagen
-zum Kopieren). Vorlagen für alle drei Typen liegen in
-`example-instance/sources/`:
+Files ending in `.example.json` are **not** loaded (they are templates to
+copy). Templates for every type are in `example-instance/sources/`:
 
-- `beispiel-rss.example.json` — RSS
-- `beispiel-json.example.json` — JSON-API
-- `beispiel-ical.example.json` — `type: "ical"` (siehe Abschnitt "ical-Quellen")
-- `beispiel-html.example.json` — `type: "html"` (siehe Abschnitt "html-Quellen")
-- `beispiel-wcs.example.json` — `type: "wcs"` (siehe Abschnitt "wcs-Quellen")
+- `beispiel-rss.example.json`: `type: "rss"`
+- `beispiel-json.example.json`: `type: "json"` (JSON API)
+- `beispiel-ical.example.json`: `type: "ical"` (see [ical sources](#ical-sources-icalendar--ics))
+- `beispiel-html.example.json`: `type: "html"` (see [html sources](#html-sources-pages-without-a-feed))
+- `beispiel-wcs.example.json`: `type: "wcs"` (see [wcs sources](#wcs-sources-wordpress-weekly-class-schedule-plugin))
 
-Eine Quelle lässt sich mit `"disabled": true` abschalten, ohne die Datei zu
-löschen. Das `"status"`-Feld verwaltet die Pipeline selbst (siehe
-"Health-Status"), nicht von Hand pflegen.
+A source can be switched off with `"disabled": true` without deleting the
+file: no fetch attempt and no status update take place until the field is
+removed or set to `false`. The `"status"` field is maintained by the pipeline
+itself (see [Health status](#health-status)); do not edit it by hand.
 
-Nur für Formate, die auch da nicht reinpassen (Logins, POST-Anfragen,
-authentifizierte APIs, …), muss man selbst eine `Source`
-implementieren — siehe `internal/sources/example.go` als Vorlage.
+Only formats that fit none of these types (logins, POST requests,
+authenticated APIs, …) require a custom `Source` implementation; see
+`internal/sources/example.go` as a template.
 
-## Wie das Feld-Mapping funktioniert
+## How field mapping works
 
-Jede Quellen-Datei hat ein `mapping`-Objekt (bei `rss`/`json`-Quellen). Jeder
-Eintrag darin ist eine **FieldRule**:
+Each `rss`, `json` and `html` source file has a `mapping` object. Every entry
+in it is a **FieldRule**:
 
 ```jsonc
 {
-  "path": "location.title",   // Dot-Pfad in das Item, z.B. "a.b.0" für Array-Index 0
-  "regex": "Beginn (?P<value>\\d{2}:\\d{2})",  // optional: Wert per Regex aus dem String extrahieren
-  "format": "RFC1123Z",        // optional: nur für start/end – Zeit-Layout zum Parsen
-  "default": "Marktplatz",     // optional: Fallback, wenn path nichts liefert
-  "template": "{venue.address}, {venue.zip} {venue.city}"  // statt path: mehrere Werte kombinieren
+  "path": "location.title",   // dot path into the item, e.g. "a.b.0" for array index 0
+  "regex": "Beginn (?P<value>\\d{2}:\\d{2})",  // optional: extract the value from the string with a regex
+  "format": "RFC1123Z",        // optional, start/end only: time layout for parsing
+  "default": "Marktplatz",     // optional: fallback if path yields nothing
+  "template": "{venue.address}, {venue.zip} {venue.city}"  // instead of path: combine several values
 }
 ```
 
-`template` setzt jeden `{dot.pfad}` durch seinen Wert und räumt Trennzeichen
-neben leeren Werten auf (fehlt die Straße, wird daraus "13086 Berlin", nicht
-", 13086 Berlin"). Mit `{a|b}` wird der erste nicht-leere Wert genommen
-(z.B. `{beginn|einlass}`).
+`template` replaces every `{dot.path}` with its value and tidies up separators
+next to empty values (if the street is missing, the result is "13086 Berlin",
+not ", 13086 Berlin"). `{a|b}` takes the first non-empty value (for example
+`{beginn|einlass}`).
 
-`regex` wirkt auf den Wert aus `path` bzw. `template` und liefert: die
-Gruppe `value`, falls vorhanden; sonst **alle nicht-leeren Gruppen mit
-Leerzeichen verbunden**; ohne Gruppen den ganzen Treffer; ohne Treffer
-nichts (dann greift `default`). Damit funktionieren Alternativen
-(`(\d+)\s*€|Eintritt (frei)` → "27" oder "frei") und Teile aus
-verschiedenen Feldern lassen sich zusammensetzen – etwa Datum aus dem
-Titel, Uhrzeit aus dem Text:
+`regex` is applied to the value from `path` or `template` and yields: the group
+named `value`, if present; otherwise **all non-empty groups joined with
+spaces**; without groups, the whole match; without a match, nothing (in which
+case `default` applies). This makes alternatives possible
+(`(\d+)\s*€|Eintritt (frei)` → "27" or "frei"), and parts from different
+fields can be combined, for example the date from the title and the time from
+the text:
 
 ```jsonc
 "start": {
   "template": "{title} | {encoded}",   // "21.11.26 jazz … | <h4>20 Uhr, Aula</h4>…"
   "regex": "(?s)(\\d{1,2}\\.\\d{1,2}\\.\\d{2,4}).*?[|](?:.*?(\\d{1,2}(?::\\d{2})?)\\s*Uhr)?",
-  "format": "2.1.06 15:04|2.1.06 15|2.1.06"   // "21.11.26 20", ohne Uhrzeit ganztägig
+  "format": "2.1.06 15:04|2.1.06 15|2.1.06"   // "21.11.26 20"; without a time: all-day
 }
 ```
 
-(`[|]` statt `\|`: spart eine Escape-Ebene im JSON.) Dieselbe Regel gilt für
-`regex` in `extract` von html-Quellen.
+(`[|]` instead of `\|` saves one level of escaping in JSON.) The same rule
+applies to `regex` in the `extract` block of html sources.
 
-**Text wird immer bereinigt:** Alle Textfelder aus `rss`/`json`-Quellen
-laufen durch `mapping.CleanText` — HTML-Tags raus, Entitäten dekodiert
-(`&#8211;` → `–`, `&#038;` → `&`), weiche Trennstriche und Nullbreite-Zeichen
-entfernt, Leerraum zusammengefasst. `description` behält Absätze und wird bei
-1200 Zeichen mit "…" gekürzt.
+**Text is always cleaned:** all text fields from `rss` and `json` sources pass
+through `mapping.CleanText`. HTML tags are removed, entities decoded
+(`&#8211;` → `–`, `&#038;` → `&`), soft hyphens and zero-width characters
+removed and whitespace collapsed. `description` keeps its paragraphs and is
+truncated with "…" at 1,200 characters.
 
-**Für JSON-Quellen** ist `path` ein Dot-Pfad in die dekodierte JSON-Antwort
-(`itemsPath` zeigt vorher auf das Array der Einzel-Items, z.B. `"data.items"`;
-leer = die Antwort selbst ist bereits das Array).
+**For JSON sources**, `path` is a dot path into the decoded JSON response.
+`itemsPath` first points to the array of individual items (for example
+`"data.items"`); if empty, the response itself is the array.
 
-**Paginierte JSON-APIs:** `nextPath` zeigt auf die URL der nächsten Seite in
-der Antwort (z.B. `"next_rest_url"` bei WordPress "The Events Calendar").
-Gefolgt wird, bis keine nächste Seite mehr kommt, `maxPages` (Standard 10)
-erreicht ist oder eine ganze Seite hinter dem `daysAhead`-Fenster liegt.
-Schlägt eine spätere Seite fehl, bleiben die bisherigen Termine erhalten.
+**Paginated JSON APIs:** `nextPath` points to the URL of the next page in the
+response (for example `"next_rest_url"` with the WordPress plugin "The Events
+Calendar"). Pages are followed until there is no next page, `maxPages`
+(default 10) is reached, or an entire page lies beyond the `daysAhead` window.
+If a later page fails, the events collected so far are kept.
 
-**Für RSS-Quellen** ist `path` der kleingeschriebene, Namespace-freie
-Tag-Name innerhalb von `<item>` – Standardfelder sind `title`, `link`,
-`description`, `pubdate`, `guid`, `category`; zusätzliche/eigene Tags eines
-Feeds funktionieren genauso, da einfach jedes Kind-Element von `<item>`
-verfügbar gemacht wird.
+**For RSS sources**, `path` is the lower-case tag name, without namespace,
+within `<item>`. The standard fields are `title`, `link`, `description`,
+`pubdate`, `guid` and `category`; additional or custom tags of a feed work in
+the same way, as every child element of `<item>` is made available.
 
-**Verfügbare Ziel-Felder** in `mapping` (alle optional außer für ein
-sinnvolles Ergebnis braucht's mindestens `title`):
+**Available target fields** in `mapping` (all optional, although a meaningful
+result requires at least `title`):
 
-- `sourceId` – stabile ID innerhalb der Quelle (z.B. RSS-`guid`), Basis für
-  die abgeleitete `Event.ID`
+- `sourceId`: stable ID within the source (for example the RSS `guid`).
 - `title`, `description`, `category`, `organizer`, `url`
 - `locationName`, `locationAddress`
-- **Zeiten**, zwei Wege:
-  - `start` (+ optional `end`) mit `format` – empfohlen: parst einen
-    Zeitstempel und leitet daraus automatisch korrekt in die Instanz-Zeitzone (`instance.json` → `timezone`)
-    umgerechnete `date`/`startTime`/`endTime` ab (`model.LocalParts`,
-    per `time.ParseInLocation` – funktioniert sowohl mit Zeitstempeln, die
-    eine explizite Zeitzone tragen, als auch mit "naiven" lokalen Strings)
-  - `date`, `startTime`, `endTime` direkt – wenn die Quelle diese Teile
-    schon einzeln in exakt diesem Format liefert (`YYYY-MM-DD` / `HH:MM`);
-    werden 1:1 übernommen (ggf. per `regex` extrahiert), nicht umformatiert
-- `price` – eigenes Objekt: `amountPath` (Zahl in Euro, auch als String;
-  0/fehlend = kostenlos) und/oder `freePath` (expliziter Boolean, hat
-  Vorrang). Mit `"unknownIfMissing": true` bedeutet ein fehlender Betrag
-  "Preis unbekannt" (keine Anzeige) statt "kostenlos" — für Quellen, die den
-  Preis weglassen, wenn sie ihn nicht kennen. `amountRegex` zieht den Betrag
-  aus freiem Text bei `amountPath` (Regeln wie `regex`), z.B.
-  `"(?i)eintritt\\W{0,3}(frei)|(\\d+(?:,\\d+)?)\\s*€"`; "frei" zählt als
-  kostenlos, kein Treffer als fehlend.
+- **Times**, in one of two ways:
+  - `start` (and optionally `end`) with `format` (recommended): parses a
+    timestamp and automatically derives `date`, `startTime` and `endTime`,
+    correctly converted to the instance's time zone (`instance.json` →
+    `timezone`), using `model.LocalParts` and `time.ParseInLocation`. This
+    works both with timestamps that carry an explicit time zone and with
+    "naive" local strings.
+  - `date`, `startTime` and `endTime` directly, if the source already provides
+    these parts separately in exactly this format (`YYYY-MM-DD` / `HH:MM`).
+    They are taken over as they are (optionally extracted with `regex`), not
+    reformatted.
+- `price`: an object of its own with `amountPath` (amount in euros, also as a
+  string; 0 or missing = free) and/or `freePath` (explicit Boolean, takes
+  precedence). With `"unknownIfMissing": true`, a missing amount means "price
+  unknown" (nothing is shown) instead of "free", for sources that omit the
+  price when they do not know it. `amountRegex` extracts the amount from free
+  text at `amountPath` (same rules as `regex`), for example
+  `"(?i)eintritt\\W{0,3}(frei)|(\\d+(?:,\\d+)?)\\s*€"`; "frei" (free) counts as
+  free, no match as missing.
+- `ticketRequired`, `registrationRequired`, `familyFriendly`, `cancelled`:
+  attribute rules, see [Cancelled events](#cancelled-events).
 
-`format` akzeptiert entweder einen Go-Referenz-Layout-String
-(`2006-01-02T15:04:05Z07:00`) oder die Aliase `RFC3339`, `RFC1123Z`
-(Standard-RSS-`pubDate`-Format), `RFC1123`.
+`format` accepts either a Go reference layout string
+(`2006-01-02T15:04:05Z07:00`) or one of the aliases `RFC3339`, `RFC1123Z`
+(the standard RSS `pubDate` format) and `RFC1123`. Several layouts can be
+separated with `|`.
 
-## Gemeinsame Filter (alle Quelltypen)
+## Common filters (all source types)
 
-Drei Felder gelten unabhängig vom `type` (`rss`, `json`, `wcs`, ...) für jede
-Quelle gleichermaßen — durchgesetzt von `withCommonFilters` in
-`internal/sources/filter.go`, das sich in `source.go` → `All()` um jede
-Quelle wickelt:
+The following fields apply to every source, regardless of its `type`. They are
+enforced by `withCommonFilters` in `internal/sources/filter.go`, which
+`All()` in `source.go` wraps around every source:
 
 ```jsonc
 {
-  "daysAhead": 30,                       // optional: Fenster ab heute
-  "categoryMap": { "Kino": "Kultur" },   // optional: Quell-Kategorie -> Instanz-Kategorie
-  "categories": ["Kultur", "Markt"]      // optional: Kategorie-Allowlist
+  "daysAhead": 30,                       // optional: window starting today
+  "categoryMap": { "Kino": "Kultur" },   // optional: source category -> instance category
+  "categories": ["Kultur", "Markt"],     // optional: category allowlist
+  "include": [{ "field": "location", "regex": "(?i)weißensee|1308[68]" }],  // optional
+  "exclude": [{ "field": "title", "regex": "(?i)geschlossene gesellschaft" }]  // optional
 }
 ```
 
-- `daysAhead` – lässt Events raus, die mehr als N Tage in der Zukunft liegen
-  (Instanz-Zeitzone). Ohne dieses Feld: kein Fenster, es bleibt, was die Quelle
-  liefert. Bei `wcs`-Quellen steuert es zusätzlich das Zeitfenster der
-  Anfrage selbst, bei paginierten `json`-Quellen das Ende der Paginierung.
-- `categoryMap` – übersetzt die Kategorie-Namen der Quelle in das Vokabular
-  der Instanz (`categories.json`), Schlüssel ohne Rücksicht auf
-  Groß-/Kleinschreibung. Nicht zugeordnete Werte bleiben, wie sie sind (und
-  erscheinen dann mit Ersatz-Piktogramm, siehe unten).
-- `categories` – Allowlist auf das aufgelöste `category`-Feld (nach Mapping
-  und `categoryMap`). Ohne dieses Feld: keine Einschränkung.
-- `include` / `exclude` – Listen von `{ "field": …, "regex": … }`. Mit
-  `include` bleiben nur Termine, bei denen mindestens eine Regel passt; mit
-  `exclude` fallen Termine weg, bei denen eine Regel passt. Felder: `title`,
-  `location` (Name und Adresse), `organizer`, `category`, `description`.
-  Beispiel – von einer Hochschule nur, was im Kiez stattfindet:
-  `"include": [{ "field": "location", "regex": "(?i)weißensee|1308[68]" }]`.
-  Ungültige Regeln werden geloggt und übersprungen.
-- **Bereits vergangene Events werden immer verworfen**, unabhängig von
-  diesen beiden Feldern — das ist kein Feature-Flag, sondern fixes Verhalten
-  für einen Event-Kalender.
+- `daysAhead`: drops events more than N days in the future (instance time
+  zone). Without this field there is no window; everything the source provides
+  is kept. For `wcs` sources it also controls the time window of the request
+  itself, and for paginated `json` sources the end of pagination.
+- `categoryMap`: translates the source's category names into the instance's
+  vocabulary (`categories.json`); keys are matched case-insensitively. Values
+  without a mapping are kept as they are (and are then shown with the fallback
+  icon, see below).
+- `categories`: an allowlist applied to the resolved `category` field (after
+  mapping and `categoryMap`). Without this field there is no restriction.
+- `include` / `exclude`: lists of `{ "field": …, "regex": … }`. With
+  `include`, only events for which at least one rule matches are kept; with
+  `exclude`, events for which any rule matches are dropped. Fields: `title`,
+  `location` (name and address), `organizer`, `category`, `description`.
+  The example above keeps, from a university calendar, only what takes place
+  in the neighbourhood. Invalid rules are logged and skipped.
+- **Past events are always discarded**, regardless of these fields. This is
+  not a feature flag but fixed behaviour for an events calendar.
 
-Beide Felder sind rein optional und wirken erst nach dem eigentlichen
-Abruf/Mapping, treffen also für `rss`, `json` und `wcs` gleichermaßen zu
-(und auch für künftige, handgeschriebene Sources, sofern sie über `All()`
-mit `harden(withCommonFilters(...))` registriert werden).
+All of these fields are optional and take effect only after the actual fetch
+and mapping, so they apply equally to all source types, including future
+hand-written sources, provided they are registered in `All()` with
+`harden(withCommonFilters(...))`.
 
-### Beispiel: RSS-Quelle — `example-instance/sources/beispiel-rss.example.json`
+### Example: RSS source (`example-instance/sources/beispiel-rss.example.json`)
 
 ```jsonc
 {
@@ -235,10 +242,9 @@ mit `harden(withCommonFilters(...))` registriert werden).
 }
 ```
 
-(Kein `"name"` nötig — der Dateiname `beispiel-rss` wird zum
-Quellen-Namen.)
+No `"name"` is needed: the file name `beispiel-rss` becomes the source name.
 
-### Beispiel: JSON-API — `example-instance/sources/beispiel-json.example.json`
+### Example: JSON API (`example-instance/sources/beispiel-json.example.json`)
 
 ```jsonc
 {
@@ -261,34 +267,34 @@ Quellen-Namen.)
 }
 ```
 
-Eine neue Quelle anbinden: eine der `.example.json`-Dateien in
-`example-instance/sources/` nach `<instance>/sources/` kopieren, `.example` aus dem Dateinamen entfernen, URL +
-Mapping anpassen, fertig. Kein Redeploy von Go-Code nötig, nur eine neue
-Datei.
+To connect a new source, copy one of the `.example.json` files from
+`example-instance/sources/` to `<instance>/sources/`, remove `.example` from
+the file name, and adjust the URL and mapping. No Go code needs to be
+redeployed, only a new file added.
 
-## wcs-Quellen (WordPress "Weekly Class Schedule"-Plugin)
+## wcs sources (WordPress "Weekly Class Schedule" plugin)
 
-Manche Kiez-Kalender (z.B. das Familienzentrum Weißensee in der Instanz weissens.ee) laufen auf WordPress
-mit dem Plugin "Weekly Class Schedule" von CurlyThemes. Die Wochentabelle auf
-der Seite ist ein leeres `<div>`, das per Vue.js clientseitig befüllt wird —
-es gibt keine statische HTML-Tabelle und keinen dokumentierten öffentlichen
-REST-Endpunkt. Die Daten kommen stattdessen über den WordPress-Standard-
-Mechanismus `admin-ajax.php` mit `action=wcs_get_events_json` (gefunden über
-den Network-Tab des Browsers, während die Kalenderseite die Wochenansicht
-lädt). Das passt nicht ins generische RSS/JSON-Mapping, deshalb gibt's einen
-dritten Quelltyp `"type": "wcs"` mit eigenem Go-Parser
-(`internal/sources/wcs.go`), aber weiterhin per Config-Datei nutzbar:
+Some neighbourhood calendars (for example Familienzentrum Weißensee in the
+weissens.ee instance) run on WordPress with the "Weekly Class Schedule" plugin
+by CurlyThemes. The weekly table on the page is an empty `<div>` populated on
+the client side by Vue.js: there is no static HTML table and no documented
+public REST endpoint. Instead, the data is loaded through the standard
+WordPress mechanism `admin-ajax.php` with `action=wcs_get_events_json` (found
+via the browser's Network tab while the calendar page loads the week view).
+This does not fit the generic mapping, so there is a dedicated source type
+`"type": "wcs"` with its own Go parser (`internal/sources/wcs.go`), which is
+still configured through a source file:
 
 ```jsonc
 {
   "type": "wcs",
-  "url": "https://www.familienzentrum-weissensee.de",  // Basis-URL, nicht der Ajax-Endpunkt selbst
-  "daysAhead": 30,               // rollierendes Zeitfenster ab heute, Default 30
-  "organizer": "Familienzentrum Weißensee",   // Plugin liefert keinen Organizer
+  "url": "https://www.familienzentrum-weissensee.de",  // base URL, not the Ajax endpoint itself
+  "daysAhead": 30,               // rolling window from today; default 30
+  "organizer": "Familienzentrum Weißensee",   // the plugin provides no organiser
   "locationDefault": "Familienzentrum Weißensee, Mahlerstraße 4",
-  "wcsTypeIds": [27, 28, 29, 30],  // s.u. – WICHTIG, nicht weglassen
-  "familyFriendly": true,          // gilt für JEDES Event dieser Quelle, siehe unten
-  "categoryMap": {                 // wcs_type-Slug -> unsere Kategorie (für Icons)
+  "wcsTypeIds": [27, 28, 29, 30],  // see below; IMPORTANT, do not omit
+  "familyFriendly": true,          // applies to EVERY event of this source, see below
+  "categoryMap": {                 // wcs_type slug -> instance category (for icons)
     "austausch": "Unkategorisiert",
     "beratung": "Unkategorisiert",
     "bewegung": "Sport",
@@ -297,69 +303,66 @@ dritten Quelltyp `"type": "wcs"` mit eigenem Go-Parser
 }
 ```
 
-`familyFriendly` ist hier Config-Ebene, nicht pro Event: die Plugin-API gibt
-kein Signal dafür pro Termin her, aber dass das Familienzentrum Weißensee
-als Ganzes ein Familien-/Elternzentrum ist, ist ein verifizierter Fakt über
-die Quelle selbst, keine Vermutung. Bei einer `wcs`-Quelle, deren Angebot
-nicht durchgängig familienorientiert ist, das Feld einfach weglassen
-(Standard `false`). `ticketRequired`/`registrationRequired` liefert diese
-Quelle dagegen grundsätzlich nicht (kein Signal in der Plugin-API) — bei
-`wcs`-Events immer `false`, siehe "Event-JSON-Schema".
+`familyFriendly` is set at source level here, not per event: the plugin API
+provides no per-event signal for it, but the fact that Familienzentrum
+Weißensee as a whole is a family centre is a verified fact about the source
+itself, not an assumption. For a `wcs` source whose programme is not
+consistently aimed at families, simply omit the field (default `false`). This
+source never provides `ticketRequired` or `registrationRequired` (there is no
+signal in the plugin API), so they are always `false` for `wcs` events; see
+[Event JSON schema](#event-json-schema-instancedataeventsjson).
 
-**`wcsTypeIds` ist notwendig, kein Feintuning:** Ohne diesen Filter liefert
-der Endpoint auch die Demo-/Testdaten, mit denen das Plugin-Template
-ausgeliefert wird (z.B. "Advanced Aqua Zumba", "Chemistry Lab", fiktive
-Dozent:innen) — die liegen offenbar noch unbenutzt in der WordPress-
-Installation und haben nichts mit dem echten Programm zu tun. Die IDs
-findet man, indem man die Kalenderseite der Zielseite im Browser öffnet, im
-Network-Tab die `admin-ajax.php?action=wcs_get_events_json`-Anfrage sucht
-und die `content[wcs_type][]`-Werte daraus abliest.
+**`wcsTypeIds` is required, not fine-tuning:** without this filter the
+endpoint also returns the demo data that ships with the plugin template (for
+example "Advanced Aqua Zumba", "Chemistry Lab" and fictitious instructors),
+which apparently still sits unused in the WordPress installation and has
+nothing to do with the real programme. To find the IDs, open the target site's
+calendar page in the browser, look for the
+`admin-ajax.php?action=wcs_get_events_json` request in the Network tab and
+read the `content[wcs_type][]` values from it.
 
-**Zeit-Besonderheit:** Die vom Plugin gelieferten `start`/`end`-Strings
-tragen ein `+00:00`/`Z`-Suffix, sind aber tatsächlich schon
-Ortszeit des Veranstalters (keine echte UTC-Umrechnung) — bestätigt gegen die
-auf der Seite veröffentlichten Zeiten (z.B. "Queer Café 16:30–18:00" steht
-exakt so in den Rohdaten, eine echte UTC→Ortszeit-Umrechnung hätte die Ziffern
-um 2h verschoben). `parseWCSLocal` in `wcs.go` nimmt deshalb bewusst nur die
-ersten 19 Zeichen und interpretiert sie direkt als Ortszeit der Instanz (`model.Local`), statt dem
-Offset zu vertrauen. Bei einer neuen wcs-Quelle unbedingt gegen die echten
-Öffnungszeiten der Seite gegenchecken, ob das dort genauso ist — Plugins
-dieser Art sind dafür bekannt, mit Zeitzonen zu schludern.
+**Time quirk:** the `start`/`end` strings returned by the plugin carry a
+`+00:00`/`Z` suffix but are actually already in the organiser's local time
+(no real UTC conversion). This was confirmed against the times published on
+the website: "Queer Café 16:30–18:00" appears exactly like that in the raw
+data, whereas a genuine UTC-to-local conversion would have shifted the digits
+by two hours. `parseWCSLocal` in `wcs.go` therefore deliberately takes only
+the first 19 characters and interprets them directly as the instance's local
+time (`model.Local`) instead of trusting the offset. For any new wcs source,
+always check against the real opening hours on the website whether the same
+applies; plugins of this kind are known to be careless with time zones.
 
-**Warnung, nicht blind auf andere Quellen übertragen:** Dieser Local-Digits-
-Trick ist eine verifizierte Ausnahme für genau dieses eine Plugin, keine
-allgemeine Regel. Recherche zu vergleichbaren Aggregator-Projekten
-(judell/community-calendar, siehe deren `docs/timezone.md`) bestätigt, warum
-das wichtig ist: ein und dieselbe Stadt-Instanz bekommt dort Feeds mit
-handfest unterschiedlichen Zeitzonen-Angaben, weil einzelne Plattformen
-(Meetup, Eventbrite) plattform-eigene Defaults statt der Orts-Zeitzone in
-ihre Zeitstempel schreiben — bei einer ihrer Städte betraf das über 10.000
-Events. iCalendar/ICS kennt zudem zwei echte Konventionen: `X-WR-TIMEZONE`
-(Kalender-weiter Default, Google-Konvention) und `VTIMEZONE`+`TZID` (pro
-Termin, RFC-5545-Standard) — beide kommen in freier Wildbahn vor. Kurz: jede
-neue Quelle (insbesondere ein künftiger `ical`/ICS-Quelltyp) braucht ihre
-eigene, einzeln verifizierte Zeit-Behandlung. Der Local-Digits-Trick aus
-`parseWCSLocal` darf nicht kommentarlos kopiert werden, nur weil er hier
-zufällig richtig war.
+**Warning: do not apply this blindly to other sources.** This "local digits"
+approach is a verified exception for this one plugin, not a general rule.
+Research into comparable aggregator projects (judell/community-calendar, see
+its `docs/timezone.md`) confirms why this matters: a single city instance
+there receives feeds with genuinely different time zone information, because
+individual platforms (Meetup, Eventbrite) write platform-specific defaults
+instead of the local time zone into their timestamps; in one of their cities
+this affected more than 10,000 events. iCalendar also has two real
+conventions, `X-WR-TIMEZONE` (calendar-wide default, a Google convention) and
+`VTIMEZONE` + `TZID` (per event, RFC 5545), and both occur in the wild. In
+short: every new source needs its own, individually verified time handling.
+The approach in `parseWCSLocal` must not be copied without comment simply
+because it happened to be correct here.
 
-Abgesagte Termine (`"visible": false` in der Antwort, korrespondiert mit
-`meta._wcs_canceled` auf Seiten der Quelle) werden herausgefiltert statt
-angezeigt.
+Cancelled occurrences (`"visible": false` in the response, corresponding to
+`meta._wcs_canceled` on the source's side) are marked as cancelled; see
+[Cancelled events](#cancelled-events).
 
-## ical-Quellen (iCalendar / .ics)
+## ical sources (iCalendar / .ics)
 
-Für Kalender-Exporte — Google Kalender, Nextcloud, Outlook und die meisten
-WordPress-Event-Plugins (Events Manager `/events.ics`, The Events Calendar
-`?ical=1`, …). Kein `mapping`-Block nötig, die Felder sind durch den
-Standard festgelegt:
+For calendar exports: Google Calendar, Nextcloud, Outlook and most WordPress
+event plugins (Events Manager `/events.ics`, The Events Calendar `?ical=1`, …).
+No `mapping` block is needed, as the fields are defined by the standard:
 
 ```jsonc
 {
   "type": "ical",
   "url": "https://example.org/events.ics",
-  "daysAhead": 120,                 // Fenster; ohne Angabe 180 Tage für Wiederholungen
-  "organizer": "Beispiel-Bühne",    // falls ORGANIZER;CN fehlt
-  "locationDefault": "Beispiel-Bühne, Musterstraße 5",  // falls LOCATION fehlt
+  "daysAhead": 120,                 // window; if omitted, 180 days for recurrences
+  "organizer": "Beispiel-Bühne",    // used if ORGANIZER;CN is missing
+  "locationDefault": "Beispiel-Bühne, Musterstraße 5",  // used if LOCATION is missing
   "categoryMap": { "Konzert": "Kultur" },
   "familyFriendly": false
 }
@@ -368,48 +371,49 @@ Standard festgelegt:
 | iCal | Event |
 |---|---|
 | `SUMMARY` | `title` |
-| `DESCRIPTION` | `description` (bereinigt, gekürzt) |
+| `DESCRIPTION` | `description` (cleaned, truncated) |
 | `URL` | `url` |
-| erster Wert von `CATEGORIES` | `category` (über `categoryMap` übersetzen) |
-| `ORGANIZER;CN=…` | `organizer`, sonst `organizer` aus der Konfiguration |
+| first value of `CATEGORIES` | `category` (translate with `categoryMap`) |
+| `ORGANIZER;CN=…` | `organizer`, otherwise `organizer` from the configuration |
 | `X-APPLE-STRUCTURED-LOCATION` (`X-TITLE`/`X-ADDRESS`) | `location.name`/`address` |
-| sonst `LOCATION` | `location.name`, sonst `locationDefault` |
-| `UID` (+ Datum bei Wiederholungen) | stabile ID |
-| — | Preis: unbekannt (iCal kennt keinen Preis) |
+| otherwise `LOCATION` | `location.name`, otherwise `locationDefault` |
+| `UID` (+ date for recurrences) | stable ID |
+| — | price: unknown (iCalendar has no price) |
 
-Zeiten: UTC (`…Z`), `TZID=…` und "schwebende" Zeiten ohne Zone (dann
-`X-WR-TIMEZONE` des Kalenders, sonst die Instanz-Zeitzone); ganztägige
-Termine (`VALUE=DATE`); `DURATION` statt `DTEND`. Ist das Ende gleich dem
-Start (Events Manager macht das, wenn keine Endzeit gepflegt ist), bleibt
-die Endzeit leer. Unbekannte Zonennamen (z.B. Windows-Namen) fallen auf die
-Instanz-Zeitzone zurück.
+Times: UTC (`…Z`), `TZID=…` and "floating" times without a zone (then the
+calendar's `X-WR-TIMEZONE`, otherwise the instance time zone); all-day events
+(`VALUE=DATE`); `DURATION` instead of `DTEND`. If the end equals the start
+(Events Manager does this when no end time is set), the end time is left
+empty. Unknown zone names (for example Windows names) fall back to the
+instance time zone.
 
-Wiederholungen (`RRULE`): `DAILY`, `WEEKLY` (auch mit `BYDAY=TU,TH`),
-`MONTHLY` (gleicher Tag im Monat), `YEARLY`, jeweils mit `INTERVAL`,
-`COUNT`, `UNTIL`; `EXDATE` und geänderte Einzeltermine (`RECURRENCE-ID`)
-werden berücksichtigt. Aufgefaltet wird nur innerhalb des Fensters
-(höchstens 500 Termine). Nicht unterstützte Regeln (z.B. "jeder erste
-Montag", `BYDAY=1MO` bei `MONTHLY`) liefern nur den ersten Termin und eine
-Log-Zeile. Abgesagte Termine (`STATUS:CANCELLED`) werden übersprungen.
+Recurrences (`RRULE`): `DAILY`, `WEEKLY` (also with `BYDAY=TU,TH`), `MONTHLY`
+(same day of the month) and `YEARLY`, each with `INTERVAL`, `COUNT` and
+`UNTIL`; `EXDATE` and modified single occurrences (`RECURRENCE-ID`) are
+supported. Recurrences are expanded only within the window (at most 500
+occurrences). Unsupported rules (for example "every first Monday",
+`BYDAY=1MO` with `MONTHLY`) yield only the first occurrence and a log line.
+Events in a series that share a UID without an `RRULE` each get their own ID.
+Cancelled events (`STATUS:CANCELLED`) are marked as cancelled.
 
-## html-Quellen (Seiten ohne Feed)
+## html sources (pages without a feed)
 
-Für Veranstaltungsseiten ohne RSS/iCal/API: Termine werden per
-CSS-Selektor aus dem HTML gelesen. Drei Teile:
+For event pages without RSS, iCal or an API, events are read from the HTML
+with CSS selectors. There are three parts:
 
-1. `itemSelector` – findet jeden Termin-Container auf der Seite.
-2. `extract` – zieht benannte Werte aus einem Container. Kurzform
-   `"title": "h2"` (Text des ersten Treffers) oder als Objekt:
+1. `itemSelector`: finds each event container on the page.
+2. `extract`: extracts named values from a container. Either in short form,
+   `"title": "h2"` (text of the first match), or as an object:
 
-   | Feld | Bedeutung |
+   | Field | Meaning |
    |---|---|
-   | `selector` | CSS-Selektor relativ zum Container (leer = Container selbst) |
-   | `attr` | Attribut statt Text, z.B. `"href"` (relative URLs werden aufgelöst) |
-   | `html` | inneres HTML statt Text – für Beschreibungen, damit Absätze erhalten bleiben |
-   | `all` / `skip` | alle Treffer verbinden (statt nur des ersten), die ersten `skip` überspringen |
-   | `regex` | Teil des Werts herausziehen (Gruppe `value`, sonst alle nicht-leeren Gruppen) |
+   | `selector` | CSS selector relative to the container (empty = the container itself) |
+   | `attr` | an attribute instead of the text, e.g. `"href"` (relative URLs are resolved) |
+   | `html` | inner HTML instead of text, for descriptions, so that paragraphs are kept |
+   | `all` / `skip` | join all matches (instead of only the first), skipping the first `skip` |
+   | `regex` | extract part of the value (group `value`, otherwise all non-empty groups) |
 
-3. `mapping` – wie bei `json`-Quellen; `path` verweist auf die Namen aus
+3. `mapping`: as for `json` sources; `path` refers to the names from
    `extract`.
 
 ```jsonc
@@ -420,8 +424,8 @@ CSS-Selektor aus dem HTML gelesen. Drei Teile:
   "extract": {
     "day": ".date .day", "month": ".date .month", "year": ".date .year",
     "title": "h2",
-    "start": { "selector": "p.time", "regex": "(\d{1,2}:\d{2})" },
-    "end":   { "selector": "p.time", "regex": "-\s*(\d{1,2}:\d{2})" },
+    "start": { "selector": "p.time", "regex": "(\\d{1,2}:\\d{2})" },
+    "end":   { "selector": "p.time", "regex": "-\\s*(\\d{1,2}:\\d{2})" },
     "description": { "selector": "p", "all": true, "skip": 2, "html": true }
   },
   "mapping": {
@@ -433,11 +437,11 @@ CSS-Selektor aus dem HTML gelesen. Drei Teile:
 }
 ```
 
-Vollständige Vorlage: `example-instance/sources/beispiel-html.example.json`.
+Complete template: `example-instance/sources/beispiel-html.example.json`.
 
-**Überschriften ohne Container (`sectionSelector`):** Manche Seiten
-gruppieren Termine mit einer Überschrift, die die Einträge nicht umschließt,
-sondern vor ihnen steht – etwa ein Kinoprogramm:
+**Headings without a container (`sectionSelector`):** some pages group events
+under a heading that does not enclose the entries but precedes them, such as a
+cinema programme:
 
 ```html
 <h3 class="program_date1">Samstag, 21.11.2026</h3>
@@ -447,9 +451,9 @@ sondern vor ihnen steht – etwa ein Kinoprogramm:
 …
 ```
 
-Mit `"sectionSelector": "h3.program_date1"` bekommt jeder Eintrag den Text
-der letzten davor stehenden Überschrift (Dokument-Reihenfolge) als Wert
-`section`, nutzbar im Mapping wie ein `extract`-Name:
+With `"sectionSelector": "h3.program_date1"`, each entry receives the text of
+the last heading before it (in document order) as the value `section`, which
+can be used in the mapping like an `extract` name:
 
 ```jsonc
 "start": {
@@ -459,70 +463,67 @@ der letzten davor stehenden Überschrift (Dokument-Reihenfolge) als Wert
 }
 ```
 
-Unterstützte Selektoren: `tag`, `*`, `.klasse`, `#id`, `[attr]`,
-`[attr=wert]`, `[attr~=wort]`, `[attr*=teil]`, `:first-of-type`,
-`:nth-of-type(n)`, Nachfahre (`a b`) und Kind (`a > b`). Keine
-Selektor-Listen (`,`) und keine Geschwister-Kombinatoren.
+Supported selectors: `tag`, `*`, `.class`, `#id`, `[attr]`, `[attr=value]`,
+`[attr~=word]`, `[attr*=part]`, `:first-of-type`, `:nth-of-type(n)`,
+descendant (`a b`) and child (`a > b`). Selector lists (`,`) and sibling
+combinators are not supported.
 
-**Datum aus Einzelteilen:** `format` darf mehrere Layouts mit `|` angeben
-(`"2 Jan 2006 15:04|2 Jan 2006"`); passt nur ein Layout ohne Uhrzeit, ist der
-Termin ganztägig. Deutsche Monatsnamen und -kürzel ("Nov.", "März",
-"Dezember") werden bei Layouts mit Monatsnamen verstanden. Fehlt im Layout das
-Jahr (`"2.1. 15:04"` für "FR | 20.11."), wird das nächstliegende ergänzt:
-dieses Jahr, außer das Datum liegt mehr als einen Monat zurück, dann nächstes.
+**Dates from separate parts:** `format` may specify several layouts separated
+by `|` (`"2 Jan 2006 15:04|2 Jan 2006"`); if only a layout without a time
+matches, the event is all-day. German month names and abbreviations ("Nov.",
+"März", "Dezember") are understood in layouts with month names. If the layout
+has no year (`"2.1. 15:04"` for "FR | 20.11."), the nearest year is added: the
+current year, unless the date is more than a month in the past, in which case
+the next year.
 
-**Robustheit:** Findet `itemSelector` nichts, ist das ein Fehler der Quelle
-(steht im `status`) – meist hat die Seite ihr Layout geändert, und das soll
-auffallen statt still null Termine zu liefern. HTML-Quellen sind von Natur
-aus empfindlicher als Feeds: bei einer Seite mit Feed oder API immer diese
-nehmen.
+**Robustness:** if `itemSelector` finds nothing, this counts as an error of the
+source (recorded in `status`). Usually the page has changed its layout, and
+this should be noticed rather than silently returning zero events. HTML
+sources are inherently more fragile than feeds: if a site offers a feed or an
+API, always use that instead.
 
-## Fehlertoleranz
+## Fault tolerance
 
-Jede Quelle, unabhängig vom Typ, wird in `sources.All()` über `harden(...)`
-gebaut (`internal/sources/source.go`, `safety.go`). Das soll verhindern,
-dass eine einzelne schlecht funktionierende Quelle den ganzen Lauf oder die
-Ergebnisse der anderen Quellen mitreißt:
+Every source, regardless of type, is built in `sources.All()` via `harden(...)`
+(`internal/sources/source.go`, `safety.go`). This prevents a single
+malfunctioning source from bringing down the whole run or the results of the
+other sources:
 
-- **Pro-Quelle-Timeout** (`withTimeout`, Standard 20s): eine hängende
-  Quelle blockiert nicht das gemeinsame Zeitbudget der anderen. Das äußere
-  Timeout in `cmd/fetch/main.go` (5 Minuten) ist nur noch ein grobes
-  Backstop, keine primäre Begrenzung mehr.
-- **Panic-Recovery** (`withPanicRecovery`): ein Panic in einer Quelle (z.B.
-  durch unerwartete Daten in einer Drittanbieter-API) wird zu einem
-  normalen, geloggten Fehler für diese eine Quelle statt den gesamten
-  Prozess abstürzen zu lassen und die bereits erfolgreich abgerufenen
-  Ergebnisse anderer Quellen zu verlieren.
-- **Gemeinsame Filter** (`withCommonFilters`): siehe oben.
-- **Status-Tracking** (`withStatusTracking`): schreibt nach jedem
-  Fetch-Versuch Erfolg/Fehler in die Quelldatei zurück — siehe
-  "Health-Status" unten.
+- **Per-source timeout** (`withTimeout`, default 20 s): a hanging source does
+  not use up the shared time budget of the others. The outer timeout in
+  `cmd/fetch` (5 minutes) is only a coarse backstop.
+- **Panic recovery** (`withPanicRecovery`): a panic in a source (for example
+  caused by unexpected data from a third-party API) becomes a normal, logged
+  error for that one source, instead of crashing the whole process and losing
+  the results already fetched from other sources.
+- **Common filters** (`withCommonFilters`): see above.
+- **Status tracking** (`withStatusTracking`): writes success or failure back to
+  the source file after every fetch attempt; see
+  [Health status](#health-status) below.
 
-Zusätzlich, unabhängig von einzelnen Quellen:
+In addition, independently of individual sources:
 
-- **`internal/config.Load`** überspringt eine einzelne kaputte
-  `<instance>/sources/*.json`-Datei (ungültiges JSON, nicht lesbar) statt den
-  gesamten Ladevorgang abzubrechen — ein Tippfehler in einer Datei reißt
-  nicht alle anderen, gültigen Quellen mit runter.
-- **`internal/writer.validate`** verwirft einzelne Events mit leerem Titel
-  oder unplausiblem Datum, statt sie kaputt ins Frontend durchzureichen —
-  mit einer geloggten Warnung, wie viele Events das betraf.
-- **`internal/writer.Write`** weigert sich weiterhin, eine leere
-  Event-Liste zu schreiben (siehe "Wichtige Sicherung" unten) — greift jetzt
-  auch, falls nach der Validierung nichts Gültiges übrig bleibt.
+- **`internal/config.Load`** skips a single broken
+  `<instance>/sources/*.json` file (invalid JSON, unreadable) instead of
+  aborting the whole loading process, so a typo in one file does not take all
+  other, valid sources down with it.
+- **`internal/writer.validate`** discards individual events with an empty
+  title or an implausible date instead of passing them on to the front end,
+  and logs a warning stating how many events were affected.
+- **`internal/writer.Write`** refuses to write an empty event list (see
+  [Safeguard: never commit empty data](#safeguard-never-commit-empty-data));
+  this also applies if nothing valid remains after validation.
 
-Kurz: einzelne kaputte Quellen, kaputte Config-Dateien oder kaputte
-Einzel-Events werden übersprungen und geloggt, nie stillschweigend
-ignoriert und nie fatal für den ganzen Lauf — außer wirklich **alle**
-Quellen liefern nichts Verwertbares, dann wird `<instance>/data/events.json` bewusst
-nicht angefasst (siehe unten).
+In short: individual broken sources, configuration files or events are skipped
+and logged, never silently ignored and never fatal for the whole run, unless
+**all** sources deliver nothing usable, in which case
+`<instance>/data/events.json` is deliberately left untouched.
 
-## Health-Status
+## Health status
 
-Ob eine Quelle noch funktioniert, steht direkt in ihrer eigenen Config-Datei
-— nicht in einem separaten Report und nicht nur im CI-Log, das nach dem
-nächsten Lauf wieder verschwunden ist. Jeder Fetch-Versuch schreibt ein
-`"status"`-Feld zurück:
+Whether a source still works is recorded directly in its own configuration
+file, not in a separate report and not only in the CI log, which is gone after
+the next run. Every fetch attempt writes back a `"status"` field:
 
 ```json
 "status": {
@@ -532,45 +533,40 @@ nächsten Lauf wieder verschwunden ist. Jeder Fetch-Versuch schreibt ein
 }
 ```
 
-- `lastAttempt` — Zeitpunkt des letzten Versuchs, egal ob erfolgreich.
-- `lastSuccess` — Zeitpunkt des letzten *erfolgreichen* Abrufs. Bleibt bei
-  einem fehlgeschlagenen Versuch stehen, sodass sichtbar ist, seit wann eine
-  Quelle schon kaputt ist, nicht nur dass der letzte Versuch fehlschlug.
-- `lastError` — die Klartext-Fehlermeldung des letzten Versuchs (Timeout,
-  404, Parse-Fehler, `panic: ...`). Leer/fehlt bei Erfolg.
+- `lastAttempt`: time of the last attempt, successful or not.
+- `lastSuccess`: time of the last *successful* fetch. It is not updated by a
+  failed attempt, so it shows how long a source has been broken, not just
+  that the last attempt failed.
+- `lastError`: the plain-text error message of the last attempt (timeout, 404,
+  parse error, `panic: ...`). Empty or absent on success.
 
-Damit wird eine still kaputtgegangene Quelle (Website-Redesign bricht das
-Mapping, Feed verschwindet, Endpoint ändert sich) sichtbar, ohne CI-Logs
-durchsuchen zu müssen — einfach `git diff` auf die Quelldatei oder ihren
-aktuellen Inhalt anschauen. Der Status wird ganz normal mit
-`<instance>/data/events.json` zusammen committet (siehe Workflow unten).
+This makes a source that has broken silently (a website redesign breaks the
+mapping, a feed disappears, an endpoint changes) visible without searching
+through CI logs: simply look at `git diff` or the current content of the
+source file. The status is committed together with
+`<instance>/data/events.json` (see [Workflows](#workflows-github-actions)).
 
-Eine Quelle lässt sich mit `"disabled": true` abschalten, ohne die Datei zu
-löschen oder umzubenennen (siehe `config/sources/README.md`) — kein
-Fetch-Versuch, kein Status-Update, bis das Feld wieder entfernt/auf `false`
-gesetzt wird.
+The implementation is in `internal/config.RecordAttempt` (reads the source
+file fresh from disk, updates only `status`, writes it back) and
+`internal/sources/status.go` (`withStatusTracking`, the outermost wrapper in
+`sources.All()`, which calls `RecordAttempt` after every `Fetch()`, on success
+or failure). Because `RecordAttempt` re-serialises the whole file via
+`SourceConfig`, the field order of the Go struct determines the order in the
+JSON (stable across runs, but not necessarily as a person originally
+formatted the file), and JSON keys unknown to `SourceConfig` are removed when
+the file is written back.
 
-Umgesetzt in `internal/config.RecordAttempt` (liest die Quelldatei frisch
-von der Platte, aktualisiert nur `status`, schreibt sie zurück) und
-`internal/sources/status.go` (`withStatusTracking`, äußerster Wrapper in
-`sources.All()`, ruft `RecordAttempt` nach jedem `Fetch()` auf — Erfolg oder
-Fehler). Da `RecordAttempt` die ganze Datei über `SourceConfig` neu
-serialisiert, bestimmt die Feldreihenfolge im Go-Struct die Reihenfolge im
-JSON (stabil über mehrere Läufe, aber nicht zwingend so, wie eine Person die
-Datei ursprünglich formatiert hat), und JSON-Schlüssel, die `SourceConfig`
-nicht kennt, werden beim Zurückschreiben entfernt.
+## Event JSON schema (`<instance>/data/events.json`)
 
-## Event-JSON-Schema (`<instance>/data/events.json`)
-
-Das Ausgabe-Schema folgt exakt dem, was das Frontend erwartet
-(`web/js/app.js`, Demo-Daten in `<instance>/data/events.json`):
+The output schema matches exactly what the front end (`web/js/app.js`)
+expects:
 
 ```jsonc
 {
-  "generatedAt": "2026-07-05T15:40:00Z",  // Metadaten, Frontend ignoriert das Feld
+  "generatedAt": "2026-07-05T15:40:00Z",  // metadata; ignored by the front end
   "events": [
     {
-      "id": "flohmarkt-am-antonplatz-3f9a1b2c",  // stabil, aus Datum+Zeit+Titel, siehe "Derselbe Termin aus mehreren Quellen"
+      "id": "flohmarkt-am-antonplatz-3f9a1b2c",  // stable, from date + time + title; see "The same event from several sources"
       "title": "Flohmarkt am Antonplatz",
       "description": "…",
       "category": "Markt",
@@ -581,128 +577,121 @@ Das Ausgabe-Schema folgt exakt dem, was das Frontend erwartet
       "price": { "free": true, "amount": null },
       "organizer": "Kiezinitiative",
       "url": "https://example.events/#kiezinitiative-3f9a1b2c4d",
-      "source": "beispiel-rss",                   // Quelle der angezeigten Version, Label in data/sources.json
-      "sources": ["beispiel-rss"],                // alle Quellen dieses Termins
+      "source": "beispiel-rss",                   // source of the displayed version; label in data/sources.json
+      "sources": ["beispiel-rss"],                // all sources of this event
       "ticketRequired": false,
       "registrationRequired": false,
       "familyFriendly": false,
-      "cancelled": false                          // abgesagt, siehe "Abgesagte Termine"
+      "cancelled": false                          // see "Cancelled events"
     }
   ]
 }
 ```
 
-## Abgesagte Termine
+Events are sorted chronologically (date, then start time). Repeated runs with
+unchanged data produce a byte-identical file (a clean Git diff in the
+workflow).
 
-Abgesagte Termine werden **nicht** verworfen, sondern mit `"cancelled": true`
-ausgeliefert und im Frontend deutlich gekennzeichnet (Etikett "Abgesagt",
-durchgestrichener Titel, Hinweis in der Detailansicht, `STATUS:CANCELLED` im
-.ics). Wer hingehen wollte, soll es erfahren, statt dass der Termin still
-verschwindet. Erkannt wird eine Absage über:
+`category` is a free-form string. Which icon it gets in the front end is not
+defined here but in `<instance>/data/categories.json` (see
+[Category icons](#category-icons-instancedatacategoriesjson)).
 
-| Quelle | Signal |
+`ticketRequired`, `registrationRequired` and `familyFriendly` are
+deliberately real Booleans that are always set (no `omitempty`, no pointer).
+They are cross-cutting attributes, not categories: an event can combine them
+freely, regardless of its `category` (see
+[Categories versus attributes](#categories-versus-attributes)). They feed the
+attribute filters in the front end (`ATTRS` in `web/js/app.js`), not the
+category menu. On the source side they are set with attribute rules in the
+mapping (`{"path": "..."}`, default `false` if `path` is missing or does not
+resolve), or, for `wcs` sources, with `familyFriendly` at source level. The
+wcs plugin API provides no per-event ticket or registration signal, so
+`ticketRequired` and `registrationRequired` are currently always `false` for
+`wcs` sources (a known limitation, not a made-up value).
+
+## Cancelled events
+
+Cancelled events are **not** discarded. They are published with
+`"cancelled": true` and clearly marked in the front end (the label "Abgesagt",
+a struck-through title, a notice in the details and `STATUS:CANCELLED` in the
+.ics file). Anyone who planned to attend should find out, rather than the event
+silently disappearing. A cancellation is detected via:
+
+| Source | Signal |
 |---|---|
-| `ical` | `STATUS:CANCELLED`, auch für ein einzelnes Vorkommen einer Serie (`RECURRENCE-ID`) |
-| `wcs` | ausgeblendetes Vorkommen (`visible: false`, entspricht `_wcs_canceled`) |
-| `rss`/`json` | Mapping-Regel `cancelled`, z.B. `{"path": "status", "equals": "cancelled|canceled"}` |
-| Inbox | `"cancelled": true` in der Datei |
-| alle | Markierung im Titel: `ABGESAGT: …`, `Abgesagt! …`, `+++ Entfällt +++ …`, `[abgesagt] …`, `… (abgesagt)`, `… – ABGESAGT`, `… - fällt aus!`, `… [VERSCHOBEN!]` |
+| `ical` | `STATUS:CANCELLED`, also for a single occurrence of a series (`RECURRENCE-ID`) |
+| `wcs` | hidden occurrence (`visible: false`, corresponds to `_wcs_canceled`) |
+| `rss`/`json`/`html` | mapping rule `cancelled`, e.g. `{"path": "status", "equals": "cancelled\|canceled"}` |
+| inbox | `"cancelled": true` in the file |
+| all | marker in the title: `ABGESAGT: …`, `Abgesagt! …`, `+++ Entfällt +++ …`, `[abgesagt] …`, `… (abgesagt)`, `… – ABGESAGT`, `… - fällt aus!`, `… [VERSCHOBEN!]` |
 
-**Der Titel wird nie verändert** – wir übernehmen, was der Veranstalter
-schreibt, und leiten nur das Kennzeichen ab. Ein verschobener Termin gilt auf
-seinem alten Datum als abgesagt (der neue Termin steht meist separat in der
-Quelle). Die Erkennung verlangt ein Trennzeichen oder Klammern (bzw.
-Großschreibung am Anfang): "Abgesagt – ein Theaterstück" bleibt ein normaler
-Titel. Andere Hinweise im Titel werden bewusst nicht ausgewertet –
-"ausverkauft" (wir zeigen Termine, verkaufen keine Tickets), "Zusatztermin",
-"Achtung: Terminverschiebung" (unklar, ob alter oder neuer Termin).
+**The title is never altered:** it is taken over as the organiser wrote it, and
+only the flag is derived from it. A postponed event counts as cancelled on its
+original date (the new date usually appears separately in the source).
+Detection requires a separator or brackets (or capital letters at the start):
+"Abgesagt – ein Theaterstück" remains an ordinary title. Other notes in the
+title are deliberately not evaluated: "ausverkauft" (sold out; the calendar
+shows events, it does not sell tickets), "Zusatztermin" (additional date) and
+"Achtung: Terminverschiebung" (unclear whether the old or the new date is
+meant).
 
-Merkmal-Regeln (`ticketRequired`, `registrationRequired`, `familyFriendly`,
-`cancelled`) lesen den Wert als Boolean; mit `"equals": "a|b"` werden sie
-stattdessen wahr, wenn der Wert einem der Texte entspricht (ohne Rücksicht
-auf Groß-/Kleinschreibung).
+Attribute rules (`ticketRequired`, `registrationRequired`, `familyFriendly`,
+`cancelled`) read the value as a Boolean; with `"equals": "a|b"` they are true
+instead if the value matches one of the given texts (case-insensitively).
 
-Events sind chronologisch sortiert (Datum, dann Startzeit). Wiederholte Runs
-mit unveränderten Daten erzeugen eine byte-identische Datei (sauberer git
-diff im Workflow).
+## The same event from several sources
 
-`category` ist ein freier String — welches Piktogramm er im Frontend
-bekommt, steht nicht hier, sondern in `<instance>/data/categories.json` (siehe
-nächster Abschnitt).
+If an event comes from several sources (the venue itself and an aggregator
+calendar), it is merged into **one** event (`internal/writer/merge.go`):
 
-`ticketRequired`/`registrationRequired`/`familyFriendly` sind bewusst echte,
-immer gesetzte Booleans (kein `omitempty`, kein Pointer) - querschnittliche
-Attribute, keine Kategorien: ein Event kann frei kombinieren, unabhängig
-davon, welches `category` es hat (siehe "Kategorien vs. Attribute" unten).
-Sie speisen die "Filtern nach"-Zeile im Frontend (`web/js/app.js`
-`FILTER_OPTIONS`), nicht das Kategorie-Menü. Quell-seitig gesetzt über
-`mapping.BoolRule` (`ticketRequired`/`registrationRequired`/`familyFriendly`
-in einer `rss`/`json`-Quelle: `{"path": "..."}`, Standard `false` wenn
-`path` fehlt oder nicht auflöst) bzw. für `wcs`-Quellen über
-`familyFriendly` auf Config-Ebene (siehe `wcs-Quellen` unten) - die
-Plugin-API liefert kein Ticket-/Anmeldungssignal pro Event, daher sind
-`ticketRequired`/`registrationRequired` bei `wcs`-Quellen aktuell immer
-`false` (bekannte Einschränkung, kein Fake-Wert).
+- **Matching** uses date, start time and normalised title (lower case,
+  umlauts unified, and notes in square brackets such as `[AUSVERKAUFT!]` and
+  punctuation ignored; this applies only to the comparison, the displayed
+  title stays unchanged). The location is deliberately not part of the key,
+  because every source names the venue differently; however, if the two events
+  give different postcodes, they are not merged.
+- **Which source wins:** the one with the highest `priority` (a field in the
+  source file, default 0; for example `10` for the venue itself, `0` or
+  negative for an aggregator). Empty fields (description, link, address, price,
+  end time, category "Unkategorisiert") are filled in from the other sources;
+  if any source reports a cancellation, the event counts as cancelled.
+- **`sources`** in the event lists all contributing sources (winner first);
+  the front end shows "Quellen: A, B".
+- Events are never merged within **one** source (two rooms, the same class at
+  the same time remain two events).
 
-## Derselbe Termin aus mehreren Quellen
+**Event IDs** are formed from the same source-independent key: a readable
+beginning of the title plus a hash, for example `tanztee-fuer-alle-3f9a1b2c`.
+An event therefore keeps its ID if it later also comes from a second source
+(shared links, saved stars). Identical keys within one source get a fixed
+`-2`, `-3`. If the organiser changes the title, date or start time, a new ID is
+created.
 
-Kommt ein Termin aus mehreren Quellen (das Haus selbst und ein
-Sammelkalender), wird er zu **einem** Termin zusammengeführt
-(`internal/writer/merge.go`):
+**Limitation:** matching is exact. Rephrased titles ("Kiezchor:
+Weihnachtskonzert" versus "Weihnachtskonzert des Kiezchors") are not
+recognised. A fuzzy matching stage will follow once an aggregator calendar
+provides real data to tune it against.
 
-- **Abgleich** über Datum + Startzeit + normalisierten Titel
-  (Kleinbuchstaben, Umlaute vereinheitlicht, Hinweise in eckigen Klammern wie
-  `[AUSVERKAUFT!]` und Satzzeichen ignoriert – nur für den Vergleich, der
-  angezeigte Titel bleibt unverändert). Der Ort gehört bewusst nicht zum
-  Schlüssel, weil jede Quelle das Haus anders nennt; nennen beide Termine
-  aber unterschiedliche Postleitzahlen, werden sie nicht zusammengeführt.
-- **Wer gewinnt:** die Quelle mit der höchsten `priority` (Feld in der
-  Quelldatei, Standard 0; das Haus selbst z.B. `10`, ein Sammelkalender `0`
-  oder negativ). Leere Felder (Beschreibung, Link, Adresse, Preis, Endzeit,
-  Kategorie "Unkategorisiert") werden aus den anderen Quellen ergänzt; meldet
-  irgendeine Quelle eine Absage, gilt der Termin als abgesagt.
-- **`sources`** im Event listet alle beteiligten Quellen (Gewinner zuerst);
-  das Frontend zeigt "Quellen: A, B".
-- Innerhalb **einer** Quelle wird nie zusammengeführt (zwei Räume, gleicher
-  Kurs, gleiche Zeit bleiben zwei Termine).
+## Category icons (`<instance>/data/categories.json`)
 
-**Termin-IDs** werden aus demselben quellenunabhängigen Schlüssel gebildet –
-lesbarer Titel-Anfang plus Hash, z.B. `tanztee-fuer-alle-3f9a1b2c`. Ein Termin
-behält seine ID also, wenn er später zusätzlich aus einer zweiten Quelle
-kommt (geteilte Links, gemerkte Sterne). Gleiche Schlüssel innerhalb einer
-Quelle bekommen ein festes `-2`, `-3`. Ändert der Veranstalter Titel, Datum
-oder Startzeit, entsteht eine neue ID.
+The mapping from categories to icons is a deliberately one-way interface: the
+backend is the only writer, and the front end only reads it for display. This
+keeps the categories of the sources and the icons of the front end in sync,
+and a new category from a new source appears in the front end automatically.
 
-**Grenze:** Der Abgleich ist exakt. Umformulierte Titel ("Kiezchor:
-Weihnachtskonzert" vs. "Weihnachtskonzert des Kiezchors") werden nicht
-erkannt; eine unscharfe Stufe folgt, sobald ein Sammelkalender echte Daten
-liefert, an denen sie sich einstellen lässt.
-
-## Kategorie-Piktogramm-Schnittstelle (`<instance>/data/categories.json`)
-
-Früher stand die Kategorie-Icon-Zuordnung doppelt und unabhängig
-voneinander im Code: einmal als `categoryMap`-Werte in Quell-Configs
-(`<instance>/sources/`), einmal hartkodiert als `CATEGORY_ICON_PATHS` direkt in
-`web/js/app.js` — nichts hielt beide synchron, und eine neue Kategorie aus einer
-neuen Quelle tauchte im Frontend nie automatisch mit einem eigenen Icon auf.
-
-Jetzt ist das eine bewusst einseitige Schnittstelle: das Backend ist alleiniger
-Schreiber, das Frontend liest nur zur Darstellung.
-
-- **`<instance>/categories.json`** ist die kanonische Registry (geladen von
-  `internal/categories`): Name →
-  SVG-Pfaddaten (1:1 aus den offiziellen Tabler Icons), die Reihenfolge der
-  Einträge ist die Anzeige-Reihenfolge, `fallback` ist z.B. `"Unkategorisiert"`.
-- **`internal/writer.WriteCategories`** schreibt daraus, zusammen mit den
-  tatsächlich im aktuellen Lauf vorkommenden Events,
-  `<instance>/data/categories.json` — immer mit demselben, von `writer.Write`
-  zurückgegebenen finalen Event-Set wie `<instance>/data/events.json`, damit beide
-  Dateien nie auseinanderlaufen.
-- **`web/js/app.js`** lädt `<instance>/data/categories.json` per `fetch()` und baut daraus
-  sowohl das Kategorie-Filtermenü als auch die Icons auf den Event-Karten —
-  es enthält selbst keine Kategorie-Icon-Liste mehr, nur noch einen einzigen
-  lokalen Notfall-Fallback für den Fall, dass die Datei mal nicht geladen
-  werden kann.
+- **`<instance>/categories.json`** is the canonical registry (loaded by
+  `internal/categories`): name → SVG path data (taken unchanged from the
+  official Tabler Icons). The order of the entries is the display order;
+  `fallback` names the fallback category, for example `"Unkategorisiert"`.
+- **`internal/writer.WriteCategories`** uses it, together with the events
+  actually present in the current run, to write
+  `<instance>/data/categories.json`, always from the same final event set
+  returned by `writer.Write` as `<instance>/data/events.json`, so that the two
+  files never diverge.
+- **`web/js/app.js`** loads `<instance>/data/categories.json` with `fetch()`
+  and builds both the category filter and the icons on the event cards from
+  it. It contains no category icon list of its own, only a single local
+  emergency fallback in case the file cannot be loaded.
 
 ```jsonc
 {
@@ -710,96 +699,97 @@ Schreiber, das Frontend liest nur zur Darstellung.
   "categories": [
     { "name": "Kultur", "icon": ["M12 21a9 9 0 0 1 0 -18…", "…"] },
     { "name": "Sport", "icon": ["…"] }
-    // … die restlichen Order-Einträge, dann ggf. neu entdeckte Kategorien
+    // … the remaining registry entries, then any newly discovered categories
   ]
 }
 ```
 
-**Kategorien vs. Attribute:** Die Kategorie-Liste in `<instance>/categories.json`
-ist bewusst auf eine einzige Achse vereinheitlicht - Themenbereich, nicht
-Format oder Zielgruppe, in der Vorlage: `Kultur, Sport, Kulinarik, Natur,
-Markt, Unkategorisiert`. Frühere Einträge wie `Konzert` oder `Workshop` waren
-eigentlich Veranstaltungsformate (immer ein Thema darunter, z.B. ein
-Konzert ist ein Kultur-Format), keine eigene Themenebene - die gibt es jetzt
-nicht mehr als Kategorie, sondern stecken im Titel/der Beschreibung.
-`Familie & Kinder` war eine Zielgruppe, keine Kategorie - dafür gibt es jetzt
-das eigene Attribut `familyFriendly` (siehe oben und "Event-JSON-Schema"),
-in der Frontend-"Filtern nach"-Zeile statt im Kategorie-Menü.
+### Categories versus attributes
 
-**"Kategorien wachsen dynamisch"**: `Build()` (`internal/categories/categories.go`)
-schreibt immer zuerst alle `Order`-Einträge, unabhängig davon, ob gerade ein
-Event dieser Kategorie existiert — die Menüleiste bleibt dadurch stabil,
-statt bei jedem Lauf zu schrumpfen oder zu wachsen, je nachdem was gerade im
-Kalender steht. Taucht in den Events zusätzlich eine `category` auf, die
-`Registry` nicht kennt (neue Quelle, vergessener `categoryMap`-Eintrag bei
-einer `wcs`-Quelle, Tippfehler), wird sie alphabetisch sortiert angehängt,
-bekommt vorübergehend das `Fallback`-Icon und erzeugt eine geloggte Warnung
-— der Lauf schlägt dafür nicht fehl, aber es ist sichtbar, statt sich
-still unter "Unkategorisiert" zu verstecken. Um ihr ein eigenes Icon zu geben:
-Eintrag in `<instance>/categories.json`
-ergänzen, kein Frontend-Change nötig.
+The category list in `<instance>/categories.json` deliberately uses a single
+axis: the subject area, not the format or the target audience. In the
+template: `Kultur, Sport, Kulinarik, Natur, Markt, Unkategorisiert`. Formats
+such as "Konzert" (concert) or "Workshop" always belong to a subject (a
+concert is a cultural format) and are expressed in the title or description,
+not as a category. Target audiences such as families are attributes
+(`familyFriendly`, see [Event JSON schema](#event-json-schema-instancedataeventsjson)),
+shown among the attribute filters rather than in the category menu.
 
-## Wichtige Sicherung: keine leeren Daten committen
+### Categories grow dynamically
 
-`internal/writer.Write` weigert sich, eine leere Event-Liste zu schreiben,
-und `cmd/fetch` überspringt das Schreiben komplett, solange `sources.All()`
-leer ist oder alle Quellen fehlschlagen. Damit überschreibt weder der
-aktuelle Platzhalter-Zustand (nur `.example.json`-Dateien, keine aktive
-Quelle) noch ein Ausfall aller Quellen die bestehenden Demo-/Produktivdaten
-in `<instance>/data/events.json` mit einer leeren Datei.
+`Build()` (`internal/categories/categories.go`) always writes all registry
+entries first, whether or not an event of that category currently exists, so
+the menu stays stable instead of shrinking or growing with every run. If the
+events additionally contain a `category` the registry does not know (a new
+source, a forgotten `categoryMap` entry, a typo), it is appended in
+alphabetical order, temporarily gets the fallback icon and produces a logged
+warning. The run does not fail because of it, but the category is visible
+instead of silently hiding under "Unkategorisiert". To give it an icon of its
+own, add an entry to `<instance>/categories.json`; no front-end change is
+needed.
 
-## Neue Quellen finden
+## Safeguard: never commit empty data
 
-Wie man überhaupt neue Quellen aufspürt (Suchmuster, bekannte Plattform-
-URL-Muster, Vorgehen wenn kein offizieller Feed existiert): siehe
-`docs/source-discovery.md` — bewusst ortsunabhängig geschrieben, falls
-jemand eine Instanz für eine andere Nachbarschaft aufsetzt. Der aktuelle
-Stand je Instanz (gefunden/geprüft/verworfen) gehört in
-die Quellen-Checkliste der jeweiligen Instanz.
+`internal/writer.Write` refuses to write an empty event list, and `cmd/fetch`
+skips writing altogether while `sources.All()` is empty or all sources fail.
+This way, neither an instance without active sources (only `.example.json`
+files) nor a failure of all sources overwrites the existing data in
+`<instance>/data/events.json` with an empty file.
 
-## Neue Quelle mit eigenem Go-Code (Ausnahmefälle)
+## Finding new sources
 
-Für Formate außerhalb RSS/JSON/wcs: `internal/sources/example.go` als
-Vorlage kopieren, `Source`-Interface implementieren (`Name()`,
-`Fetch(ctx) ([]model.Event, error)`), in `internal/sources/source.go` am
-Ende von `All()` per `append(all, harden(withCommonFilters(...)))`
-registrieren (damit die neue Quelle dieselbe Fehlertoleranz und dieselben
-Filter bekommt wie die eingebauten Typen). `model.LocalParts(t time.Time)`
-für die Zeit-Konvertierung nutzen, `Price` immer explizit setzen (Zero-Value
-wäre `{free: false, amount: null}` → "null €" im Frontend).
+For how to discover new sources in the first place (search patterns, known
+platform URL patterns, what to do when no official feed exists), see
+[source-discovery.md](source-discovery.md). It is deliberately
+location-independent, for anyone setting up an instance for another
+neighbourhood. The current state of each instance (found, checked, rejected)
+belongs in that instance's source checklist.
 
-## Manuelle Events: die Inbox (`<instance>/inbox/`)
+## New source with custom Go code (exceptional cases)
 
-Gegenstück zu den automatisierten Quellen, für Einzelevents ohne Feed (ein
-Flyer, ein Tipp aus dem Kiez): JSON-Datei nach `<instance>/inbox/` legen und
-committen — kein Eintrag in `<instance>/sources/` nötig. `InboxSource`
-(`internal/sources/inbox.go`) liest jede `*.json`-Datei dort (außer
-`*.example.json`) ein und wandelt sie in ein Event um; Format und Ablauf
-stehen in `docs/inbox.md`.
+For formats beyond the built-in types: copy `internal/sources/example.go` as a
+template, implement the `Source` interface (`Name()`,
+`Fetch(ctx) ([]model.Event, error)`), and register it at the end of `All()`
+in `internal/sources/source.go` with
+`append(all, harden(withCommonFilters(...)))`, so that the new source gets the
+same fault tolerance and filters as the built-in types. Use
+`model.LocalParts(t time.Time)` for time conversion and always set `Price`
+explicitly (the zero value would be `{free: false, amount: null}`, shown as
+"null €" in the front end).
 
-Bemerkenswert: `InboxSource` löscht die Datei selbst, aber erst, sobald das
-Event-Datum in der Vergangenheit liegt — nicht sofort nach der ersten
-Verarbeitung. Grund: `cmd/fetch` berechnet `<instance>/data/events.json` bei jedem Lauf
-komplett neu aus den aktuellen `Fetch()`-Ergebnissen aller Quellen, ohne die
-vorherige Datei einzulesen. Eine sofort gelöschte Inbox-Datei würde das
-Event schon beim nächsten Lauf wieder verschwinden lassen, weil dann keine
-Quelle mehr existiert, die es liefert. Die Datei bleibt also liegen (und
-wird jedes Mal neu eingelesen, das Event bleibt sichtbar), bis ihr eigenes
-Datum abgelaufen ist — genau der Punkt, an dem `withCommonFilters` das Event
-ohnehin verwerfen würde. Diese Löschung committet der `update-events.yml`-Workflow der Instanz mit,
-wie jede andere Änderung des Laufs auch.
+## Manual events: the inbox (`<instance>/inbox/`)
 
-## Lokal ausführen
+The counterpart to the automated sources, for individual events without a
+feed (a flyer, a tip from the neighbourhood): place a JSON file in
+`<instance>/inbox/` and commit it; no entry in `<instance>/sources/` is
+needed. `InboxSource` (`internal/sources/inbox.go`) reads every `*.json` file
+there (except `*.example.json`) and turns it into one or more events. Format
+and workflow are described in [inbox.md](inbox.md).
 
-Mit Go:
+Note that `InboxSource` deletes the file itself, but only once the event date
+is in the past, not immediately after the first run. The reason:
+`cmd/fetch` rebuilds `<instance>/data/events.json` from scratch on every run
+from the current `Fetch()` results of all sources, without reading the
+previous file. An inbox file deleted straight away would make the event
+disappear again on the next run, because no source would provide it any more.
+The file therefore stays in place (and is read again each time, so the event
+remains visible) until its date has passed, which is exactly the point at
+which `withCommonFilters` would discard the event anyway. The instance's
+`update-events.yml` workflow commits the deletion like any other change made
+by the run.
+
+## Running locally
+
+With Go:
 
 ```sh
 cd backend
-go run ./cmd/fetch ../example-instance                       # oder $OL_INSTANCE_DIR
+go run ./cmd/fetch ../example-instance                       # or $OL_INSTANCE_DIR
 go run ./cmd/build-site -web ../web ../example-instance      # -> example-instance/public/
 ```
 
-Ohne Go, nur mit Docker/Podman (Build-Kontext ist das Repo-Root):
+Without Go, using only Docker or Podman (the build context is the repository
+root):
 
 ```sh
 docker build -t openlitfass -f Containerfile .
@@ -808,68 +798,74 @@ docker run --rm -v "$PWD/example-instance:/instance" -w /instance openlitfass bu
 docker run --rm -p 8080:80 -v "$PWD/example-instance/public:/usr/share/nginx/html:ro" nginx:alpine
 ```
 
-`fetch` verändert das Instanz-Verzeichnis (Status-Felder in `sources/`,
-abgelaufene `inbox/`-Dateien werden gelöscht) — deshalb verlangt es eine
-`instance.json` im Zielverzeichnis. Solange `sources/` keine aktive Quelle
-und `inbox/` kein Event enthält, schreibt es absichtlich nichts.
+`fetch` modifies the instance directory (status fields in `sources/`, and
+expired `inbox/` files are deleted), which is why it requires an
+`instance.json` in the target directory. As long as `sources/` contains no
+active source and `inbox/` no event, it deliberately writes nothing.
 
-`build-site` leert sein Ausgabeverzeichnis vor jedem Lauf, aber nur, wenn
-es das Verzeichnis selbst angelegt hat (Marker-Datei
-`.openlitfass-build`).
+`build-site` empties its output directory before each run, but only if it
+created the directory itself (marker file `.openlitfass-build`).
 
 ## Workflows (GitHub Actions)
 
-**Kern: `.github/workflows/ci.yml`** — bei jedem Push und Pull Request:
-`gofmt`, `go vet`, `go build`, `go test` und ein kompletter
-`build-site`-Lauf gegen `example-instance/`.
+**Core: `.github/workflows/ci.yml`** runs on every push and pull request:
+`gofmt`, `go vet`, `go build`, `go test` and a complete `build-site` run
+against `example-instance/`.
 
-**Kern: `.github/workflows/image.yml`** — bei Push auf `main` (nur wenn sich
-`backend/`, `web/` oder das `Containerfile` ändern), bei Tags `v*` oder
-manuell. Baut das Image für `linux/amd64` und `linux/arm64` und pusht es
-nach `ghcr.io/<owner>/<repo>`:
+**Core: `.github/workflows/image.yml`** runs on pushes to `main` (only if
+`backend/`, `web/` or the `Containerfile` change), on `v*` tags, or manually.
+It builds the image for `linux/amd64` and `linux/arm64` and pushes it to
+`ghcr.io/<owner>/<repo>`:
 
-| Tag | wann |
+| Tag | When |
 |---|---|
-| `latest` | jeder Build von `main` |
-| `sha-<kurz>` | jeder Build, zum Festpinnen |
-| `1.2.3`, `1.2` | Git-Tag `v1.2.3` |
+| `latest` | every build of `main` |
+| `sha-<short>` | every build, for pinning |
+| `1.2.3`, `1.2` | Git tag `v1.2.3` |
 
-Gepusht wird mit dem eingebauten `GITHUB_TOKEN` (`permissions: packages:
-write`), ein eigenes Token ist nicht nötig. Damit Instanzen das Image ohne
-Login ziehen können, das Package einmalig auf **public** stellen (GitHub →
-Packages → openlitfass → Package settings → Change visibility).
+The image is pushed with the built-in `GITHUB_TOKEN`
+(`permissions: packages: write`); no separate token is needed. So that
+instances can pull the image without logging in, set the package to
+**public** once (GitHub → Packages → openlitfass → Package settings → Change
+visibility).
 
-Im `Containerfile` läuft die Go-Stufe immer auf der Architektur des
-Build-Rechners und cross-kompiliert für das Ziel (`--platform=$BUILDPLATFORM`,
-`GOARCH=$TARGETARCH`) — deutlich schneller als unter QEMU.
+In the `Containerfile`, the Go stage always runs on the architecture of the
+build machine and cross-compiles for the target (`--platform=$BUILDPLATFORM`,
+`GOARCH=$TARGETARCH`), which is considerably faster than running under QEMU.
 
-**Instanz: `.github/workflows/update-events.yml`** (Vorlage in
-`example-instance/`) — Cron alle 6 Stunden, manuell, und bei Push auf
-`sources/`, `inbox/`, `site/`, `instance.json`, `categories.json`. Startet
-das Image per `docker run` (nicht als Job-Container: GitHubs
-JavaScript-Actions wie `checkout` laufen nicht in Alpine-Containern),
-führt `fetch` und `build-site` aus und committet `data/`, `sources/`
-(Status) und `inbox/` (gelöschte Dateien) zurück. Läuft genauso auf
-Forgejo/Gitea-Runnern mit Docker. Das Veröffentlichen von `public/` kommt
-dazu, sobald das Hosting feststeht.
+**Core: `.github/workflows/pages.yml`** publishes the project website to the
+`pages` branch; see [pages.md](pages.md).
 
-**Vor dem ersten Lauf einer Instanz:** in `update-events.yml` `IMAGE` auf
-`ghcr.io/schreibtischhelden/openlitfass:<tag>` setzen.
+**Instance: `.github/workflows/update-events.yml`** (template in
+`example-instance/`) runs every six hours via cron, manually, and on pushes
+to `sources/`, `inbox/`, `site/`, `instance.json` and `categories.json`. It
+starts the image with `docker run` (not as a job container, because GitHub's
+JavaScript actions such as `checkout` do not run in Alpine containers), runs
+`fetch` and `build-site`, and commits `data/`, `sources/` (status) and
+`inbox/` (deleted files) back. It works the same way on Forgejo or Gitea
+runners with Docker. The template does not publish `public/`; weissens.ee
+shows how to publish to GitHub Pages (see [pages.md](pages.md)).
 
-## Teststand
+**Before an instance's first run:** set `IMAGE` in `update-events.yml` to
+`ghcr.io/schreibtischhelden/openlitfass:<tag>`.
 
-- Lokal mit Docker gebaut und geprüft: `go build`, `go vet`, `gofmt` sauber.
-- `fetch` gegen die echte wcs-Quelle Familienzentrum Weißensee: 95 Termine,
-  Status-Feld, `sources.json` korrekt; Inbox-Event wird übernommen.
-- `build-site` gegen `example-instance` und weissens.ee: vollständige Seite
-  inkl. Manifest, `site.json` und gestempeltem Service Worker.
-- `json` gegen eine echte Quelle: Brotfabrik (WordPress "The Events Calendar",
-  4 Seiten, 192 Termine in 30 Tagen) mit Paginierung, Template-Adresse,
-  `categoryMap` und HTML-Bereinigung.
-- Go-Unit-Tests für Text-Bereinigung, Template, Preis, Paginierung,
-  Filter/`categoryMap` und das Zurückschreiben der Quelldateien.
-- `ical` gegen einen echten Events-Manager-Export (Freilichtbühne Weißensee) als
-  Test-Fixture plus Tests für Zeitzonen, ganztägig, RRULE, EXDATE, RECURRENCE-ID.
-- `html` mit einer selbst geschriebenen Fixture im Aufbau einer Joomla-JEvents-Liste;
-  Selektor-Engine, deutsche Monatsnamen, ganztägige Termine, Absage-Erkennung im Titel.
-- `rss` ist noch nicht gegen eine echte Quelle gelaufen.
+## Test status
+
+- Built and checked locally with Docker: `go build`, `go vet` and `gofmt`
+  pass.
+- `fetch` against the real wcs source Familienzentrum Weißensee: 95 events,
+  status field and `sources.json` correct; an inbox event is included.
+- `build-site` against `example-instance` and weissens.ee: complete site
+  including manifest, `site.json` and stamped service worker.
+- `json` against a real source: Brotfabrik (WordPress "The Events Calendar",
+  4 pages, 192 events in 30 days) with pagination, template address,
+  `categoryMap` and HTML cleaning.
+- Go unit tests for text cleaning, templates, prices, pagination,
+  filters/`categoryMap` and writing back source files.
+- `ical` against a real Events Manager export (Freilichtbühne Weißensee) as a
+  test fixture, plus tests for time zones, all-day events, RRULE, EXDATE and
+  RECURRENCE-ID.
+- `html` with a hand-written fixture modelled on a Joomla JEvents list:
+  selector engine, German month names, all-day events and cancellation
+  detection in titles.
+- `rss` against a real source: KuBiZ Raoul Wallenberg in weissens.ee.

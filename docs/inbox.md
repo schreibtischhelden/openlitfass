@@ -1,39 +1,40 @@
-# Event-Inbox
+# Event inbox
 
-Manueller Gegenpart zu den automatisierten Quellen in `<instance>/sources/`: für
-einzelne Events, die durch keinen Feed kommen — ein Flyer, ein Anruf, ein
-Tipp aus dem Kiez. Eine JSON-Datei pro Event hier ablegen und committen,
-fertig. Kein Eintrag in `<instance>/sources/` nötig, keine URL, kein Mapping.
+The inbox is the manual counterpart to the automated sources in
+`<instance>/sources/`. It is meant for individual events that do not arrive
+through any feed: a flyer, a phone call, a tip from the neighbourhood. Place
+one JSON file per event in `<instance>/inbox/` and commit it. No entry in
+`<instance>/sources/`, no URL and no mapping are needed.
 
 ## Format
 
-Siehe `example-instance/inbox/beispiel-event.example.json` als Vorlage (Endung `.example.json` wird
-nicht eingelesen, zum Aktivieren kopieren und `.example` aus dem Namen
-entfernen). Die Felder entsprechen direkt dem Event-Schema aus
-`docs/backend.md` → "Event-JSON-Schema":
+Use `example-instance/inbox/beispiel-event.example.json` as a template. Files
+ending in `.example.json` are not read; to activate one, copy it and remove
+`.example` from the file name. The fields correspond directly to the
+[event JSON schema](backend.md#event-json-schema-instancedataeventsjson):
 
-- `title` (Pflicht), `date` (Pflicht, `YYYY-MM-DD`)
+- `title` (required), `date` (required, `YYYY-MM-DD`)
 - `description`, `category`, `startTime`/`endTime` (`HH:MM`)
 - `location: { name, address }`
-- `price: { free, amount }` — **weggelassen = kostenlos**; `{ "free": false }` = Preis unbekannt (nicht `null`
-  angeben, das würde "null €" im Frontend erzeugen)
+- `price: { free, amount }`: **if omitted, the event is free**;
+  `{ "free": false }` means the price is unknown. Do not set it to `null`, as
+  that would show "null €" in the front end.
 - `organizer`, `url`
-- `ticketRequired`, `registrationRequired`, `familyFriendly`, `cancelled` (alle optional,
-  Standard `false`)
+- `ticketRequired`, `registrationRequired`, `familyFriendly`, `cancelled`
+  (all optional, default `false`)
 
-Datum/Uhrzeit direkt als Europe/Berlin-Wanduhrzeit eintragen — keine
-Zeitzonen-Umrechnung wie bei den automatisierten Quellen, weil hier ein
-Mensch die Zeit direkt einträgt.
+Enter dates and times directly as Europe/Berlin wall-clock time. Unlike the
+automated sources, no time zone conversion takes place, because a person
+enters the time directly.
 
-Der Dateiname (ohne `.json`) ist die stabile ID des Events über mehrere
-Läufe hinweg — beim Bearbeiten einer bestehenden Datei also den Namen nicht
-ändern, sonst entsteht beim nächsten Lauf ein zweiter, neuer Eintrag statt
-den bestehenden zu aktualisieren.
+The file name (without `.json`) is the event's stable ID across runs. When
+editing an existing file, do not rename it; otherwise the next run creates a
+second, new entry instead of updating the existing one.
 
-## Wiederkehrende Termine (`repeat`)
+## Recurring events (`repeat`)
 
-Für Öffnungszeiten, Wochenkurse und Ähnliches statt `date` ein
-`repeat`-Objekt angeben; die übrigen Felder gelten für jeden Termin:
+For opening hours, weekly classes and similar, specify a `repeat` object
+instead of `date`; all other fields apply to every occurrence:
 
 ```json
 {
@@ -51,43 +52,38 @@ Für Öffnungszeiten, Wochenkurse und Ähnliches statt `date` ein
 }
 ```
 
-- `weekdays`: `mo di mi do fr sa so` (auch englisch `mon`/`tue`/…), braucht
-  `from` und `until`.
-- `dates`: zusätzliche Einzeltermine, z. B. Feiertage mit
-  Wochenend-Öffnungszeiten (geht auch ohne `weekdays`).
-- `except`: Termine, die ausfallen.
-- `daysAhead`: wie weit voraus Termine erzeugt werden (Standard 60 Tage),
-  damit die Liste nicht mit Monaten gleicher Einträge vollläuft.
+- `weekdays`: `mo di mi do fr sa so` (German abbreviations; the English
+  `mon`/`tue`/… are accepted as well). Requires `from` and `until`.
+- `dates`: additional single dates, for example public holidays with weekend
+  opening hours (also works without `weekdays`).
+- `except`: dates on which the event does not take place.
+- `daysAhead`: how far ahead occurrences are generated (default 60 days), so
+  that the list does not fill up with months of identical entries.
 
-Jeder Termin bekommt eine eigene stabile ID (`<Dateiname>@<Datum>`). Die
-Datei wird gelöscht, sobald `until` bzw. das letzte Datum aus `dates`
-vorbei ist. Unterschiedliche Zeiten (Sommer/Winter, Werktag/Wochenende)
-als eigene Dateien anlegen.
+Each occurrence gets its own stable ID (`<file name>@<date>`). The file is
+deleted once `until`, or the last date in `dates`, has passed. Create separate
+files for different times (summer/winter, weekdays/weekends).
 
-**Preis unbekannt:** `"price": { "free": false }` – dann zeigt die App
-keinen Preis an (weggelassen hieße "kostenlos").
+## Workflow
 
-## Ablauf
+1. Add the file, commit and push.
+2. The instance's `update-events.yml` workflow runs (it is triggered by pushes
+   to `inbox/**`) and includes the event in `data/events.json` from then on.
+3. The file stays in place and is read again on every run, so the event
+   remains visible. Only once its date is in the past does `InboxSource`
+   (`internal/sources/inbox.go`) delete the file automatically; the workflow
+   commits the deletion (see the instance's
+   `.github/workflows/update-events.yml`). This is exactly the point at which
+   the event would drop out of the calendar anyway.
 
-1. Datei hier ablegen, committen, pushen.
-2. Der `fetch-events`-Workflow läuft (Push-Trigger auf `inbox/**`) und
-   nimmt das Event ab sofort in `data/events.json` mit auf.
-3. Die Datei bleibt liegen und wird bei jedem Lauf erneut eingelesen — das
-   Event bleibt so lange sichtbar. Erst sobald das Datum in der
-   Vergangenheit liegt, löscht `InboxSource` (`internal/sources/inbox.go`)
-   die Datei automatisch und committet das mit (siehe
-   `.github/workflows/update-events.yml` der Instanz) — genau der Zeitpunkt, an dem das
-   Event ohnehin aus dem Kalender fallen würde.
+Why the file is not deleted immediately after it has been processed:
+`cmd/fetch` rebuilds `data/events.json` from scratch on every run, using the
+current fetch results of all sources; it does not read the previous file. If
+the inbox file were deleted straight away, the event would disappear again on
+the next run, because no source would provide it any more.
 
-Warum nicht sofort nach der ersten Verarbeitung löschen: `cmd/fetch`
-berechnet `data/events.json` bei jedem Lauf komplett neu aus den aktuellen
-Fetch-Ergebnissen aller Quellen, es liest die vorherige Datei nicht ein.
-Würde die Datei sofort gelöscht, verschwände das Event schon beim nächsten
-Lauf wieder, weil dann keine Quelle mehr existiert, die es liefert.
+## Invalid files
 
-## Fehlerhafte Dateien
-
-Eine Datei mit ungültigem JSON, fehlendem `title` oder unparsebarem `date`
-wird übersprungen und **nicht** gelöscht (nichts geht dabei verloren) —
-stattdessen loggt der Lauf eine klare Fehlermeldung mit Dateiname. Datei
-reparieren und erneut committen.
+A file with invalid JSON, a missing `title` or an unparsable `date` is skipped
+and **not** deleted, so nothing is lost. Instead, the run logs a clear error
+message including the file name. Fix the file and commit it again.

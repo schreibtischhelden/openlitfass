@@ -1,104 +1,107 @@
-# Quellen finden (Discovery-Playbook)
+# Finding sources (discovery playbook)
 
-Diese Anleitung ist bewusst **ortsunabhängig** geschrieben und gilt für jede
-Instanz von openLitfass. Die ortsspezifische Bestandsaufnahme
-(was schon gefunden/geprüft ist) gehört in die Instanz selbst, z.B.
-`docs/quellen-checkliste.md` in weissens.ee.
+This guide is deliberately **location-independent** and applies to every
+openLitfass instance. The location-specific inventory (what has already been
+found and checked) belongs in the instance itself, for example
+[`docs/sources-checklist.md`](https://github.com/weissensee/weissens.ee/blob/main/docs/sources-checklist.md)
+in weissens.ee.
 
-Basiert auf Recherche zu vergleichbaren Open-Source-Projekten, vor allem
+It is based on research into comparable open-source projects, in particular
 [judell/community-calendar](https://github.com/judell/community-calendar)
-(`docs/procedures.md`) — dort im Detail nachlesbar, hier auf das Nötigste für
-unseren Kontext (Go, `rss`/`json`/`wcs`-Quelltypen, siehe `docs/backend.md`)
-verdichtet.
+(see its `docs/procedures.md` for full details), condensed here to what
+matters in our context (Go and the source types described in
+[backend.md](backend.md)).
 
-## Grundhaltung: vollständig statt kuratiert
+## Principle: comprehensive rather than curated
 
-Lieber eine Quelle zu viel als eine zu wenig. Kleine, unscheinbare Quellen
-sind oft ergiebiger als sie aussehen — Vereine, Kirchengemeinden, Schulen,
-Sportvereine, Nachbarschaftsinitiativen, Repair-Cafés, Kiezzeitungen. Im
-Zweifel aufnehmen und später per `categories`/`daysAhead`-Filter (siehe
-`docs/backend.md` → "Gemeinsame Filter") wieder einschränken, statt vorher
-schon auszusortieren.
+Better one source too many than one too few. Small, inconspicuous sources are
+often more productive than they look: associations, parishes, schools, sports
+clubs, neighbourhood initiatives, repair cafés and local newspapers. When in
+doubt, add the source and narrow it down later with the `categories` or
+`daysAhead` filters (see [Common filters](backend.md#common-filters-all-source-types))
+instead of discarding it up front.
 
-## 1. Suchen
+## 1. Search
 
-Suchmaschinen indexieren oft den rohen Inhalt von ICS-Dateien — das macht sie
-direkt auffindbar:
+Search engines often index the raw content of ICS files, which makes them
+directly discoverable:
 
 ```
-"BEGIN:VCALENDAR" "<Ort/Kiez>"
+"BEGIN:VCALENDAR" "<place/neighbourhood>"
 ```
 
-Weitere ergiebige Suchmuster (`<Ort>` ersetzen):
+Further productive search patterns (replace `<place>`). The German terms are
+intentional, as they are what local organisers use:
 
-| Suche | Findet |
+| Search | Finds |
 |---|---|
-| `<Ort> site:meetup.com` | Meetup-Gruppen mit ICS-Export |
-| `<Ort> "Veranstaltungskalender"` | Lokale Aggregatoren, Bezirksamt-Seiten |
-| `<Ort> Kiezzeitung OR Nachbarschaftsinitiative` | Kleine, oft übersehene Quellen |
-| `<Ort> Gemeinde OR Kirchengemeinde Veranstaltungen` | Kirchengemeinden |
-| `<Ort> Sportverein Termine` | Sportvereine |
-| `<Ort> "Add to Calendar" OR "iCal"` | Seiten mit ICS/iCal-Export |
+| `<place> site:meetup.com` | Meetup groups with ICS export |
+| `<place> "Veranstaltungskalender"` | local aggregators, district office pages |
+| `<place> Kiezzeitung OR Nachbarschaftsinitiative` | small, often overlooked sources |
+| `<place> Gemeinde OR Kirchengemeinde Veranstaltungen` | parishes |
+| `<place> Sportverein Termine` | sports clubs |
+| `<place> "Add to Calendar" OR "iCal"` | pages with an ICS/iCal export |
 
-DuckDuckGo bevorzugen, falls Google automatisierte Anfragen blockiert.
+Prefer DuckDuckGo if Google blocks automated queries.
 
-## 2. Bekannte Plattform-Muster
+## 2. Known platform patterns
 
-Wenn eine Quelle über eine dieser Plattformen läuft, gibt es meist einen
-direkten Feed, ohne dass gescraped werden muss:
+If a source runs on one of these platforms, there is usually a direct feed and
+no scraping is needed:
 
-| Plattform | Feed-URL-Muster |
+| Platform | Feed URL pattern |
 |---|---|
-| Meetup | `https://www.meetup.com/{gruppe}/events/ical/` |
-| Tockify | `https://tockify.com/api/feeds/ics/{kalendername}` |
-| WordPress: Tribe Events Calendar | `https://example.org/events/?ical=1` |
+| Meetup | `https://www.meetup.com/{group}/events/ical/` |
+| Tockify | `https://tockify.com/api/feeds/ics/{calendar-name}` |
+| WordPress: The Events Calendar (Tribe) | `https://example.org/events/?ical=1` |
 | WordPress: Modern Events Calendar | `https://example.org/events/?mec-ical-feed=1` |
-| WordPress: Weekly Class Schedule (wcs) | kein öffentlicher Feed — Browser-Network-Tab beim Laden des Kalenders prüfen, siehe unten |
+| WordPress: Weekly Class Schedule (wcs) | no public feed; inspect the browser's Network tab while the calendar loads (see below) |
 | Squarespace | `https://example.com/events?format=json` |
-| Google-Kalender-Einbettung | Kalender-ID aus dem Embed-Code extrahieren, dann `https://calendar.google.com/calendar/ical/{ID}/public/basic.ics` |
-| GrowthZone (Gewerbevereine/IHK-artig) | `https://business.{verband}.com/api/events` |
+| Embedded Google Calendar | extract the calendar ID from the embed code, then `https://calendar.google.com/calendar/ical/{ID}/public/basic.ics` |
+| GrowthZone (business and trade associations) | `https://business.{association}.com/api/events` |
 
-## 3. Wenn kein offizieller Feed existiert: Browser-Network-Tab
+## 3. No official feed: the browser's Network tab
 
-So wurde die `wcs`-Quelle für das Familienzentrum Weißensee gefunden (siehe
-`docs/backend.md` → "wcs-Quellen" für die volle Geschichte): die
-Kalenderseite im Browser öffnen, DevTools → Network-Tab, Filter auf
-XHR/Fetch, die Seite neu laden bzw. die Wochenansicht wechseln, und nach der
-Anfrage suchen, die die Termine tatsächlich lädt (oft `admin-ajax.php` bei
-WordPress, oder ein `/api/`-Pfad). Response-Format und Query-Parameter davon
-ableiten.
+This is how the `wcs` source for Familienzentrum Weißensee was found (see
+[wcs sources](backend.md#wcs-sources-wordpress-weekly-class-schedule-plugin)
+for the full story). Open the calendar page in the browser, open DevTools →
+Network, filter on XHR/Fetch, reload the page or switch the week view, and
+look for the request that actually loads the events (often `admin-ajax.php`
+on WordPress, or an `/api/` path). Derive the response format and query
+parameters from it.
 
-**Falls ein ICS-/JSON-Export durch eine Firewall/WAF blockiert ist:**
-manchmal ist die zugrundeliegende REST-API weniger streng geschützt als der
-dedizierte Export-Endpunkt. Bei WordPress mit Tribe Events z.B. lohnt sich
-`wp-json/tribe/events/v1/events/` als Fallback, wenn `?ical=1` blockiert ist.
+**If an ICS or JSON export is blocked by a firewall or WAF:** sometimes the
+underlying REST API is less strictly protected than the dedicated export
+endpoint. With WordPress and The Events Calendar, for example,
+`wp-json/tribe/events/v1/events/` is worth trying as a fallback when
+`?ical=1` is blocked.
 
-## 4. Testen, bevor eine Quelle angebunden wird
+## 4. Test before connecting a source
 
 ```sh
-curl -sL "<FEED-URL>" -A "Mozilla/5.0" | grep -c "BEGIN:VEVENT"   # ICS: Anzahl Termine
-curl -sL "<JSON-URL>" | python3 -m json.tool | head -50            # JSON: Struktur ansehen
+curl -sL "<FEED-URL>" -A "Mozilla/5.0" | grep -c "BEGIN:VEVENT"   # ICS: number of events
+curl -sL "<JSON-URL>" | python3 -m json.tool | head -50            # JSON: inspect the structure
 ```
 
-Prüfen: enthält die Antwort echte, aktuelle Termine? Passt die Zeitzone
-(siehe `docs/backend.md` → "Warnung, nicht blind auf andere Quellen
-übertragen")? Wie oft ändert sich der Inhalt (relevant für `daysAhead` und
-die Cron-Frequenz im Workflow)?
+Check: does the response contain real, current events? Is the time zone
+correct (see the warning in
+[wcs sources](backend.md#wcs-sources-wordpress-weekly-class-schedule-plugin))?
+How often does the content change (relevant for `daysAhead` and the cron
+schedule of the workflow)?
 
-## 5. Dokumentieren
+## 5. Document
 
-Gefundene, geprüfte und verworfene Quellen in
-die Quellen-Checkliste der Instanz (bzw. der lokalen Entsprechung im
-eigenen Fork) festhalten — Format dort siehe Datei selbst.
+Record found, checked and rejected sources in the instance's source checklist
+(or the local equivalent in your own fork); see that file for its format.
 
-## 6. Anbinden
+## 6. Connect
 
-- Passt die Quelle zu `type: "rss"` oder `type: "json"`? → neue Datei in
-  `<instance>/sources/` nach den `.example.json`-Vorlagen, kein Go-Code nötig
-  (siehe `docs/backend.md` → "Wie das Feld-Mapping funktioniert").
-- WordPress mit "Weekly Class Schedule"-Plugin? → `type: "wcs"`, siehe
-  `docs/backend.md` → "wcs-Quellen".
-- Passt nichts davon (eigenes Scraping, Pagination, Auth)? → eigene
-  `Source`-Implementierung nach Vorlage `internal/sources/example.go`, dabei
-  über `harden(withCommonFilters(...))` registrieren (siehe
-  `docs/backend.md` → "Neue Quelle mit eigenem Go-Code").
+- Does the source fit `type: "rss"`, `"json"`, `"ical"` or `"html"`? Add a new
+  file to `<instance>/sources/` based on the `.example.json` templates; no Go
+  code is needed (see [How field mapping works](backend.md#how-field-mapping-works)).
+- WordPress with the "Weekly Class Schedule" plugin? Use `type: "wcs"` (see
+  [wcs sources](backend.md#wcs-sources-wordpress-weekly-class-schedule-plugin)).
+- None of these fit (custom scraping, pagination, authentication)? Write your
+  own `Source` implementation based on `internal/sources/example.go` and
+  register it via `harden(withCommonFilters(...))` (see
+  [New source with custom Go code](backend.md#new-source-with-custom-go-code-exceptional-cases)).
