@@ -120,15 +120,58 @@ func parseHTMLEvents(body string, cfg config.SourceConfig, now time.Time) ([]mod
 		return nil, fmt.Errorf("itemSelector %q matched nothing on %s", cfg.ItemSelector, cfg.URL)
 	}
 
+	var sections []string
+	if cfg.SectionSelector != "" {
+		secSel, err := htmlsel.Parse(cfg.SectionSelector)
+		if err != nil {
+			return nil, fmt.Errorf("sectionSelector: %w", err)
+		}
+		sections = precedingSections(doc, items, secSel)
+	}
+
 	events := make([]model.Event, 0, len(items))
-	for _, it := range items {
+	for i, it := range items {
 		values := map[string]interface{}{}
+		if sections != nil {
+			values[sectionValue] = sections[i]
+		}
 		for _, r := range rules {
 			values[r.name] = extractValue(it, r, base)
 		}
 		events = append(events, mapping.BuildEvent(values, m, cfg.Name, now))
 	}
 	return events, nil
+}
+
+// sectionValue is the mapping name under which an item's section heading
+// (cfg.SectionSelector) is available.
+const sectionValue = "section"
+
+// precedingSections returns, for each item (in document order), the text
+// of the last node matching sec that comes before it in document order -
+// "" for items before the first heading. Works for headings that are
+// siblings of the items as well as for ones nested elsewhere before them.
+func precedingSections(doc *html.Node, items []*html.Node, sec htmlsel.Selector) []string {
+	isItem := make(map[*html.Node]int, len(items))
+	for i, it := range items {
+		isItem[it] = i
+	}
+	out := make([]string, len(items))
+	current := ""
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			if sec.Match(c, doc) {
+				current = htmlsel.Text(c)
+			}
+			if i, ok := isItem[c]; ok {
+				out[i] = current
+			}
+			walk(c)
+		}
+	}
+	walk(doc)
+	return out
 }
 
 func extractValue(item *html.Node, r compiledExtract, base *url.URL) string {

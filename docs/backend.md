@@ -428,6 +428,30 @@ CSS-Selektor aus dem HTML gelesen. Drei Teile:
 
 Vollständige Vorlage: `example-instance/sources/beispiel-html.example.json`.
 
+**Überschriften ohne Container (`sectionSelector`):** Manche Seiten
+gruppieren Termine mit einer Überschrift, die die Einträge nicht umschließt,
+sondern vor ihnen steht – etwa ein Kinoprogramm:
+
+```html
+<h3 class="program_date1">Samstag, 21.11.2026</h3>
+<div class="program_entry"><a href="/film/x/1">12:45 Film X</a></div>
+<div class="program_entry"><a href="/film/y/2">20:15 Film Y</a></div>
+<h3 class="program_date1">Sonntag, 22.11.2026</h3>
+…
+```
+
+Mit `"sectionSelector": "h3.program_date1"` bekommt jeder Eintrag den Text
+der letzten davor stehenden Überschrift (Dokument-Reihenfolge) als Wert
+`section`, nutzbar im Mapping wie ein `extract`-Name:
+
+```jsonc
+"start": {
+  "template": "{section} | {time}",
+  "regex": "(\\d{2}\\.\\d{2}\\.\\d{4})[^|]*[|]\\s*(\\d{1,2}:\\d{2})?",
+  "format": "02.01.2006 15:04|02.01.2006"
+}
+```
+
 Unterstützte Selektoren: `tag`, `*`, `.klasse`, `#id`, `[attr]`,
 `[attr=wert]`, `[attr~=wort]`, `[attr*=teil]`, `:first-of-type`,
 `:nth-of-type(n)`, Nachfahre (`a b`) und Kind (`a > b`). Keine

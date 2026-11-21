@@ -81,6 +81,12 @@ type SourceConfig struct {
 	// ItemSelector ("html" sources only) is the CSS selector of one event
 	// container on the page, e.g. "#jevents_body .schatten".
 	ItemSelector string `json:"itemSelector,omitempty"`
+	// SectionSelector ("html" sources only, optional) finds headings that
+	// group the items without containing them, e.g. a date heading followed
+	// by sibling entries ("<h3>Samstag, 21.11.2026</h3><div class=entry>…").
+	// Each item gets the text of the last such heading before it (document
+	// order) as the value "section", usable in mapping like an extract name.
+	SectionSelector string `json:"sectionSelector,omitempty"`
 	// Extract ("html" sources only) names the values pulled out of each
 	// item; the mapping block then refers to these names as paths. See
 	// ExtractRule and docs/backend.md "html-Quellen".

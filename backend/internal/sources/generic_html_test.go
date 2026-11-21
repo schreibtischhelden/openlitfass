@@ -146,3 +146,52 @@ func TestRecordAttemptKeepsSelectorsReadable(t *testing.T) {
 		t.Errorf("source file got escaped:\n%s", b)
 	}
 }
+
+// Date headings followed by sibling entries (no container per day): each
+// entry gets the last heading before it as "section".
+func TestHTMLSourceSectionSelector(t *testing.T) {
+	page := `<html><body><aside>
+	  <h2>Programm</h2>
+	  <h3 class="day">Samstag, 21.11.2026</h3>
+	  <div class="entry"><a href="/film/a/1">12:45 Film A</a></div>
+	  <div class="entry"><a href="/film/b/2">20:15 Film B</a></div>
+	  <h3 class="day">Sonntag, 22.11.2026</h3>
+	  <div class="entry"><a href="/film/a/3">11:00 Film A</a></div>
+	</aside></body></html>`
+	var cfg config.SourceConfig
+	if err := json.Unmarshal([]byte(`{
+	  "name": "kino", "type": "html", "url": "https://kino.example/",
+	  "itemSelector": "div.entry", "sectionSelector": "h3.day",
+	  "extract": {
+	    "time": { "selector": "a", "regex": "^([0-9]{1,2}:[0-9]{2})" },
+	    "title": { "selector": "a", "regex": "^[0-9]{1,2}:[0-9]{2} +(.+)$" },
+	    "link": { "selector": "a", "attr": "href" }
+	  },
+	  "mapping": {
+	    "title": { "path": "title" },
+	    "url": { "path": "link" },
+	    "start": { "template": "{section} {time}", "regex": "([0-9]{2}[.][0-9]{2}[.][0-9]{4} [0-9]{1,2}:[0-9]{2})", "format": "02.01.2006 15:04" }
+	  }
+	}`), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+	evs, err := parseHTMLEvents(page, cfg, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []struct{ title, date, time, url string }{
+		{"Film A", "2026-11-21", "12:45", "https://kino.example/film/a/1"},
+		{"Film B", "2026-11-21", "20:15", "https://kino.example/film/b/2"},
+		{"Film A", "2026-11-22", "11:00", "https://kino.example/film/a/3"},
+	}
+	if len(evs) != len(want) {
+		t.Fatalf("got %d events, want %d: %+v", len(evs), len(want), evs)
+	}
+	for i, w := range want {
+		e := evs[i]
+		if e.Title != w.title || e.Date != w.date || e.StartTime != w.time || e.URL != w.url {
+			t.Errorf("event %d = %q %s %s %s, want %+v", i, e.Title, e.Date, e.StartTime, e.URL, w)
+		}
+	}
+}
