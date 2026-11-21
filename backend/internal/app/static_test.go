@@ -180,3 +180,45 @@ func TestEnvBool(t *testing.T) {
 		}
 	}
 }
+
+// places.json: data/places.json for the app, orte/ pages with the events
+// held there, sitemap entries.
+func TestBuildSitePlaces(t *testing.T) {
+	webDir, _ := filepath.Abs(filepath.Join("..", "..", "..", "web"))
+	root := t.TempDir()
+	instDir := filepath.Join(root, "inst")
+	tomorrow := time.Now().In(model.Local).AddDate(0, 0, 1).Format("2006-01-02")
+	writeFile(t, filepath.Join(instDir, "instance.json"), `{"name":"Testkiez","baseUrl":"https://example.org"}`)
+	writeFile(t, filepath.Join(instDir, "data", "events.json"), `{"events":[
+	  {"id":"film-1","title":"Film am Hof","date":"`+tomorrow+`","startTime":"20:00","location":{"name":"KINO Hof"},"price":{"free":true,"amount":null}},
+	  {"id":"anders-1","title":"Woanders","date":"`+tomorrow+`","location":{"name":"Markt"},"price":{"free":true,"amount":null}}]}`)
+	writeFile(t, filepath.Join(instDir, "places.json"), `{
+	  "types":[{"name":"Kultur","icon":["M0 0"]}],
+	  "places":[{"id":"hof","name":"Hof","type":"Kultur","address":"Weg 1, 13086 Berlin","lat":52.55,"lon":13.45,"description":"Ein Hof."}]}`)
+	inst, err := instance.Load(instDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(root, "out")
+	if err := BuildSite(inst, webDir, out, SiteOptions{StaticPages: true, Sitemap: true}); err != nil {
+		t.Fatal(err)
+	}
+	if pj := readFile(t, filepath.Join(out, "data", "places.json")); !strings.Contains(pj, `"id": "hof"`) {
+		t.Errorf("data/places.json:\n%s", pj)
+	}
+	page := readFile(t, filepath.Join(out, PlacesDir, "hof.html"))
+	for _, want := range []string{"Ein Hof.", "Film am Hof", `href="../termine/film-1.html"`, `"@type":"Place"`, "mlat=52.550000"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("place page lacks %q", want)
+		}
+	}
+	if strings.Contains(page, "Woanders") {
+		t.Error("place page lists an event held elsewhere")
+	}
+	if list := readFile(t, filepath.Join(out, PlacesDir, "index.html")); !strings.Contains(list, `href="hof.html"`) {
+		t.Error("places list lacks the place")
+	}
+	if sm := readFile(t, filepath.Join(out, "sitemap.xml")); !strings.Contains(sm, "https://example.org/orte/hof.html") {
+		t.Error("sitemap lacks the place page")
+	}
+}

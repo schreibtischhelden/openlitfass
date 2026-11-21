@@ -1,0 +1,17 @@
+{{template "top" .}}
+    <section class="view">
+      <h1 class="static-title">Orte</h1>
+      <p class="result-count">Stand {{.Generated}} · <a href="{{.Root}}#orte">Im interaktiven Kalender</a></p>
+      {{range .PlaceGroups}}
+      <h2 class="day-heading static-day">{{.Type}}</h2>
+      <ul class="event-list">
+        {{range .Places}}<li><a class="event-card place-card" href="{{.Page}}">
+          <div class="event-card__body">
+            <h3 class="event-card__title">{{.Name}}</h3>
+            <p class="event-card__meta">{{if .Address}}<span>{{.Address}}</span>{{end}}{{if .Events}}<span>{{len .Events}}{{if .More}}+{{end}} Termine</span>{{end}}</p>
+          </div>
+        </a></li>{{end}}
+      </ul>
+      {{end}}
+    </section>
+{{template "bottom" .}}

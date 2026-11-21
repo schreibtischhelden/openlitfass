@@ -89,13 +89,28 @@ func BuildSite(inst instance.Instance, webDir, out string, opts SiteOptions) err
 	if err := renderIndex(webDir, inst, logo, start, opts, filepath.Join(out, "index.html")); err != nil {
 		return fmt.Errorf("render index.html: %w", err)
 	}
+	// Places (<instance>/places.json, optional): data/places.json for the
+	// app, with OL_STATIC_PAGES also orte/ pages.
+	pl, err := writePlaces(inst, out)
+	if err != nil {
+		return fmt.Errorf("places: %w", err)
+	}
+	var placeIDs []string
 	if opts.StaticPages {
 		if err := buildStatic(inst, webDir, out, logo, events); err != nil {
 			return fmt.Errorf("static pages: %w", err)
 		}
+		if pl != nil {
+			if err := buildPlacePages(inst, webDir, out, logo, pl, events); err != nil {
+				return fmt.Errorf("place pages: %w", err)
+			}
+			for _, p := range pl.Places {
+				placeIDs = append(placeIDs, p.ID)
+			}
+		}
 	}
 	if opts.Sitemap {
-		if err := buildSitemap(inst, out, events, opts.StaticPages); err != nil {
+		if err := buildSitemap(inst, out, events, opts.StaticPages, placeIDs); err != nil {
 			return err
 		}
 	}

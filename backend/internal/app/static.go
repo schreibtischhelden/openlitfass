@@ -52,6 +52,7 @@ type staticEvent struct {
 	model.Event
 	Page      string // file name inside StaticDir
 	DateLong  string // "Samstag, 21. November 2026"
+	DateShort string // "Sa 21.11."
 	TimeText  string // "19:00 – 21:00 Uhr", "ganztägig"
 	PriceText string
 	MapURL    string
@@ -65,19 +66,21 @@ type staticDay struct {
 
 type staticPage struct {
 	instance.Config
-	Logo      template.HTML
-	SiteURL   string // BaseURL without trailing slash, "" if unset
-	Root      string // relative path from the page to the site root
-	Canonical string // absolute URL of this page, "" without BaseURL
-	PageTitle string
-	MetaDesc  string
-	Event     *staticEvent
-	JSONLD    map[string]any
-	Days      []staticDay
-	Count     int
-	Imprint   string // ImprintURL / PrivacyURL relative to this page
-	Privacy   string
-	Generated string
+	Logo        template.HTML
+	SiteURL     string // BaseURL without trailing slash, "" if unset
+	Root        string // relative path from the page to the site root
+	Canonical   string // absolute URL of this page, "" without BaseURL
+	PageTitle   string
+	MetaDesc    string
+	Event       *staticEvent
+	JSONLD      map[string]any
+	Days        []staticDay
+	Count       int
+	Place       *staticPlace       // place page
+	PlaceGroups []staticPlaceGroup // places list page
+	Imprint     string             // ImprintURL / PrivacyURL relative to this page
+	Privacy     string
+	Generated   string
 }
 
 // buildStatic writes the static pages (termine/) into out.
@@ -146,13 +149,13 @@ func buildStatic(inst instance.Instance, webDir, out string, logo template.HTML,
 // (site/robots.txt), a robots.txt pointing to it. Sitemaps need absolute
 // URLs, so without baseUrl nothing is written. events are the static event
 // pages to list (nil when static pages are off: only the start page).
-func buildSitemap(inst instance.Instance, out string, events []staticEvent, withPages bool) error {
+func buildSitemap(inst instance.Instance, out string, events []staticEvent, withPages bool, placeIDs []string) error {
 	siteURL := strings.TrimRight(inst.Config.BaseURL, "/")
 	if siteURL == "" {
 		log.Printf("sitemap: no baseUrl in instance.json, skipped")
 		return nil
 	}
-	if err := writeSitemap(filepath.Join(out, "sitemap.xml"), siteURL, events, withPages); err != nil {
+	if err := writeSitemap(filepath.Join(out, "sitemap.xml"), siteURL, events, withPages, placeIDs); err != nil {
 		return fmt.Errorf("sitemap.xml: %w", err)
 	}
 	robots := filepath.Join(out, "robots.txt")
@@ -226,7 +229,7 @@ func renderTo(t *template.Template, name string, data any, dst string) error {
 }
 
 func newStaticEvent(e model.Event) staticEvent {
-	se := staticEvent{Event: e, Page: e.ID + ".html", DateLong: longDateDE(e.Date)}
+	se := staticEvent{Event: e, Page: e.ID + ".html", DateLong: longDateDE(e.Date), DateShort: shortDateDE(e.Date)}
 	switch {
 	case e.StartTime != "" && e.EndTime != "":
 		se.TimeText = e.StartTime + " – " + e.EndTime + " Uhr"
@@ -268,6 +271,15 @@ func groupDays(events []staticEvent) []staticDay {
 		days[len(days)-1].Events = append(days[len(days)-1].Events, e)
 	}
 	return days
+}
+
+// shortDateDE: "Sa 21.11."
+func shortDateDE(date string) string {
+	t, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return date
+	}
+	return fmt.Sprintf("%s %d.%d.", weekdaysDE[t.Weekday()][:2], t.Day(), int(t.Month()))
 }
 
 func longDateDE(date string) string {
@@ -357,7 +369,7 @@ type sitemapSet struct {
 	URLs    []sitemapURL `xml:"url"`
 }
 
-func writeSitemap(path, siteURL string, events []staticEvent, withPages bool) error {
+func writeSitemap(path, siteURL string, events []staticEvent, withPages bool, placeIDs []string) error {
 	today := time.Now().In(model.Local).Format("2006-01-02")
 	set := sitemapSet{XMLNS: "http://www.sitemaps.org/schemas/sitemap/0.9", URLs: []sitemapURL{
 		{Loc: siteURL + "/", LastMod: today},
@@ -367,6 +379,12 @@ func writeSitemap(path, siteURL string, events []staticEvent, withPages bool) er
 	}
 	for _, e := range events {
 		set.URLs = append(set.URLs, sitemapURL{Loc: siteURL + "/" + StaticDir + "/" + e.Page})
+	}
+	if withPages && len(placeIDs) > 0 {
+		set.URLs = append(set.URLs, sitemapURL{Loc: siteURL + "/" + PlacesDir + "/", LastMod: today})
+		for _, id := range placeIDs {
+			set.URLs = append(set.URLs, sitemapURL{Loc: siteURL + "/" + PlacesDir + "/" + id + ".html"})
+		}
 	}
 	data, err := xml.MarshalIndent(set, "", "  ")
 	if err != nil {
