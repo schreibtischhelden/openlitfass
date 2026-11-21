@@ -15,7 +15,10 @@ Kern-Repos.
   inbox/*.json                     Einzel-Events von Hand (siehe docs/inbox.md)
   site/                            wird über web/ gelegt
     css/theme.css                  Farb-Tokens überschreiben
-    logo.svg                       Logo (inline eingefügt, currentColor möglich)
+    logo.svg                       Logo (inline eingefügt, currentColor möglich;
+                                   build-site erzeugt daraus favicon.svg:
+                                   weiß auf themeColor, Akzent fest)
+    icon-192.png, icon-512.png     optional: PWA-/Touch-Icons (nur verlinkt, wenn vorhanden)
     …                              beliebige weitere Dateien (Fonts, Favicon, …)
   data/                            von fetch erzeugt (events, categories, sources), wird committet
   public/                          von build-site erzeugt, nicht committen

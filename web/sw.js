@@ -12,7 +12,7 @@ const SHELL = [
   "css/theme.css",
   "css/style.css",
   "js/app.js",
-  "logo.svg",
+  "favicon.svg",
   "manifest.webmanifest"
 ];
 

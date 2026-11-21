@@ -17,8 +17,8 @@
 <meta property="og:locale" content="de_DE">
 <meta name="twitter:card" content="summary">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="logo.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+{{if .TouchIcon}}<link rel="apple-touch-icon" href="icon-192.png">{{end}}
 <!-- Gewähltes Farbschema vor dem ersten Zeichnen setzen (kein Aufblitzen).
      Ohne Wahl gilt die Systemeinstellung (prefers-color-scheme). -->
 <script>try{var t=localStorage.getItem("openlitfass:theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>

@@ -29,6 +29,7 @@ type page struct {
 	SiteURL     string // BaseURL without trailing slash
 	StaticDir   string // static event pages, see static.go
 	StaticPages bool   // OL_STATIC_PAGES: termine/ exists
+	TouchIcon   bool   // site/icon-192.png exists (apple-touch-icon)
 	// Start is pre-rendered into the list (today's events, else the next
 	// day with events) for crawlers and visitors without JavaScript; the
 	// app replaces it once it has loaded the data. nil = no events.
@@ -67,6 +68,13 @@ func BuildSite(inst instance.Instance, webDir, out string, opts SiteOptions) err
 	logo, err := readLogo(webDir, inst)
 	if err != nil {
 		return err
+	}
+	fav, err := makeFavicon(logo, inst.Config.ThemeColor)
+	if err != nil {
+		return fmt.Errorf("favicon: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(out, FaviconFile), fav, 0o644); err != nil {
+		return fmt.Errorf("favicon: %w", err)
 	}
 	// Optional parts (SiteOptions, off by default): static pages incl. the
 	// pre-rendered start page, and the sitemap.
@@ -216,7 +224,8 @@ func renderIndex(webDir string, inst instance.Instance, logo template.HTML, star
 	if err != nil {
 		return err
 	}
-	if err := tmpl.Execute(f, page{Config: inst.Config, Logo: logo, SiteURL: strings.TrimRight(inst.Config.BaseURL, "/"), StaticDir: StaticDir, StaticPages: opts.StaticPages, Start: start}); err != nil {
+	if err := tmpl.Execute(f, page{Config: inst.Config, Logo: logo, SiteURL: strings.TrimRight(inst.Config.BaseURL, "/"), StaticDir: StaticDir, StaticPages: opts.StaticPages, Start: start,
+		TouchIcon: fileExists(filepath.Join(filepath.Dir(dst), "icon-192.png"))}); err != nil {
 		f.Close()
 		return err
 	}
@@ -242,11 +251,11 @@ type manifestIcon struct {
 }
 
 // manifest builds the PWA web app manifest from instance.json. Icons:
-// logo.svg always (scalable), plus icon-192.png / icon-512.png if the
+// favicon.svg always (scalable, see makeFavicon), plus icon-192.png / icon-512.png if the
 // instance ships them in site/ (recommended - some platforms ignore SVG
 // icons when installing).
 func manifest(c instance.Config, out string) map[string]any {
-	icons := []manifestIcon{{Src: "logo.svg", Sizes: "any", Type: "image/svg+xml"}}
+	icons := []manifestIcon{{Src: FaviconFile, Sizes: "any", Type: "image/svg+xml"}}
 	for _, size := range []string{"192", "512"} {
 		name := "icon-" + size + ".png"
 		if _, err := os.Stat(filepath.Join(out, name)); err == nil {
@@ -283,4 +292,9 @@ func stampServiceWorker(path string) error {
 	}
 	id := time.Now().UTC().Format("20060102T150405")
 	return os.WriteFile(path, []byte(strings.ReplaceAll(string(data), "__BUILD_ID__", id)), 0o644)
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
