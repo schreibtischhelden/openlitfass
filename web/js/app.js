@@ -249,7 +249,35 @@
     r.setDate(r.getDate() + n);
     return r;
   }
-  function todayISO() { return iso(new Date()); }
+  // "Jetzt" als Wanduhrzeit der Instanz (instance.json "timezone"), nicht des
+  // Geräts: die Termine gelten in der Zeitzone der Instanz, und Browser mit
+  // Fingerprinting-Schutz (Firefox resistFingerprinting, LibreWolf, Tor)
+  // melden UTC - dort wäre sonst bis 1 Uhr noch der Vortag "heute".
+  // Liefert ein Date, dessen lokale Teile (getDate, getHours …) die Uhrzeit
+  // der Instanz sind; ohne Intl-Unterstützung die Gerätezeit.
+  const DEFAULT_TZ = "Europe/Berlin";
+  const zoneFormats = new Map();
+  function instanceTz() { return state.site.timezone || DEFAULT_TZ; }
+  function zoneFormat(tz) {
+    if (!zoneFormats.has(tz)) {
+      let f = null;
+      try {
+        f = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hourCycle: "h23",
+          year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" });
+      } catch (_) { /* unbekannte Zeitzone: Gerätezeit */ }
+      zoneFormats.set(tz, f);
+    }
+    return zoneFormats.get(tz);
+  }
+  function instanceNow() {
+    const now = new Date();
+    const f = zoneFormat(instanceTz());
+    if (!f) return now;
+    const p = {};
+    for (const part of f.formatToParts(now)) p[part.type] = Number(part.value);
+    return new Date(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  }
+  function todayISO() { return iso(instanceNow()); }
 
   // Zeitstatus eines Termins von heute: "running" (läuft gerade), "ended"
   // (heute schon vorbei) oder "" (später / anderer Tag). Ohne Endzeit
@@ -261,7 +289,7 @@
     const m = /^(\d{1,2}):(\d{2})/.exec(hm || "");
     return m ? Number(m[1]) * 60 + Number(m[2]) : null;
   }
-  function timeState(ev, now = new Date()) {
+  function timeState(ev, now = instanceNow()) {
     if (ev.date !== iso(now)) return "";
     const start = minutes(ev.startTime);
     if (start === null) return "running";
@@ -278,7 +306,7 @@
     const d = parseDate(dateStr);
     const base = `${WEEKDAYS_SHORT[d.getDay()]} ${d.getDate()}. ${MONTHS_SHORT[d.getMonth()]}`;
     if (dateStr === todayISO()) return `${STR.today} · ${base}`;
-    if (dateStr === iso(addDays(new Date(), 1))) return `${STR.tomorrow} · ${base}`;
+    if (dateStr === iso(addDays(instanceNow(), 1))) return `${STR.tomorrow} · ${base}`;
     return base;
   }
   function longDate(dateStr) {
@@ -1388,7 +1416,7 @@
     return date.replace(/-/g, "") + (time ? "T" + time.replace(":", "") + "00" : "");
   }
   function downloadIcs(ev) {
-    const tz = state.site.timezone || "Europe/Berlin";
+    const tz = instanceTz();
     const host = (state.site.baseUrl || location.host || "openlitfass").replace(/^https?:\/\//, "").replace(/\/.*$/, "");
     const lines = [
       "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//openLitfass//DE", "CALSCALE:GREGORIAN", "BEGIN:VEVENT",
