@@ -33,7 +33,10 @@
     allDates: "Alle Termine",
     backToToday: "zurück zu heute",
     nextEvent: "Nächster Termin:",
-    filterBy: "Filter:",
+    filters: "Filter",
+    activeFilters: "Gesetzte Filter",
+    remove: "entfernen",
+    reset: "zurücksetzen",
     emptyRange: ["Keine Termine in diesem Zeitraum.", ""],
     allDay: "ganztägig",
     free: "Kostenlos",
@@ -99,6 +102,7 @@
     star: ["M12 17.75l-6.172 3.245l1.179 -6.873l-5 -4.867l6.9 -1l3.086 -6.253l3.086 6.253l6.9 1l-5 4.867l1.179 6.873l-6.158 -3.245"],
     back: ["M15 6l-6 6l6 6"],
     forward: ["M9 6l6 6l-6 6"],
+    filter: ["M4 4h16v2.172a2 2 0 0 1 -.586 1.414l-4.414 4.414v7l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227z"],
     clear: ["M18 6l-12 12", "M6 6l12 12"]
   };
 
@@ -148,6 +152,7 @@
     searchToggle: $("searchToggle"),
     searchBar: $("searchBar"),
     searchInput: $("searchInput"),
+    toolbar: $("toolbar"),
     categoryMenu: $("categoryMenu"),
     dateNav: $("dateNav"),
     quickFilters: $("quickFilters"),
@@ -339,39 +344,61 @@
   }
 
   // ---- Aufbau ----
-  // Jede Filterzeile (Suche, Kategorien, Schnellfilter) hat einen eigenen
-  // Löschen-Button, der nur sichtbar ist, solange in genau dieser Zeile
-  // etwas gesetzt ist - so lässt sich eine Zeile zurücksetzen, ohne die
-  // anderen zu verlieren.
+  // Eine Werkzeugzeile statt mehrerer Filterzeilen:
+  //   [‹] [Datum 📅] [›] [Tag|WE|Woche] … [gesetzte Filter] [Filter-Knopf]
+  // Der Filter-Knopf klappt ein Panel mit Kategorien und Merkmalen auf
+  // (Chips mit Symbol und Text) - dort ist Platz für weitere Filter.
+  // Gesetzte Filter erscheinen als kleine Symbole in der Zeile; Antippen
+  // entfernt einen. Jede Gruppe im Panel hat ihr eigenes "zurücksetzen".
   function clearButton(row, label, cls) {
     return `<button type="button" class="${cls}" data-clear="${row}" hidden ` +
       `aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${svg(ICON.clear)}</button>`;
   }
-
-  function buildCategoryMenu() {
-    el.categoryMenu.innerHTML = state.categories.map((c) =>
-      `<button type="button" class="cm-item" data-category="${escapeHtml(c.name)}" aria-pressed="false" ` +
-      `aria-label="${escapeHtml(c.name)}" title="${escapeHtml(c.name)}">${svg(c.icon, "cm-icon")}</button>`
-    ).join("") + clearButton("categories", STR.clearCategories, "cm-item cm-clear");
-    el.categoryMenu.hidden = state.categories.length === 0;
+  function resetLink(row, label) {
+    return `<button type="button" class="link-btn" data-clear="${row}" hidden>${escapeHtml(label)}</button>`;
   }
 
-  // Datumsleiste: [‹] [Datum + Kalender-Symbol] [›] [Tag|Wochenende|Woche].
-  // Das Datum öffnet die native Datumsauswahl des Browsers (auf dem Handy
-  // das gewohnte Datumsrad).
+  function filterChip(kind, value, label, icon) {
+    return `<button type="button" class="chip" data-${kind}="${escapeHtml(value)}" aria-pressed="false">` +
+      `${svg(icon)}<span>${escapeHtml(label)}</span></button>`;
+  }
+
+  function buildCategoryMenu() {
+    el.categoryMenu.innerHTML = state.categories
+      .map((c) => filterChip("category", c.name, c.name, c.icon)).join("");
+    $("catClearSlot").innerHTML = resetLink("categories", STR.reset);
+    el.categoryMenu.closest(".fp-group").hidden = state.categories.length === 0;
+  }
+
+  function buildQuickFilters() {
+    el.quickFilters.innerHTML = ATTRS.map((a) => filterChip("attr", a.key, a.label, a.icon)).join("");
+    $("attrClearSlot").innerHTML = resetLink("quick", STR.reset);
+    el.searchBar.insertAdjacentHTML("beforeend", clearButton("search", STR.clearSearch, "icon-btn search-clear"));
+    el.searchClear = el.searchBar.querySelector("[data-clear]");
+    el.searchClear.addEventListener("click", () => {
+      clearRow("search");
+      el.searchInput.focus();
+    });
+    syncFilterButtons();
+  }
+
+  // Werkzeugzeile. Das Datum öffnet die native Datumsauswahl des Browsers
+  // (auf dem Handy das gewohnte Datumsrad).
   function buildDateNav() {
-    const periods = PERIODS.map((p) =>
-      `<button type="button" class="period-btn" data-period="${p.key}" aria-pressed="false" ` +
-      `aria-label="${escapeHtml(p.label)}" title="${escapeHtml(p.label)}">${svg(p.icon)}</button>`
-    ).join("");
+    $("periodMenu").innerHTML = PERIODS.map((p) => filterChip("period", p.key, p.label, p.icon)).join("");
     el.dateNav.innerHTML =
       `<button type="button" class="date-step" data-step="-1" aria-label="${STR.earlier}" title="${STR.earlier}">${svg(ICON.back)}</button>` +
       `<label class="date-label" title="${STR.pickDate}"><span class="date-label__text" id="dateText"></span>${svg(ICON.calendar)}` +
       `<input type="date" class="date-input" id="dateInput" aria-label="${STR.pickDate}"></label>` +
       `<button type="button" class="date-step" data-step="1" aria-label="${STR.later}" title="${STR.later}">${svg(ICON.forward)}</button>` +
-      `<span class="period" role="group" aria-label="${STR.period}">${periods}</span>`;
+      `<span class="active-filters" id="activeFilters" aria-label="${STR.activeFilters}"></span>` +
+      `<button type="button" class="filter-toggle" id="filterToggle" aria-expanded="false" aria-controls="filterPanel" ` +
+      `aria-label="${STR.filters}" title="${STR.filters}">${svg(ICON.filter)}<span class="badge" id="filterCount" hidden></span></button>`;
     el.dateText = $("dateText");
     el.dateInput = $("dateInput");
+    el.activeFilters = $("activeFilters");
+    el.filterToggle = $("filterToggle");
+    el.filterCount = $("filterCount");
   }
 
   function syncDateNav() {
@@ -385,7 +412,36 @@
     const prev = el.dateNav.querySelector('[data-step="-1"]');
     prev.disabled = Boolean(state.search) || start <= today;
     el.dateNav.querySelector('[data-step="1"]').disabled = Boolean(state.search);
-    el.dateNav.querySelectorAll("[data-period]").forEach((b) => setPressed(b, b.dataset.period === state.period));
+    $("periodMenu").querySelectorAll("[data-period]").forEach((b) => setPressed(b, b.dataset.period === state.period));
+  }
+
+  // Gesetzte Filter als kleine, entfernbare Symbole in der Werkzeugzeile.
+  function syncActiveFilters() {
+    if (!el.activeFilters) return;
+    const items = [];
+    state.categoriesOn.forEach((name) => {
+      const icon = state.categoryIcons.get(name) || ICON.fallback;
+      items.push(`<button type="button" class="active-filter" data-remove-category="${escapeHtml(name)}" ` +
+        `title="${escapeHtml(name)} – ${STR.remove}" aria-label="${escapeHtml(name)} – ${STR.remove}">${svg(icon)}</button>`);
+    });
+    ATTRS.filter((a) => state.attrsOn.has(a.key)).forEach((a) => {
+      items.push(`<button type="button" class="active-filter" data-remove-attr="${a.key}" ` +
+        `title="${escapeHtml(a.label)} – ${STR.remove}" aria-label="${escapeHtml(a.label)} – ${STR.remove}">${svg(a.icon)}</button>`);
+    });
+    el.activeFilters.innerHTML = items.join("");
+    const n = items.length;
+    el.filterCount.hidden = n === 0;
+    el.filterCount.textContent = String(n);
+    el.filterToggle.classList.toggle("has-filters", n > 0);
+  }
+
+  function toggleFilterPanel(open) {
+    const panel = $("filterPanel");
+    const show = open === undefined ? panel.hidden : open;
+    panel.hidden = !show;
+    el.filterToggle.setAttribute("aria-expanded", String(show));
+    el.filterToggle.classList.toggle("is-active", show);
+    measureSticky();
   }
 
   // Setzt Zeitraum/Datum und schreibt es in die Adresse (teilbar), ohne
@@ -403,32 +459,15 @@
     window.scrollTo({ top: 0 });
   }
 
-  function buildQuickFilters() {
-    const attrs = ATTRS.map((a) =>
-      `<button type="button" class="chip chip--icon" data-attr="${a.key}" aria-pressed="false" ` +
-      `aria-label="${escapeHtml(a.label)}" title="${escapeHtml(a.label)}">${svg(a.icon)}</button>`
-    ).join("");
-    // Löschen-Button vorne: die Zeile scrollt horizontal, hinten wäre er
-    // auf schmalen Bildschirmen oft nicht zu sehen.
-    el.quickFilters.innerHTML = clearButton("quick", STR.clearQuick, "chip chip--icon chip--clear") +
-      `<span class="quick-filters__label">${STR.filterBy}</span>` + attrs;
-    el.searchBar.insertAdjacentHTML("beforeend", clearButton("search", STR.clearSearch, "icon-btn search-clear"));
-    el.searchClear = el.searchBar.querySelector("[data-clear]");
-    el.searchClear.addEventListener("click", () => {
-      clearRow("search");
-      el.searchInput.focus();
-    });
-    syncFilterButtons();
-  }
-
   function syncFilterButtons() {
-    el.categoryMenu.querySelectorAll(".cm-item[data-category]").forEach((b) => setPressed(b, state.categoriesOn.has(b.dataset.category)));
+    el.categoryMenu.querySelectorAll("[data-category]").forEach((b) => setPressed(b, state.categoriesOn.has(b.dataset.category)));
     el.quickFilters.querySelectorAll("[data-attr]").forEach((b) => setPressed(b, state.attrsOn.has(b.dataset.attr)));
-    const catClear = el.categoryMenu.querySelector("[data-clear]");
+    const catClear = $("catClearSlot").querySelector("[data-clear]");
     if (catClear) catClear.hidden = state.categoriesOn.size === 0;
-    const quickClear = el.quickFilters.querySelector("[data-clear]");
+    const quickClear = $("attrClearSlot").querySelector("[data-clear]");
     if (quickClear) quickClear.hidden = state.attrsOn.size === 0;
     if (el.searchClear) el.searchClear.hidden = !state.search;
+    syncActiveFilters();
     syncDateNav();
   }
 
@@ -479,6 +518,11 @@
     });
 
     el.dateNav.addEventListener("click", (e) => {
+      if (e.target.closest("#filterToggle")) { toggleFilterPanel(); return; }
+      const rmCat = e.target.closest("[data-remove-category]");
+      if (rmCat) { state.categoriesOn.delete(rmCat.dataset.removeCategory); afterFilterChange(); return; }
+      const rmAttr = e.target.closest("[data-remove-attr]");
+      if (rmAttr) { state.attrsOn.delete(rmAttr.dataset.removeAttr); afterFilterChange(); return; }
       const step = e.target.closest("[data-step]");
       if (step && !step.disabled) {
         const [start] = currentRange();
@@ -487,8 +531,6 @@
         setRange(state.period, iso(addDays(parseDate(from), Number(step.dataset.step) * periodStep(state.period))));
         return;
       }
-      const p = e.target.closest("[data-period]");
-      if (p) setRange(p.dataset.period, currentRange()[0]);
     });
     // Klick aufs Datum öffnet den Picker (showPicker, wo vorhanden; sonst
     // reicht der Klick auf das darüberliegende, unsichtbare Datumsfeld).
@@ -503,19 +545,19 @@
       if (el.dateInput.value) setRange(state.period, el.dateInput.value);
     });
 
-    el.categoryMenu.addEventListener("click", (e) => {
-      const b = e.target.closest(".cm-item");
-      if (!b) return;
-      if (b.dataset.clear) { clearRow("categories"); return; }
-      toggleIn(state.categoriesOn, b.dataset.category);
-      afterFilterChange();
-    });
-    el.quickFilters.addEventListener("click", (e) => {
+    // Filter-Panel: Chips an/aus, "zurücksetzen" je Gruppe.
+    $("filterPanel").addEventListener("click", (e) => {
+      const clear = e.target.closest("[data-clear]");
+      if (clear) { clearRow(clear.dataset.clear); return; }
       const b = e.target.closest(".chip");
       if (!b) return;
-      if (b.dataset.clear) { clearRow("quick"); return; }
+      if (b.dataset.period) { setRange(b.dataset.period, currentRange()[0]); return; }
+      if (b.dataset.category) toggleIn(state.categoriesOn, b.dataset.category);
       if (b.dataset.attr) toggleIn(state.attrsOn, b.dataset.attr);
-      afterFilterChange();
+      afterFilterChange(false);
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !$("filterPanel").hidden) toggleFilterPanel(false);
     });
 
     // Klick auf eine Karte merkt sich, dass "Zurück" in die Liste führt
@@ -530,10 +572,10 @@
   }
 
   function toggleIn(set, v) { if (set.has(v)) set.delete(v); else set.add(v); }
-  function afterFilterChange() {
+  function afterFilterChange(scrollTop = true) {
     syncFilterButtons();
     renderList();
-    window.scrollTo({ top: 0 });
+    if (scrollTop) window.scrollTo({ top: 0 });
   }
   function resetFilters() {
     state.search = "";
@@ -566,9 +608,8 @@
     el.viewDetail.hidden = view !== "detail";
     el.viewAbout.hidden = view !== "about";
     const filtersVisible = view === "list";
-    el.categoryMenu.hidden = !filtersVisible || state.categories.length === 0;
-    el.dateNav.hidden = !filtersVisible;
-    el.quickFilters.hidden = !filtersVisible;
+    el.toolbar.hidden = !filtersVisible;
+    if (!filtersVisible) toggleFilterPanel(false);
     syncDateNav();
     el.navItems.forEach((a) => a.classList.toggle("is-active", a.dataset.view === view || (view === "detail" && a.dataset.view === "list")));
 
@@ -591,8 +632,7 @@
   function measureSticky() {
     const root = document.documentElement.style;
     root.setProperty("--hdr", `${el.header.offsetHeight}px`);
-    root.setProperty("--cm", `${el.categoryMenu.hidden ? 0 : el.categoryMenu.offsetHeight}px`);
-    root.setProperty("--dn", `${el.dateNav.hidden ? 0 : el.dateNav.offsetHeight}px`);
+    root.setProperty("--tb", `${el.toolbar.hidden ? 0 : el.toolbar.offsetHeight}px`);
   }
 
   // ---- Liste ----

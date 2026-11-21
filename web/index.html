@@ -37,10 +37,25 @@
     </div>
   </header>
 
-  <!-- Liste und "Gemerkt": Kategorie-Menü + Schnellfilter sichtbar -->
-  <nav class="category-menu" id="categoryMenu" aria-label="Kategorien"></nav>
-  <nav class="date-nav" id="dateNav" aria-label="Zeitraum"></nav>
-  <nav class="quick-filters" id="quickFilters" aria-label="Merkmale"></nav>
+  <!-- Werkzeugzeile (nur in der Liste): Datum, Zeitraum, gesetzte Filter,
+       Filter-Knopf. Das Panel darunter klappt die Filter auf. -->
+  <div class="toolbar" id="toolbar">
+    <nav class="date-nav" id="dateNav" aria-label="Zeitraum und Filter"></nav>
+    <div class="filter-panel" id="filterPanel" hidden>
+      <section class="fp-group" aria-labelledby="fpPeriodHead">
+        <div class="fp-head"><h2 id="fpPeriodHead">Zeitraum</h2></div>
+        <div class="fp-chips" id="periodMenu" role="group" aria-labelledby="fpPeriodHead"></div>
+      </section>
+      <section class="fp-group" aria-labelledby="fpCatHead">
+        <div class="fp-head"><h2 id="fpCatHead">Kategorien</h2><span id="catClearSlot"></span></div>
+        <div class="fp-chips" id="categoryMenu" role="group" aria-labelledby="fpCatHead"></div>
+      </section>
+      <section class="fp-group" aria-labelledby="fpAttrHead">
+        <div class="fp-head"><h2 id="fpAttrHead">Merkmale</h2><span id="attrClearSlot"></span></div>
+        <div class="fp-chips" id="quickFilters" role="group" aria-labelledby="fpAttrHead"></div>
+      </section>
+    </div>
+  </div>
 
   <main class="content" id="main" tabindex="-1">
     <section id="viewList" class="view" aria-labelledby="listHeading">

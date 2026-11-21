@@ -57,15 +57,24 @@ von `fetch` erzeugt).
 
 Die Standard-Oberfläche (`web/`) bringt mit:
 
-- Datumsleiste `[‹] [Datum 📅] [›] [Tag | Wochenende | Woche]`: die Pfeile
-  blättern um den gewählten Zeitraum, das Datum öffnet die native
-  Datumsauswahl; startet auf "Heute", nie vor heute. Der Zeitraum steht in
-  der Adresse (`#tag/2026-11-22`, `#wochenende/…`, `#woche/…`). Ist er leer,
-  springt "Nächster Termin" zum nächsten passenden Tag.
-- Liste nach Tagen gruppiert, Kategorie-Menü, Merkmal-Filter (Kostenlos,
-  Familie, Ticket, Anmeldung) in einer eigenen Zeile, Suche (gilt über alle
-  Daten, nicht nur den Zeitraum); jede Filterzeile hat einen eigenen
-  Löschen-Knopf
+- Eine Werkzeugzeile unter dem Kopf als Zusammenfassung:
+  `[‹] [Datum] [›] … [gesetzte Filter] [Filter]`. Die Pfeile blättern um
+  den gewählten Zeitraum, das Datum öffnet die native Datumsauswahl;
+  startet auf "Heute", nie vor heute. Das Datum zeigt den Zeitraum
+  ("Heute, 21.11.", "28.–29.11."). Gesetzte Filter erscheinen als kleine
+  Symbole (Antippen entfernt den Filter), der Filter-Knopf zeigt ihre
+  Anzahl und klappt das Filter-Panel auf. Passt die Zeile nicht, weichen
+  zuerst die Symbole.
+- Filter-Panel mit Gruppen: Zeitraum (Tag / Wochenende / Woche),
+  Kategorien aus `categories.json`, Merkmale (Kostenlos, Familie, Ticket,
+  Anmeldung), als Chips mit Symbol und Text, je Filtergruppe
+  "zurücksetzen"; Escape schließt es. Der Zeitraum steht in der Adresse
+  (`#tag/2026-11-22`, `#wochenende/…`, `#woche/…`); ist er leer, springt
+  "Nächster Termin" zum nächsten passenden Tag. Weitere Filtergruppen
+  kommen als weitere `.fp-group` dazu, ohne die Zeile zu verbreitern.
+- Liste nach Tagen gruppiert (Tagesüberschriften bleiben unter der
+  Werkzeugzeile stehen), Suche über das Lupen-Symbol (gilt über alle
+  Daten, nicht nur den Zeitraum)
 - Detailansicht je Termin mit teilbarer Adresse (`/#<event-id>`), Kartenlink
   (OpenStreetMap), "In Kalender" (.ics) und "Teilen"
 - "Gemerkt": Sterne werden nur lokal im Browser gespeichert, kein Konto
