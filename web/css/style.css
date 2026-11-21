@@ -53,7 +53,7 @@
    das Datums-Badge auf der Event-Karte weiterhin lesbar bleibt (dunkler
    Text auf hellerem Chip statt dunkel-auf-dunkel). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --color-bg: var(--bg-page, #0A1B1E);
     --color-surface: var(--bg-surface, #112A2E);
     --color-primary-light: var(--color-primary-200, #9EABAE);
@@ -145,6 +145,11 @@ button { font: inherit; }
 }
 .icon-btn:hover { background: rgba(127,127,127,0.15); }
 .icon-btn svg { width: 22px; height: 22px; }
+.header-actions { display: flex; align-items: center; gap: 2px; }
+/* Farbschema-Schalter: Mond = zu dunkel wechseln, Sonne = zu hell */
+#themeToggle .theme-icon--sun { display: none; }
+#themeToggle.is-dark .theme-icon--sun { display: block; }
+#themeToggle.is-dark .theme-icon--moon { display: none; }
 
 .search-bar { padding: 0 var(--space-4) var(--space-3); max-width: 960px; margin: 0 auto; }
 .search-bar input {
@@ -682,3 +687,16 @@ button { font: inherit; }
 .ext-icon svg { width: 0.9em; height: 0.9em; vertical-align: -0.1em; }
 .btn .ext-icon svg { width: 18px; height: 18px; vertical-align: -3px; }
 .detail__desc a { overflow-wrap: anywhere; }
+
+/* Native Bedienelemente (Datumsauswahl, Scrollbalken) folgen dem Schema */
+:root { color-scheme: light dark; }
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+
+/* ---------- Statische Seiten (termine/, ohne JavaScript) ---------- */
+.static-page .content { padding-bottom: var(--space-5); }
+.static-page .day-heading { position: static; margin-top: var(--space-4); }
+.static-page .site-footer { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2) var(--space-4); }
+.static-title { margin: 0 0 var(--space-2); font-size: 1.45rem; }
+.static-back { margin: 0 0 var(--space-3); }
+.static-facts li { display: block; }

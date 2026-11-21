@@ -29,7 +29,7 @@ Kern-Repos.
   "name": "weissens.ee",                       // Pflicht, Schriftzug im Header
   "title": "weissens.ee – Events in Weißensee", // <title>, Standard: name
   "description": "Der Event-Kalender für …",   // <meta name="description">
-  "baseUrl": "https://weissens.ee",            // Fallback-Link für Events ohne URL
+  "baseUrl": "https://weissens.ee",            // öffentliche Adresse: Sitemap, Canonical
   "timezone": "Europe/Berlin",                 // IANA-Zone, Standard Europe/Berlin
   "language": "de",                            // <html lang>, Standard de
   "themeColor": "#17383D",                     // theme-color + PWA-Farben
@@ -94,7 +94,33 @@ Die Standard-Oberfläche (`web/`) bringt mit:
 - PWA: `build-site` erzeugt `manifest.webmanifest`, `sw.js` hält die Seite
   und die zuletzt geladenen Termine offline vor. Für installierbare Icons
   `site/icon-192.png` und `site/icon-512.png` mitliefern.
-- Hell/Dunkel automatisch nach Systemeinstellung
+- Hell/Dunkel: ohne Wahl nach Systemeinstellung; der Schalter im Kopf
+  (Mond/Sonne) legt das Schema fest und merkt es lokal. Entspricht die Wahl
+  wieder dem System, wird sie gelöscht und die Seite folgt wieder dem
+  System. Gesetzt wird `data-theme="dark"|"light"` auf `<html>`. **Eigene
+  Dark-Regeln in `site/css/theme.css`** deshalb so schreiben:
+  `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { … } }`
+  plus `[data-theme="dark"] { … }` - sonst gewinnt bei "Hell" das System.
+- "Teilen" öffnet auf dem Handy das System-Teilen-Menü (Web Share API,
+  nur über HTTPS bzw. localhost); ohne die API wird der Link kopiert.
+  Geteilt wird die statische Terminseite (siehe unten), damit Messenger
+  eine Vorschau mit Titel und Datum zeigen.
+
+### Statische Seiten und SEO
+
+`build-site` erzeugt neben der App reines HTML, für Suchmaschinen,
+Link-Vorschauen und Besucher ohne JavaScript:
+
+- `termine/index.html`: alle kommenden Termine nach Tagen
+- `termine/<id>.html`: je Termin eine Seite mit Titel, Beschreibung,
+  Open-Graph-Tags und schema.org-`Event` (JSON-LD, inkl. abgesagt-Status)
+- `sitemap.xml` und `robots.txt` (nur mit `baseUrl`, da Sitemaps absolute
+  Adressen brauchen; ein eigenes `site/robots.txt` hat Vorrang)
+- `index.html` bekommt Canonical- und Open-Graph-Tags, ohne JavaScript
+  einen Hinweis mit Link auf `termine/`.
+
+Die Vorlagen liegen in `web/templates/` (Go `html/template`) und werden
+nicht mit ausgeliefert. Vergangene Termine bekommen keine Seite mehr.
 
 ## Neue Instanz in 5 Schritten
 

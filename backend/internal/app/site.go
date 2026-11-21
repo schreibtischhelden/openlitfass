@@ -25,7 +25,9 @@ const marker = BuildMarker
 // page is what web/index.html gets rendered with.
 type page struct {
 	instance.Config
-	Logo template.HTML
+	Logo      template.HTML
+	SiteURL   string // BaseURL without trailing slash
+	StaticDir string // static event pages, see static.go
 }
 
 // BuildSite assembles the deployable static site for an instance into out:
@@ -35,7 +37,9 @@ type page struct {
 //  3. plus <instance>/data/*.json (written by Fetch)
 //  4. webDir/index.html rendered as a Go html/template with the values from
 //     instance.json and the instance logo inlined
-//  5. data/site.json, manifest.webmanifest, sw.js with a build id
+//  5. static pages for search engines and visitors without JavaScript
+//     (termine/, sitemap.xml, robots.txt; see static.go)
+//  6. data/site.json, manifest.webmanifest, sw.js with a build id
 //
 // out is wiped first, but only if BuildSite created it (BuildMarker) or it
 // is empty/missing.
@@ -43,19 +47,26 @@ func BuildSite(inst instance.Instance, webDir, out string) error {
 	if err := prepareOut(out, inst.Dir, webDir); err != nil {
 		return fmt.Errorf("prepare %s: %w", out, err)
 	}
-	if err := copyTree(webDir, out, func(rel string) bool { return rel == "index.html" }); err != nil {
+	if err := copyTree(webDir, out, func(rel string) bool { return rel == "index.html" || strings.HasPrefix(rel, templatesDir+"/") }); err != nil {
 		return fmt.Errorf("copy core web: %w", err)
 	}
 	if err := copyTree(inst.SiteDir(), out, nil); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("copy instance site: %w", err)
 	}
 	if err := copyTree(inst.DataDir(), filepath.Join(out, "data"), func(rel string) bool {
-		return !strings.HasSuffix(rel, ".json")
+		return !strings.HasSuffix(rel, "/") && !strings.HasSuffix(rel, ".json")
 	}); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("copy data: %w", err)
 	}
-	if err := renderIndex(webDir, inst, filepath.Join(out, "index.html")); err != nil {
+	logo, err := readLogo(webDir, inst)
+	if err != nil {
+		return err
+	}
+	if err := renderIndex(webDir, inst, logo, filepath.Join(out, "index.html")); err != nil {
 		return fmt.Errorf("render index.html: %w", err)
+	}
+	if err := buildStatic(inst, webDir, out, logo); err != nil {
+		return fmt.Errorf("static pages: %w", err)
 	}
 	if err := writeJSON(filepath.Join(out, "data", "site.json"), inst.Config); err != nil {
 		return fmt.Errorf("write site.json: %w", err)
@@ -107,7 +118,8 @@ func prepareOut(out, instDir, webDir string) error {
 
 // copyTree copies every regular file under src into dst, keeping relative
 // paths and overwriting existing files. skip (may be nil) gets the
-// slash-separated path relative to src.
+// slash-separated path relative to src; directories end in "/" and are
+// skipped as a whole.
 func copyTree(src, dst string, skip func(rel string) bool) error {
 	if _, err := os.Stat(src); err != nil {
 		return err
@@ -121,6 +133,9 @@ func copyTree(src, dst string, skip func(rel string) bool) error {
 			return err
 		}
 		if d.IsDir() {
+			if rel != "." && skip != nil && skip(filepath.ToSlash(rel)+"/") {
+				return filepath.SkipDir
+			}
 			return os.MkdirAll(filepath.Join(dst, rel), 0o755)
 		}
 		if !d.Type().IsRegular() {
@@ -153,12 +168,8 @@ func copyFile(src, dst string) error {
 	return out.Close()
 }
 
-func renderIndex(webDir string, inst instance.Instance, dst string) error {
-	tmpl, err := template.ParseFiles(filepath.Join(webDir, "index.html"))
-	if err != nil {
-		return err
-	}
-
+// readLogo returns the instance logo if present, else the core default.
+func readLogo(webDir string, inst instance.Instance) (template.HTML, error) {
 	// Instance logo if present, else the core's neutral default. Inlined
 	// (not <img>) so it can use currentColor and the theme's CSS classes.
 	// The file comes from the instance repo itself, so it is trusted.
@@ -168,14 +179,21 @@ func renderIndex(webDir string, inst instance.Instance, dst string) error {
 		logo, err = os.ReadFile(filepath.Join(webDir, "logo.svg"))
 	}
 	if err != nil {
-		return fmt.Errorf("read logo: %w", err)
+		return "", fmt.Errorf("read logo: %w", err)
 	}
+	return template.HTML(logo), nil
+}
 
+func renderIndex(webDir string, inst instance.Instance, logo template.HTML, dst string) error {
+	tmpl, err := template.ParseFiles(filepath.Join(webDir, "index.html"))
+	if err != nil {
+		return err
+	}
 	f, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	if err := tmpl.Execute(f, page{Config: inst.Config, Logo: template.HTML(logo)}); err != nil {
+	if err := tmpl.Execute(f, page{Config: inst.Config, Logo: logo, SiteURL: strings.TrimRight(inst.Config.BaseURL, "/"), StaticDir: StaticDir}); err != nil {
 		f.Close()
 		return err
 	}

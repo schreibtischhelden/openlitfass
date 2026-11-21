@@ -63,6 +63,8 @@
     save: "Merken",
     unsave: "Nicht mehr merken",
     newTab: "(öffnet externe Seite in neuem Tab)",
+    themeDark: "Dunkles Farbschema",
+    themeLight: "Helles Farbschema",
     addToCalendar: "In Kalender",
     share: "Teilen",
     toEvent: "Zur Veranstaltung",
@@ -523,8 +525,44 @@
     el.footer.innerHTML = links.join("");
   }
 
+  // ---- Farbschema ----
+  // Ohne eigene Wahl folgt die Seite dem System. Der Schalter setzt
+  // data-theme auf <html> (das Inline-Skript im <head> stellt es beim
+  // Laden wieder her); entspricht die Wahl dem System, wird sie gelöscht,
+  // damit die Seite wieder automatisch mitwechselt.
+  const THEME_KEY = "openlitfass:theme";
+  const darkQuery = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  function isDark() {
+    const t = document.documentElement.getAttribute("data-theme");
+    return t ? t === "dark" : !!(darkQuery && darkQuery.matches);
+  }
+  function syncThemeToggle() {
+    const btn = $("themeToggle");
+    if (!btn) return;
+    const dark = isDark();
+    btn.classList.toggle("is-dark", dark);
+    btn.setAttribute("aria-pressed", String(dark));
+    btn.title = dark ? STR.themeLight : STR.themeDark;
+  }
+  function toggleTheme() {
+    const next = isDark() ? "light" : "dark";
+    const system = darkQuery && darkQuery.matches ? "dark" : "light";
+    try {
+      if (next === system) localStorage.removeItem(THEME_KEY);
+      else localStorage.setItem(THEME_KEY, next);
+    } catch (_) { /* nur für diese Sitzung */ }
+    if (next === system) document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", next);
+    syncThemeToggle();
+  }
+
   // ---- Interaktion ----
   function bindEvents() {
+    const themeBtn = $("themeToggle");
+    if (themeBtn) themeBtn.addEventListener("click", toggleTheme);
+    if (darkQuery && darkQuery.addEventListener) darkQuery.addEventListener("change", syncThemeToggle);
+    syncThemeToggle();
+
     el.searchToggle.addEventListener("click", () => {
       const open = el.searchBar.hidden;
       el.searchBar.hidden = !open;
@@ -919,7 +957,14 @@
     return (base && url.startsWith(base + "/#")) || url.startsWith("#");
   }
 
+  // Geteilt wird die statische Seite des Termins (build-site: termine/<id>.html):
+  // sie hat Titel und Beschreibung für die Link-Vorschau in Messengern und
+  // funktioniert ohne JavaScript. Dieselbe ID-Regel wie im Backend
+  // (static.go validPageID); sonst der App-Link.
   function eventLink(ev) {
+    if (/^[A-Za-z0-9][A-Za-z0-9_-]{0,150}$/.test(ev.id)) {
+      return new URL(`termine/${ev.id}.html`, location.href.split("#")[0]).href;
+    }
     return location.href.split("#")[0] + "#" + encodeURIComponent(ev.id);
   }
 

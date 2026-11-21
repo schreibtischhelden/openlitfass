@@ -1,0 +1,20 @@
+{{template "top" .}}{{with .Event}}
+    <article class="view detail">
+      <p class="static-back"><a href="../termine/">‹ Alle Termine</a></p>
+      {{if .Cancelled}}<div class="cancelled-notice" role="status"><strong>Abgesagt</strong> Dieser Termin findet nicht statt.</div>{{end}}
+      {{if .Category}}<p class="category-label">{{.Category}}</p>{{end}}
+      <h1 class="detail__title{{if .Cancelled}} is-cancelled{{end}}">{{.Title}}</h1>
+      <ul class="facts static-facts">
+        <li><strong>Datum:</strong> <time datetime="{{.Date}}">{{.DateLong}}</time></li>
+        <li><strong>Zeit:</strong> {{.TimeText}}</li>
+        {{if or .Location.Name .Location.Address}}<li><strong>Ort:</strong> {{.Location.Name}}{{if and .Location.Name .Location.Address}}, {{end}}{{.Location.Address}}{{if .MapURL}} · <a href="{{.MapURL}}" target="_blank" rel="noopener">Karte öffnen{{template "ext"}}</a>{{end}}</li>{{end}}
+        {{if .PriceText}}<li><strong>Eintritt:</strong> {{.PriceText}}</li>{{end}}
+        {{if .Organizer}}<li><strong>Veranstalter:</strong> {{.Organizer}}</li>{{end}}
+      </ul>
+      {{if .Description}}<p class="detail__desc">{{.Description}}</p>{{end}}
+      <div class="btn-row">
+        <a class="btn" href="../#{{.ID}}">Im Kalender ansehen</a>
+        {{if .URL}}<a class="btn btn--primary" href="{{.URL}}" target="_blank" rel="noopener">Zur Veranstaltung{{template "ext"}}</a>{{end}}
+      </div>
+    </article>
+{{end}}{{template "bottom" .}}

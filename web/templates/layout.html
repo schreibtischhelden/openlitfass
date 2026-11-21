@@ -1,0 +1,50 @@
+{{/* Gemeinsamer Rahmen der statischen Seiten (build-site, static.go):
+     ohne JavaScript lesbar, für Suchmaschinen und Link-Vorschauen. */}}
+{{define "top"}}<!DOCTYPE html>
+<html lang="{{.Language}}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>{{.PageTitle}}</title>
+{{if .MetaDesc}}<meta name="description" content="{{.MetaDesc}}">{{end}}
+{{if .ThemeColor}}<meta name="theme-color" content="{{.ThemeColor}}">{{end}}
+{{if .Canonical}}<link rel="canonical" href="{{.Canonical}}">
+<meta property="og:url" content="{{.Canonical}}">{{end}}
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="{{.Name}}">
+<meta property="og:title" content="{{if .Event}}{{.Event.Title}}{{else}}{{.PageTitle}}{{end}}">
+{{if .MetaDesc}}<meta property="og:description" content="{{.MetaDesc}}">{{end}}
+<meta property="og:locale" content="de_DE">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="{{.Root}}logo.svg" type="image/svg+xml">
+<script>try{var t=localStorage.getItem("openlitfass:theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+<link rel="stylesheet" href="{{.Root}}css/tokens.css">
+<link rel="stylesheet" href="{{.Root}}css/theme.css">
+<link rel="stylesheet" href="{{.Root}}css/style.css">
+{{if .JSONLD}}<script type="application/ld+json">{{.JSONLD}}</script>{{end}}
+</head>
+<body>
+<div class="app static-page">
+  <header class="app-header">
+    <div class="app-header__inner">
+      <a class="logo" href="{{.Root}}">{{.Logo}}<span>{{.Name}}</span></a>
+    </div>
+  </header>
+  <main class="content" id="main">
+{{end}}
+
+{{define "bottom"}}
+    <footer class="site-footer">
+      <a href="{{.Root}}">Zum Kalender</a>
+      <a href="{{.Root}}termine/">Alle Termine</a>
+      {{if .Imprint}}<a href="{{.Imprint}}">Impressum</a>{{end}}
+      {{if .Privacy}}<a href="{{.Privacy}}">Datenschutz</a>{{end}}
+    </footer>
+  </main>
+</div>
+</body>
+</html>
+{{end}}
+
+{{/* Symbol für externe Links, wie in der App (ICON.external) */}}
+{{define "ext"}}<span class="ext-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6"/><path d="M11 13l9 -9"/><path d="M15 4h5v5"/></svg></span><span class="sr-only"> (öffnet externe Seite in neuem Tab)</span>{{end}}

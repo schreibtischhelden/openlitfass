@@ -8,9 +8,20 @@
 <title>{{.Title}}</title>
 {{if .Description}}<meta name="description" content="{{.Description}}">{{end}}
 {{if .ThemeColor}}<meta name="theme-color" content="{{.ThemeColor}}">{{end}}
+{{if .SiteURL}}<link rel="canonical" href="{{.SiteURL}}/">
+<meta property="og:url" content="{{.SiteURL}}/">{{end}}
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="{{.Name}}">
+<meta property="og:title" content="{{.Title}}">
+{{if .Description}}<meta property="og:description" content="{{.Description}}">{{end}}
+<meta property="og:locale" content="de_DE">
+<meta name="twitter:card" content="summary">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="logo.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-192.png">
+<!-- Gewähltes Farbschema vor dem ersten Zeichnen setzen (kein Aufblitzen).
+     Ohne Wahl gilt die Systemeinstellung (prefers-color-scheme). -->
+<script>try{var t=localStorage.getItem("openlitfass:theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
 <link rel="stylesheet" href="css/tokens.css">
 <!-- Instanz-Theme: überschreibt Tokens aus tokens.css. Der Kern liefert
      eine leere Datei, die Instanz ersetzt sie über site/css/theme.css. -->
@@ -28,9 +39,15 @@
         {{.Logo}}
         <span>{{.Name}}</span>
       </a>
-      <button class="icon-btn" id="searchToggle" type="button" aria-label="Suche öffnen" aria-expanded="false" aria-controls="searchBar">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"/><path d="M21 21l-6 -6"/></svg>
-      </button>
+      <div class="header-actions">
+        <button class="icon-btn" id="themeToggle" type="button" aria-label="Dunkles Farbschema" aria-pressed="false">
+          <svg class="theme-icon theme-icon--moon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z"/></svg>
+          <svg class="theme-icon theme-icon--sun" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"/><path d="M3 12h1m8 -9v1m8 8h1m-9 8v1m-6.4 -15.4l.7 .7m12.1 -.7l-.7 .7m0 11.4l.7 .7m-12.1 -.7l-.7 .7"/></svg>
+        </button>
+        <button class="icon-btn" id="searchToggle" type="button" aria-label="Suche öffnen" aria-expanded="false" aria-controls="searchBar">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"/><path d="M21 21l-6 -6"/></svg>
+        </button>
+      </div>
     </div>
     <div class="search-bar" id="searchBar" hidden>
       <input type="search" id="searchInput" placeholder="Flohmarkt, Lesung, Yoga …" aria-label="Events durchsuchen" autocomplete="off">
@@ -58,6 +75,9 @@
   </div>
 
   <main class="content" id="main" tabindex="-1">
+    <!-- Ohne JavaScript (und für Suchmaschinen): die statische Terminliste. -->
+    <noscript><p class="noscript">Der interaktive Kalender braucht JavaScript.
+      <a href="{{.StaticDir}}/">Alle Termine als einfache Liste</a></p></noscript>
     <section id="viewList" class="view" aria-labelledby="listHeading">
       <h1 class="sr-only" id="listHeading">Termine</h1>
       <p class="result-count" id="resultCount" role="status"></p>
@@ -90,7 +110,6 @@
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 </div>
 
-<noscript><p class="noscript">Dieser Kalender braucht JavaScript.</p></noscript>
 <script src="js/app.js" defer></script>
 </body>
 </html>
