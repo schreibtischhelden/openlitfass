@@ -2,6 +2,7 @@ package sources
 
 import (
 	"context"
+	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -62,6 +63,9 @@ func applyCommonFilters(events []model.Event, cfg config.SourceConfig) []model.E
 		}
 	}
 
+	include := compileMatchRules(cfg.Name, "include", cfg.Include)
+	exclude := compileMatchRules(cfg.Name, "exclude", cfg.Exclude)
+
 	kept := make([]model.Event, 0, len(events))
 	for _, e := range events {
 		if e.Date != "" && e.Date < today {
@@ -75,6 +79,12 @@ func applyCommonFilters(events []model.Event, cfg config.SourceConfig) []model.E
 			e.Category = mapped
 		}
 		if allowedCategories != nil && !allowedCategories[e.Category] {
+			continue
+		}
+		if len(include) > 0 && !anyRuleMatches(include, e) {
+			continue
+		}
+		if anyRuleMatches(exclude, e) {
 			continue
 		}
 		kept = append(kept, e)
@@ -110,4 +120,53 @@ func markCancelledByTitle(e *model.Event) {
 			return
 		}
 	}
+}
+
+type matchRule struct {
+	field string
+	re    *regexp.Regexp
+}
+
+// compileMatchRules compiles include/exclude rules; invalid ones are logged
+// and skipped (an include list that ends up empty then keeps everything,
+// rather than silently dropping the whole source).
+func compileMatchRules(source, kind string, rules []config.MatchRule) []matchRule {
+	var out []matchRule
+	for _, r := range rules {
+		switch r.Field {
+		case "title", "location", "organizer", "category", "description":
+		default:
+			log.Printf("source %q: %s: unknown field %q (title, location, organizer, category, description)", source, kind, r.Field)
+			continue
+		}
+		re, err := regexp.Compile(r.Regex)
+		if err != nil {
+			log.Printf("source %q: %s: invalid regex %q: %v", source, kind, r.Regex, err)
+			continue
+		}
+		out = append(out, matchRule{field: r.Field, re: re})
+	}
+	return out
+}
+
+func anyRuleMatches(rules []matchRule, e model.Event) bool {
+	for _, r := range rules {
+		var v string
+		switch r.field {
+		case "title":
+			v = e.Title
+		case "location":
+			v = e.Location.Name + " " + e.Location.Address
+		case "organizer":
+			v = e.Organizer
+		case "category":
+			v = e.Category
+		case "description":
+			v = e.Description
+		}
+		if r.re.MatchString(v) {
+			return true
+		}
+	}
+	return false
 }

@@ -200,6 +200,13 @@ Quelle wickelt:
   erscheinen dann mit Ersatz-Piktogramm, siehe unten).
 - `categories` – Allowlist auf das aufgelöste `category`-Feld (nach Mapping
   und `categoryMap`). Ohne dieses Feld: keine Einschränkung.
+- `include` / `exclude` – Listen von `{ "field": …, "regex": … }`. Mit
+  `include` bleiben nur Termine, bei denen mindestens eine Regel passt; mit
+  `exclude` fallen Termine weg, bei denen eine Regel passt. Felder: `title`,
+  `location` (Name und Adresse), `organizer`, `category`, `description`.
+  Beispiel – von einer Hochschule nur, was im Kiez stattfindet:
+  `"include": [{ "field": "location", "regex": "(?i)weißensee|1308[68]" }]`.
+  Ungültige Regeln werden geloggt und übersprungen.
 - **Bereits vergangene Events werden immer verworfen**, unabhängig von
   diesen beiden Feldern — das ist kein Feature-Flag, sondern fixes Verhalten
   für einen Event-Kalender.

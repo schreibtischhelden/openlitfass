@@ -113,6 +113,14 @@ type SourceConfig struct {
 	// any source-specific mapping/CategoryMap) is in this list. Unset/empty
 	// = no category filter.
 	Categories []string `json:"categories,omitempty"`
+	// Include keeps only events where at least one rule matches, Exclude
+	// drops events where any rule matches - e.g. to take from a source
+	// only what happens in the neighbourhood:
+	// "include": [{"field": "location", "regex": "(?i)weißensee|1308[68]"}].
+	// Fields: title, location (name and address), organizer, category,
+	// description. Applied after category mapping.
+	Include []MatchRule `json:"include,omitempty"`
+	Exclude []MatchRule `json:"exclude,omitempty"`
 
 	// The fields below apply to "wcs" and "ical" sources (WCSTypeIDs: wcs
 	// only; CategoryMap: every type).
@@ -268,4 +276,11 @@ func RecordAttempt(path string, fetchErr error) error {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 	return nil
+}
+
+// MatchRule is one entry of SourceConfig.Include / Exclude: Regex is
+// matched against the event field named by Field.
+type MatchRule struct {
+	Field string `json:"field"`
+	Regex string `json:"regex"`
 }
