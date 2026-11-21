@@ -62,6 +62,7 @@
     back: "Zurück",
     save: "Merken",
     unsave: "Nicht mehr merken",
+    newTab: "(öffnet externe Seite in neuem Tab)",
     addToCalendar: "In Kalender",
     share: "Teilen",
     toEvent: "Zur Veranstaltung",
@@ -516,8 +517,8 @@
   function renderFooter() {
     const s = state.site;
     const links = [];
-    if (s.imprintUrl) links.push(`<a href="${escapeHtml(safeUrl(s.imprintUrl))}">${STR.imprint}</a>`);
-    if (s.privacyUrl) links.push(`<a href="${escapeHtml(safeUrl(s.privacyUrl))}">${STR.privacy}</a>`);
+    if (s.imprintUrl) links.push(siteLink(s.imprintUrl, STR.imprint));
+    if (s.privacyUrl) links.push(siteLink(s.privacyUrl, STR.privacy));
     links.push(`<a href="#ueber">${STR.about}</a>`);
     el.footer.innerHTML = links.join("");
   }
@@ -847,7 +848,7 @@
       const mapUrl = `https://www.openstreetmap.org/search?query=${encodeURIComponent(q)}`;
       facts.push(fact(ICON.pin, `${escapeHtml(ev.location.name || ev.location.address)}` +
         `<small>${ev.location.name && ev.location.address ? escapeHtml(ev.location.address) + " · " : ""}` +
-        `<a href="${mapUrl}" target="_blank" rel="noopener noreferrer">${STR.openMap}</a></small>`));
+        `${extLink(mapUrl, STR.openMap)}</small>`));
     }
     const priceBits = [priceText(ev)];
     if (ev.ticketRequired) priceBits.push(STR.ticket);
@@ -857,7 +858,7 @@
     if (ev.organizer) facts.push(fact(ICON.users, escapeHtml(ev.organizer)));
 
     const external = ev.url && !isSelfLink(ev.url)
-      ? `<a class="btn btn--primary" href="${escapeHtml(safeUrl(ev.url))}" target="_blank" rel="noopener noreferrer">${STR.toEvent} ${svg(ICON.external)}</a>`
+      ? extLink(ev.url, STR.toEvent, "btn btn--primary")
       : "";
 
     // Derselbe Termin kann aus mehreren Quellen stammen (vom Backend
@@ -984,7 +985,7 @@
     const sources = [...state.sources.values()].map((src) => {
       const name = src.name === "inbox" ? STR.inbox : src.label;
       const label = src.homepage
-        ? `<a href="${escapeHtml(safeUrl(src.homepage))}" target="_blank" rel="noopener noreferrer">${escapeHtml(name)}</a>`
+        ? extLink(src.homepage, escapeHtml(name))
         : escapeHtml(name);
       const when = src.lastSuccess ? `<small>${STR.updated} ${relativeTime(new Date(src.lastSuccess))}</small>` : "";
       return `<li><span>${label}</span>${when}</li>`;
@@ -993,7 +994,7 @@
 
     el.viewAbout.innerHTML =
       `<h1>${escapeHtml(s.name || document.title)}</h1>` + paras +
-      (s.submitUrl ? `<h2>${STR.aboutSubmit}</h2><p><a class="btn" href="${escapeHtml(safeUrl(s.submitUrl))}">${STR.aboutSubmitBtn}</a></p>` : "") +
+      (s.submitUrl ? `<h2>${STR.aboutSubmit}</h2><p>${siteLink(s.submitUrl, STR.aboutSubmitBtn, "btn")}</p>` : "") +
       (sources ? `<h2>${STR.aboutSources}</h2><ul class="source-list">${sources}</ul>` : "") +
       `<p style="margin-top:var(--space-5)"><small>${STR.poweredBy}</small></p>`;
   }
@@ -1019,13 +1020,29 @@
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
+  // Externe Links: öffnen in neuem Tab und tragen dasselbe Symbol wie
+  // "Zur Veranstaltung", damit man vor dem Antippen sieht, dass es die
+  // Seite verlässt. html ist bereits escapter Linktext.
+  function extLink(url, html, cls) {
+    return `<a${cls ? ` class="${cls}"` : ""} href="${escapeHtml(safeUrl(url))}" target="_blank" rel="noopener">` +
+      `${html}<span class="ext-icon">${svg(ICON.external)}</span><span class="sr-only"> ${STR.newTab}</span></a>`;
+  }
+  function isExternal(url) {
+    try { return new URL(url, location.href).origin !== location.origin; } catch (_) { return false; }
+  }
+  // Links aus der Konfiguration (Impressum, Termin melden …): extern
+  // gekennzeichnet, wenn sie die Seite verlassen.
+  function siteLink(url, html, cls) {
+    if (isExternal(url)) return extLink(url, html, cls);
+    return `<a${cls ? ` class="${cls}"` : ""} href="${escapeHtml(safeUrl(url))}">${html}</a>`;
+  }
   // Text escapen und darin enthaltene http(s)-Adressen als Links ausgeben
   // (neuer Tab). Satzzeichen am Ende gehören nicht zur Adresse.
   function linkify(text) {
     return String(text).split(/(https?:\/\/[^\s<>"]+)/g).map((part, i) => {
       if (i % 2 === 0) return escapeHtml(part);
       const m = /^(.*?)([.,;:!?)\]]*)$/.exec(part);
-      return `<a href="${escapeHtml(m[1])}" target="_blank" rel="noopener noreferrer">${escapeHtml(m[1])}</a>${escapeHtml(m[2])}`;
+      return extLink(m[1], escapeHtml(m[1])) + escapeHtml(m[2]);
     }).join("");
   }
 

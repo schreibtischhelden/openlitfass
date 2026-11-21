@@ -84,7 +84,9 @@ Die Standard-Oberfläche (`web/`) bringt mit:
   Daten, nicht nur den Zeitraum)
 - Detailansicht je Termin mit teilbarer Adresse (`/#<event-id>`), Kartenlink
   (OpenStreetMap), "In Kalender" (.ics) und "Teilen". Adressen in der
-  Beschreibung werden zu Links; alle externen Links öffnen in einem neuen Tab.
+  Beschreibung werden zu Links. Externe Links (Veranstaltung, Karte,
+  Quellen, Adressen in Beschreibungen) öffnen in einem neuen Tab und tragen
+  dasselbe Symbol wie "Zur Veranstaltung".
 - "Gemerkt": jede Karte hat einen Stern (grau = nicht gemerkt, gefüllt =
   gemerkt), der direkt aus der Liste merkt, ohne die Detailansicht zu
   öffnen. Gespeichert wird nur lokal im Browser, kein Konto.

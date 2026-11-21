@@ -676,3 +676,9 @@ button { font: inherit; }
 .event-card--ended .event-card__title { color: var(--color-text-muted); font-weight: 400; }
 .event-card--ended:hover { opacity: 0.8; }
 .event-card--ended + .card-star:not(.is-active) { opacity: 0.35; }
+
+/* Externe Links: Symbol hinter dem Text (wie bei "Zur Veranstaltung") */
+.ext-icon { display: inline-block; margin-left: 0.2em; white-space: nowrap; }
+.ext-icon svg { width: 0.9em; height: 0.9em; vertical-align: -0.1em; }
+.btn .ext-icon svg { width: 18px; height: 18px; vertical-align: -3px; }
+.detail__desc a { overflow-wrap: anywhere; }
