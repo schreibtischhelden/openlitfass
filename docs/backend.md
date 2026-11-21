@@ -49,7 +49,7 @@ location-specific content:
 | What | Where |
 |---|---|
 | Name, title, description, language, theme colour, About text | `instance.json` |
-| Legal notice, privacy policy, "submit an event" | `instance.json` → `imprintUrl`, `privacyUrl`, `submitUrl` |
+| Legal notice, privacy policy, "submit an event", issue tracker | `instance.json` → `imprintUrl`, `privacyUrl`, `submitUrl`, `issuesUrl` |
 | Time zone of all event times | `instance.json` → `timezone` (default `Europe/Berlin`) |
 | Fallback link for events without their own URL | `instance.json` → `baseUrl` (+ `#<event-id>`) |
 | Sources | `sources/*.json` |

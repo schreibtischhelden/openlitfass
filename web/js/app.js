@@ -17,6 +17,12 @@
 (() => {
   "use strict";
 
+  // ---- Projekt ----
+  // Die Software selbst, unabhängig von der Instanz: Ziel für "Erstellt mit
+  // openLitfass" und für Fehlermeldungen zur Software auf der Über-Seite.
+  const CORE_HOMEPAGE = "https://openlitfass.org";
+  const CORE_ISSUES_URL = "https://github.com/schreibtischhelden/openlitfass/issues";
+
   // ---- Texte ----
   // Alle sichtbaren Texte an einer Stelle, damit Mehrsprachigkeit später
   // ohne Umbau ergänzt werden kann.
@@ -95,6 +101,12 @@
     imprint: "Impressum",
     privacy: "Datenschutz",
     poweredBy: "Erstellt mit openLitfass",
+    aboutFeedback: "Fehler gefunden? Eine Idee?",
+    aboutFeedbackSite: "Zu dieser Seite – Termine, Quellen, Orte",
+    aboutFeedbackCore: "Zur Software openLitfass",
+    feedbackBug: "Fehler melden",
+    feedbackFeature: "Idee vorschlagen",
+    feedbackAll: "Alle Meldungen",
     inbox: "Von Hand eingetragen"
   };
 
@@ -1408,7 +1420,25 @@
       `<h1>${escapeHtml(s.name || document.title)}</h1>` + paras +
       (s.submitUrl ? `<h2>${STR.aboutSubmit}</h2><p>${siteLink(s.submitUrl, STR.aboutSubmitBtn, "btn")}</p>` : "") +
       (sources ? `<h2>${STR.aboutSources}</h2><ul class="source-list">${sources}</ul>` : "") +
-      `<p style="margin-top:var(--space-5)"><small>${STR.poweredBy}</small></p>`;
+      `<h2>${STR.aboutFeedback}</h2>` +
+      (s.issuesUrl ? feedbackBlock(STR.aboutFeedbackSite, s.issuesUrl) : "") +
+      feedbackBlock(STR.aboutFeedbackCore, CORE_ISSUES_URL) +
+      `<p style="margin-top:var(--space-5)"><small>${extLink(CORE_HOMEPAGE, STR.poweredBy)}</small></p>`;
+  }
+
+  // Ein Issue-Tracker als Linkzeile. Bei GitHub (".../issues") führen
+  // "Fehler melden" und "Idee vorschlagen" direkt zu den Formularen
+  // bug.yml/feature.yml, bei anderen Trackern gibt es nur den einen Link.
+  function feedbackBlock(title, url) {
+    const base = String(url).trim().replace(/\/+$/, "");
+    const links = /^https:\/\/github\.com\/[^/]+\/[^/]+\/issues$/i.test(base)
+      ? [
+          extLink(`${base}/new?template=bug.yml`, STR.feedbackBug),
+          extLink(`${base}/new?template=feature.yml`, STR.feedbackFeature),
+          extLink(base, STR.feedbackAll)
+        ]
+      : [extLink(base, STR.feedbackAll)];
+    return `<div class="feedback"><h3>${escapeHtml(title)}</h3><p>${links.join("")}</p></div>`;
   }
 
   // ---- Hilfen ----

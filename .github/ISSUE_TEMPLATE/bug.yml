@@ -1,0 +1,28 @@
+name: Fehler melden
+description: Etwas in openLitfass funktioniert nicht wie erwartet.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke fürs Melden! Geht es um einen falschen oder fehlenden Termin auf
+        einer bestimmten Seite (z. B. weissens.ee)? Dann bitte dort melden –
+        hier geht es um die Software selbst.
+  - type: textarea
+    id: what
+    attributes:
+      label: Was ist passiert?
+      description: Was hast du gemacht, was hast du erwartet, was kam stattdessen?
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Wo?
+      description: Adresse der Seite, auf der der Fehler auftritt.
+      placeholder: https://weissens.ee/#2026-11-21
+  - type: input
+    id: device
+    attributes:
+      label: Gerät und Browser
+      placeholder: z. B. iPhone, Safari / Windows, Firefox

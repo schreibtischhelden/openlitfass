@@ -1,0 +1,15 @@
+name: Idee vorschlagen
+description: Ein Wunsch oder eine Idee für openLitfass.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: Was wünschst du dir?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Wofür brauchst du das?
+      description: Beschreib kurz die Situation – das hilft, die beste Lösung zu finden.

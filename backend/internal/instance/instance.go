@@ -57,6 +57,12 @@ type Config struct {
 	// SubmitURL is where people can report an event that's missing (a
 	// form, a mailto: link, ...). Shown on the "Über" page. Optional.
 	SubmitURL string `json:"submitUrl,omitempty"`
+	// IssuesURL is the instance's issue tracker for errors and wishes about
+	// this site (events, sources, places), e.g.
+	// "https://github.com/weissensee/weissens.ee/issues". Shown on the "Über"
+	// page next to the openLitfass tracker. For a GitHub tracker the page
+	// links straight to the bug.yml / feature.yml issue forms. Optional.
+	IssuesURL string `json:"issuesUrl,omitempty"`
 }
 
 // Instance is a loaded instance directory.

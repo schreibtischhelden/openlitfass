@@ -41,7 +41,8 @@ core repository.
   "about": "Paragraph 1 …\n\nParagraph 2 …",   // text of the About page
   "imprintUrl": "impressum.html",              // legal notice (mandatory in Germany)
   "privacyUrl": "datenschutz.html",            // privacy policy
-  "submitUrl": "mailto:termine@weissens.ee"    // "Termin melden" (submit an event) on the About page
+  "submitUrl": "mailto:termine@weissens.ee",   // "Termin melden" (submit an event) on the About page
+  "issuesUrl": "https://github.com/weissensee/weissens.ee/issues" // bugs and ideas about this site
 }
 ```
 
@@ -49,6 +50,14 @@ core repository.
 in `site/` (templates: `example-instance/site/impressum.html` and
 `datenschutz.html`). A public website operated in Germany must provide a legal
 notice (*Impressum*).
+
+The About page always links the openLitfass issue tracker for bugs and ideas
+about the software. `issuesUrl` adds the instance's own tracker for problems
+with its content (wrong events, missing sources, places). If it is a GitHub
+URL ending in `/issues`, the page links straight to the issue forms `bug.yml`
+and `feature.yml`, so the instance repository should provide them in
+`.github/ISSUE_TEMPLATE/` (copy them from this repository and adapt the
+wording). Any other tracker gets a single link.
 
 ## Showing sources
 
