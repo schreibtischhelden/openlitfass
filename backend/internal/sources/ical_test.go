@@ -160,3 +160,22 @@ func TestParseDuration(t *testing.T) {
 		}
 	}
 }
+
+// Some exporters write every date of a series as a separate VEVENT with
+// the same UID (no RRULE): each date must keep its own id.
+func TestICalSharedUIDWithoutRRule(t *testing.T) {
+	body := cal(
+		"BEGIN:VEVENT\r\nUID:series\r\nSUMMARY:Spielrunde\r\nDTSTART:20261130T160000\r\nEND:VEVENT\r\n",
+		"BEGIN:VEVENT\r\nUID:series\r\nSUMMARY:Spielrunde\r\nDTSTART:20261207T160000\r\nEND:VEVENT\r\n",
+		"BEGIN:VEVENT\r\nUID:single\r\nSUMMARY:Einzeln\r\nDTSTART:20261201T100000\r\nEND:VEVENT\r\n",
+	)
+	from, to := icalWindow("2026-11-20", 60)
+	evs, _ := parseICal(body, config.SourceConfig{Name: "t"}, from, to, time.Now())
+	ids := map[string]bool{}
+	for _, e := range evs {
+		ids[e.Source.SourceID] = true
+	}
+	if len(ids) != 3 || !ids["single"] {
+		t.Errorf("ids = %v, want 3 distinct ids, plain UID kept for the single event", ids)
+	}
+}

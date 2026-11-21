@@ -284,6 +284,19 @@ func parseICal(body string, cfg config.SourceConfig, from, to time.Time, now tim
 		}
 	}
 
+	// Plain events (no RRULE, no RECURRENCE-ID) sharing one UID: against
+	// the spec, but some exporters (e.g. the Land Berlin event calendar)
+	// write every date of a series as its own VEVENT with the series' UID.
+	// Those get per-date ids below, or Dedupe would keep only one of them.
+	plainUIDs := map[string]int{}
+	for _, v := range vevents {
+		_, isOverride := v.first("RECURRENCE-ID")
+		_, hasRule := v.first("RRULE")
+		if !isOverride && !hasRule {
+			plainUIDs[v.text("UID")]++
+		}
+	}
+
 	var events []model.Event
 	for _, v := range vevents {
 		dtstart, ok := v.first("DTSTART")
@@ -335,6 +348,8 @@ func parseICal(body string, cfg config.SourceConfig, from, to time.Time, now tim
 				if t, _, err := parseICalTime(rid, calTZ); err == nil {
 					ev.Source.SourceID = uid + "|" + t.UTC().Format("20060102T150405")
 				}
+			case plainUIDs[uid] > 1:
+				ev.Source.SourceID = uid + "|" + occ.UTC().Format("20060102T150405")
 			}
 			events = append(events, ev)
 		}
