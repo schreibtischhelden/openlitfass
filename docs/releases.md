@@ -30,24 +30,28 @@ pre-release, do not close the milestone and do not move the `:0.3` image tag
 
 ## Roadmap (GitHub Project)
 
-The project belongs to the `schreibtischhelden` organisation and contains the
-issues of this repository.
+The project
+[openLitfass roadmap](https://github.com/orgs/schreibtischhelden/projects/5)
+belongs to the `schreibtischhelden` organisation and contains the issues of
+this repository.
 
 | Field | Values | Purpose |
 |---|---|---|
-| Status | `Ideas`, `Planned`, `In progress`, `Done` | board columns |
-| Milestone | `v0.2.0`, `v0.3.0`, … (built-in) | which release an item goes into |
+| Status | `Ideas`, `Planned`, `In Progress`, `Done` | board columns |
+| Milestone | `v0.1.0`, `v0.2.0`, … (built-in) | which release an item goes into |
 | Labels | see below | release-note categories |
 
 Views:
 
-- **Board** grouped by *Status*: day-to-day work.
-- **Roadmap** (roadmap layout) grouped by *Milestone*, using the milestone due
-  dates: what comes when.
-- **Ideas**: filter `status:Ideas`, the backlog without a milestone.
+- **Board**: columns by *Status*, for day-to-day work. `Ideas` is the
+  backlog without a milestone.
+- **Roadmap** (roadmap layout): grouped by *Milestone* with milestone markers,
+  showing what comes when. The timeline only shows milestones that have a due
+  date, so give a milestone a date once it is roughly scheduled.
 
-Project workflows (project settings → *Workflows*) set *Status* to `Done` when
-an issue is closed and add new issues of this repository automatically.
+The project's built-in workflows (*Workflows* in the project menu) add every
+new issue of this repository with *Status* `Ideas` and set *Status* to `Done`
+when an issue is closed.
 
 An idea becomes a plan by giving it a milestone and moving it to `Planned`.
 Issues of instance repositories (for example `weissensee/weissens.ee`) cannot
