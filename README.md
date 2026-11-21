@@ -1,6 +1,6 @@
 # openLitfass
 
-**Die digitale Litfaßsäule für deinen Kiez.**
+**Die digitale Litfaßsäule für deinen Kiez.** · <https://openlitfass.org>
 
 Ein schlanker, statischer Event-Kalender für einen Kiez, ein Dorf oder einen
 Stadtteil: Events kommen automatisch aus RSS-Feeds, JSON-APIs und
@@ -27,6 +27,7 @@ openlitfass (dieses Repo)                       Instanz-Repo (z.B. weissens.ee)
   Fehlertoleranz, Event-Schema, lokal ausführen, Workflows
 - [docs/inbox.md](docs/inbox.md): Einzel-Events von Hand
 - [docs/source-discovery.md](docs/source-discovery.md): neue Quellen finden
+- [docs/pages.md](docs/pages.md): Veröffentlichen per GitHub Pages, DNS für eigene Domain
 
 ## Schnellstart (Docker)
 
