@@ -1,0 +1,82 @@
+name: Release
+
+# Turns a version tag (v1.2.3) into a GitHub release and ties it to the
+# roadmap (docs/releases.md):
+#   - the release notes list the closed issues of the milestone named like
+#     the tag, followed by GitHub's generated notes (merged PRs, compare link);
+#   - the milestone is closed (not for pre-releases such as v1.2.0-rc.1).
+# The container image for the tag is built by image.yml.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write   # create the release
+  issues: write     # close the milestone
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: Skip if the release exists
+        id: exists
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists already."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Find milestone
+        if: steps.exists.outputs.skip != 'true'
+        id: milestone
+        run: |
+          number=$(gh api "repos/$GH_REPO/milestones?state=all&per_page=100" \
+            --jq ".[] | select(.title == \"$TAG\") | .number")
+          if [ -z "$number" ]; then
+            echo "::warning::No milestone named $TAG - release notes without roadmap items."
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        if: steps.exists.outputs.skip != 'true'
+        env:
+          MILESTONE: ${{ steps.milestone.outputs.number }}
+        run: |
+          {
+            if [ -n "$MILESTONE" ]; then
+              echo "## Roadmap items"
+              echo
+              gh issue list --milestone "$TAG" --state closed --limit 500 \
+                --json number,title,labels \
+                --jq '.[] | "- \(.title) (#\(.number))" + (if (.labels | length) > 0 then " `" + ([.labels[].name] | join("`, `")) + "`" else "" end)'
+              echo
+              echo "Milestone: https://github.com/$GH_REPO/milestone/$MILESTONE?closed=1"
+              echo
+            fi
+            echo "Container image: \`ghcr.io/$GH_REPO:${TAG#v}\`"
+            echo
+          } > notes.md
+          cat notes.md
+
+          pre=""
+          case "$TAG" in *-*) pre="--prerelease" ;; esac
+
+          # --generate-notes appends merged PRs and the full-changelog link.
+          gh release create "$TAG" --verify-tag --title "openLitfass $TAG" \
+            --notes-file notes.md --generate-notes $pre
+
+      - name: Close milestone
+        if: steps.exists.outputs.skip != 'true' && steps.milestone.outputs.number != '' && !contains(github.ref_name, '-')
+        env:
+          MILESTONE: ${{ steps.milestone.outputs.number }}
+        run: |
+          open=$(gh api "repos/$GH_REPO/milestones/$MILESTONE" --jq .open_issues)
+          if [ "$open" -gt 0 ]; then
+            echo "::warning::Milestone $TAG still has $open open issue(s); move them to the next milestone."
+          fi
+          gh api -X PATCH "repos/$GH_REPO/milestones/$MILESTONE" -f state=closed >/dev/null
+          echo "Closed milestone $TAG."

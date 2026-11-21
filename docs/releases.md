@@ -1,0 +1,101 @@
+# Roadmap and releases
+
+The roadmap is a GitHub Project; every planned version is a milestone; a
+version is released by pushing a git tag of the same name. The tag, the
+milestone, the GitHub release and the container image all carry the same
+version.
+
+```
+GitHub Project "openLitfass roadmap"   (board + roadmap view, grouped by milestone)
+  └─ issues ──► milestone v0.2.0 ──► git tag v0.2.0 ──► release.yml: GitHub release, milestone closed
+                                                   └──► image.yml:   ghcr.io/…/openlitfass:0.2.0, :0.2
+```
+
+## Versions
+
+openLitfass uses [Semantic Versioning](https://semver.org/) with a `v` prefix
+on tags: `v0.1.0`, `v0.2.0`, `v1.0.0`.
+
+- **Major** (`v2.0.0`): an instance has to change something, for example a
+  renamed `instance.json` field or a changed event schema.
+- **Minor** (`v0.3.0`): new features that existing instances can ignore.
+- **Patch** (`v0.3.1`): fixes only.
+
+Before `v1.0.0`, a minor version may also contain breaking changes; they are
+listed under *Breaking changes* in the release notes.
+
+Pre-releases use a suffix (`v0.3.0-rc.1`). They get a GitHub release marked as
+pre-release, do not close the milestone and do not move the `:0.3` image tag
+(only `:0.3.0-rc.1` is published).
+
+## Roadmap (GitHub Project)
+
+The project belongs to the `schreibtischhelden` organisation and contains the
+issues of this repository.
+
+| Field | Values | Purpose |
+|---|---|---|
+| Status | `Ideas`, `Planned`, `In progress`, `Done` | board columns |
+| Milestone | `v0.2.0`, `v0.3.0`, … (built-in) | which release an item goes into |
+| Labels | see below | release-note categories |
+
+Views:
+
+- **Board** grouped by *Status*: day-to-day work.
+- **Roadmap** (roadmap layout) grouped by *Milestone*, using the milestone due
+  dates: what comes when.
+- **Ideas**: filter `status:Ideas`, the backlog without a milestone.
+
+Project workflows (project settings → *Workflows*) set *Status* to `Done` when
+an issue is closed and add new issues of this repository automatically.
+
+An idea becomes a plan by giving it a milestone and moving it to `Planned`.
+Issues of instance repositories (for example `weissensee/weissens.ee`) cannot
+be added, because a project only accepts issues of repositories of the same
+owner; instance-specific work is tracked in the instance repository.
+
+## Labels
+
+| Label | Release-note section |
+|---|---|
+| `breaking` | Breaking changes |
+| `enhancement` | New features |
+| `bug` | Fixes |
+| `documentation` | Documentation |
+| `skip-changelog` | left out |
+
+The release notes list the closed issues of the milestone (with their labels)
+and, appended by GitHub, the merged pull requests sorted into the sections
+above (`.github/release.yml`).
+
+## Releasing a version
+
+1. Check the milestone: all issues closed, or move the remaining ones to the
+   next milestone.
+2. Make sure `main` is green (*CI* workflow).
+3. Tag and push:
+
+   ```sh
+   git tag -a v0.2.0 -m "openLitfass v0.2.0"
+   git push origin v0.2.0
+   ```
+
+4. The *Release* workflow (`.github/workflows/release.yml`) creates the GitHub
+   release with notes from the milestone and closes the milestone; the *Image*
+   workflow publishes `ghcr.io/schreibtischhelden/openlitfass:0.2.0` and
+   `:0.2`. The version is also visible in the metric `openlitfass_info`.
+5. Create the next milestone if it does not exist yet.
+
+If a tag has no matching milestone, the release is still created, with a
+warning and without roadmap items.
+
+## Instances and versions
+
+An instance chooses how closely it follows the core via the image tag in its
+`update-events.yml`:
+
+| Tag | Gets |
+|---|---|
+| `:latest` | every commit on `main` |
+| `:0.2` | patch releases of 0.2 (recommended) |
+| `:0.2.0` | exactly this release |
