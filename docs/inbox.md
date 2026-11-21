@@ -15,7 +15,7 @@ entfernen). Die Felder entsprechen direkt dem Event-Schema aus
 - `title` (Pflicht), `date` (Pflicht, `YYYY-MM-DD`)
 - `description`, `category`, `startTime`/`endTime` (`HH:MM`)
 - `location: { name, address }`
-- `price: { free, amount }` — **weggelassen = kostenlos** (nicht `false`/`null`
+- `price: { free, amount }` — **weggelassen = kostenlos**; `{ "free": false }` = Preis unbekannt (nicht `null`
   angeben, das würde "null €" im Frontend erzeugen)
 - `organizer`, `url`
 - `ticketRequired`, `registrationRequired`, `familyFriendly`, `cancelled` (alle optional,
@@ -29,6 +29,43 @@ Der Dateiname (ohne `.json`) ist die stabile ID des Events über mehrere
 Läufe hinweg — beim Bearbeiten einer bestehenden Datei also den Namen nicht
 ändern, sonst entsteht beim nächsten Lauf ein zweiter, neuer Eintrag statt
 den bestehenden zu aktualisieren.
+
+## Wiederkehrende Termine (`repeat`)
+
+Für Öffnungszeiten, Wochenkurse und Ähnliches statt `date` ein
+`repeat`-Objekt angeben; die übrigen Felder gelten für jeden Termin:
+
+```json
+{
+  "title": "Kinderbauernhof geöffnet",
+  "startTime": "09:00", "endTime": "16:30",
+  "location": { "name": "Kinderbauernhof", "address": "Musterweg 2, 12345 Berlin" },
+  "repeat": {
+    "weekdays": ["mo", "di", "mi", "do", "fr"],
+    "from": "2026-10-01",
+    "until": "2027-03-31",
+    "dates": ["2026-12-26"],
+    "except": ["2026-12-25"],
+    "daysAhead": 60
+  }
+}
+```
+
+- `weekdays`: `mo di mi do fr sa so` (auch englisch `mon`/`tue`/…), braucht
+  `from` und `until`.
+- `dates`: zusätzliche Einzeltermine, z. B. Feiertage mit
+  Wochenend-Öffnungszeiten (geht auch ohne `weekdays`).
+- `except`: Termine, die ausfallen.
+- `daysAhead`: wie weit voraus Termine erzeugt werden (Standard 60 Tage),
+  damit die Liste nicht mit Monaten gleicher Einträge vollläuft.
+
+Jeder Termin bekommt eine eigene stabile ID (`<Dateiname>@<Datum>`). Die
+Datei wird gelöscht, sobald `until` bzw. das letzte Datum aus `dates`
+vorbei ist. Unterschiedliche Zeiten (Sommer/Winter, Werktag/Wochenende)
+als eigene Dateien anlegen.
+
+**Preis unbekannt:** `"price": { "free": false }` – dann zeigt die App
+keinen Preis an (weggelassen hieße "kostenlos").
 
 ## Ablauf
 
