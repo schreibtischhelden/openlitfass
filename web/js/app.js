@@ -483,6 +483,7 @@
     $("periodMenu").innerHTML = PERIODS.map((p) => filterChip("period", p.key, p.label, p.icon)).join("");
     el.dateNav.innerHTML =
       `<button type="button" class="date-step" data-step="-1" aria-label="${STR.earlier}" title="${STR.earlier}">${svg(ICON.back)}</button>` +
+      `<button type="button" class="date-step date-today" data-today aria-label="${STR.backToToday}" title="${STR.backToToday}">${STR.today}</button>` +
       `<label class="date-label" title="${STR.pickDate}"><span class="date-label__text" id="dateText"></span>${svg(ICON.calendar)}` +
       `<input type="date" class="date-input" id="dateInput" aria-label="${STR.pickDate}"></label>` +
       `<button type="button" class="date-step" data-step="1" aria-label="${STR.later}" title="${STR.later}">${svg(ICON.forward)}</button>` +
@@ -506,6 +507,7 @@
     el.dateNav.classList.toggle("is-searching", Boolean(state.search));
     const prev = el.dateNav.querySelector('[data-step="-1"]');
     prev.disabled = Boolean(state.search) || start <= today;
+    el.dateNav.querySelector("[data-today]").disabled = prev.disabled;
     el.dateNav.querySelector('[data-step="1"]').disabled = Boolean(state.search);
     $("periodMenu").querySelectorAll("[data-period]").forEach((b) => setPressed(b, b.dataset.period === state.period));
   }
@@ -818,6 +820,8 @@
       if (rmCat) { state.categoriesOn.delete(rmCat.dataset.removeCategory); afterFilterChange(); return; }
       const rmAttr = e.target.closest("[data-remove-attr]");
       if (rmAttr) { state.attrsOn.delete(rmAttr.dataset.removeAttr); afterFilterChange(); return; }
+      const toToday = e.target.closest("[data-today]");
+      if (toToday && !toToday.disabled) { setRange(state.period, todayISO()); return; }
       const step = e.target.closest("[data-step]");
       if (step && !step.disabled) {
         const [start] = currentRange();

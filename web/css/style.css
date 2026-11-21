@@ -507,6 +507,8 @@ button { font: inherit; }
 .date-step { flex: 0 0 36px; padding: 0; }
 .date-step:disabled { opacity: 0.35; cursor: default; }
 .date-step svg { width: 20px; height: 20px; }
+/* "Heute"-Knopf: gleiche Höhe wie die Pfeile, Breite nach Text. */
+.date-today { flex: 0 0 auto; padding: 0 8px; font-weight: 700; font-size: 0.85rem; font-family: inherit; }
 .date-label {
   position: relative;
   flex: 0 0 auto; /* nie kürzen: gesetzte Filter weichen zuerst */
