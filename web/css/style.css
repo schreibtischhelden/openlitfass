@@ -73,6 +73,9 @@
 
 * { box-sizing: border-box; }
 
+/* Platz für die Scrollleiste immer freihalten: sonst rückt der Kopf auf
+   dem Desktop um ihre Breite, wenn ein Tag nur wenige Termine hat. */
+html { scrollbar-gutter: stable; }
 html, body {
   margin: 0;
   padding: 0;
@@ -217,7 +220,10 @@ button { font: inherit; }
   text-transform: uppercase;
   color: var(--color-primary-text);
 }
-.event-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+/* minmax(0, 1fr): lange Wörter im Titel ("KINDERPHILHARMONIE") dürfen
+   die Liste nicht breiter als den Bildschirm machen - sonst wird die ganze
+   Seite samt Kopf auf dem Handy je nach Tag unterschiedlich breit. */
+.event-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
 
 /* Event-Karte (ganze Karte ist ein Link auf die Detailansicht) */
 .event-card {
@@ -240,7 +246,7 @@ button { font: inherit; }
 }
 .event-card__time small { display: block; font-weight: 400; font-size: 0.78rem; color: var(--color-text-muted); }
 .event-card__body { flex: 1; min-width: 0; }
-.event-card__title { margin: 2px 0; font-size: 1rem; line-height: 1.3; }
+.event-card__title { margin: 2px 0; font-size: 1rem; line-height: 1.3; overflow-wrap: anywhere; }
 .event-card__meta {
   margin: 0;
   font-size: 0.82rem;
@@ -518,8 +524,22 @@ button { font: inherit; }
   font-weight: 700;
   font-size: 0.85rem;
 }
-.date-label__text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Feste Breite für die längste Beschriftung ("tt.mm.–tt.mm."), damit
+   Pfeile und Knöpfe beim Blättern und Umschalten an ihrem Platz bleiben. */
+.date-label__text {
+  width: 6.6em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .date-label svg { width: 16px; height: 16px; flex: 0 0 auto; }
+/* Sehr schmale Handys: Kalendersymbol im Datum weglassen, die Breite
+   reicht sonst nicht für die feste Beschriftung. */
+@media (max-width: 359px) {
+  .date-label svg { display: none; }
+}
 /* Unsichtbares natives Datumsfeld über der Beschriftung: Browser ohne
    showPicker() öffnen den Picker über den direkten Klick darauf. */
 .date-input {
@@ -646,8 +666,15 @@ button { font: inherit; }
 .fp-head .link-btn { font-size: 0.82rem; }
 .fp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 
+/* Kopf, Suche, Werkzeugzeile und Filter-Panel haben je Bildschirmgröße
+   eine feste Breite, unabhängig von der Ansicht: unter 900 px volle
+   Breite, darüber bis 1960 px (so breit wie die Spaltenansicht). Sonst
+   springt der Kopf beim Wechsel Tag ↔ Woche zwischen 960 und 1960 px. */
 @media (min-width: 900px) {
-  .toolbar .date-nav { max-width: 960px; margin: 0 auto; }
+  .app-header__inner,
+  .search-bar,
+  .filter-panel,
+  .toolbar .date-nav { max-width: 1960px; margin: 0 auto; }
 }
 
 
@@ -774,12 +801,6 @@ button { font: inherit; }
    Breite (mind. 260 px je Spalte). Die Seite wird dann breiter; Detail-
    und Über-Seite bleiben lesbar schmal. */
 .is-wide .content { max-width: 1960px; }
-.is-wide .app-header__inner,
-.is-wide .search-bar,
-.is-wide .filter-panel { max-width: 1960px; }
-@media (min-width: 900px) {
-  .is-wide .toolbar .date-nav { max-width: 1960px; }
-}
 .is-wide .view.detail,
 .is-wide .view.about,
 .is-wide .site-footer { max-width: 760px; margin-left: auto; margin-right: auto; }

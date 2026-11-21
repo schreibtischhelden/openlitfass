@@ -313,7 +313,9 @@
   }
   function shortDate(dateStr, withWeekday) {
     const d = parseDate(dateStr);
-    return `${withWeekday ? WEEKDAYS_SHORT[d.getDay()] + " " : ""}${d.getDate()}.${d.getMonth() + 1}.`;
+    // Immer tt.mm. (zweistellig), damit die Beschriftung nicht springt.
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${withWeekday ? WEEKDAYS_SHORT[d.getDay()] + " " : ""}${pad(d.getDate())}.${pad(d.getMonth() + 1)}.`;
   }
   function rangeLabel() {
     if (state.search) return STR.allDates;
@@ -328,11 +330,10 @@
     }
     const visibleStart = currentRange()[0];
     if (visibleStart === end) return shortDate(end);
-    const s = parseDate(visibleStart), e = parseDate(end);
-    // Kompakt, damit die Leiste auf 320-px-Handys einzeilig bleibt; dass es
-    // ein Wochenende ist, zeigt der aktive Zeitraum-Knopf.
-    const left = s.getMonth() === e.getMonth() ? `${s.getDate()}.` : shortDate(visibleStart);
-    return `${left}–${shortDate(end)}`;
+    // Immer tt.mm.–tt.mm.: gleich lang, egal ob der Zeitraum über einen
+    // Monatswechsel geht; dass es ein Wochenende ist, zeigt der aktive
+    // Zeitraum-Knopf.
+    return `${shortDate(visibleStart)}–${shortDate(end)}`;
   }
   function timeText(ev) {
     if (!ev.startTime) return STR.allDay;
