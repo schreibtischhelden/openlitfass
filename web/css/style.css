@@ -700,3 +700,4 @@ button { font: inherit; }
 .static-title { margin: 0 0 var(--space-2); font-size: 1.45rem; }
 .static-back { margin: 0 0 var(--space-3); }
 .static-facts li { display: block; }
+.static-more { margin: var(--space-4) 0; text-align: center; }

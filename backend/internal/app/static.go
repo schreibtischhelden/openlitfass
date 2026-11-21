@@ -82,7 +82,7 @@ type staticPage struct {
 
 // buildStatic writes the static pages, sitemap.xml and robots.txt into out.
 // Missing templates (an older or customised web dir) only skip the pages.
-func buildStatic(inst instance.Instance, webDir, out string, logo template.HTML) error {
+func buildStatic(inst instance.Instance, webDir, out string, logo template.HTML, events []staticEvent) error {
 	tdir := filepath.Join(webDir, templatesDir)
 	if _, err := os.Stat(filepath.Join(tdir, "event.html")); errors.Is(err, fs.ErrNotExist) {
 		log.Printf("static pages: no templates in %s, skipped", tdir)
@@ -92,30 +92,6 @@ func buildStatic(inst instance.Instance, webDir, out string, logo template.HTML)
 	if err != nil {
 		return err
 	}
-
-	all, err := writer.LoadPrevious(inst.EventsOutput())
-	if err != nil {
-		return fmt.Errorf("load events: %w", err)
-	}
-	today := time.Now().In(model.Local).Format("2006-01-02")
-	var events []staticEvent
-	for _, e := range all {
-		if e.Date < today {
-			continue
-		}
-		if !validPageID.MatchString(e.ID) {
-			log.Printf("static pages: event id %q not usable as file name, skipped", e.ID)
-			continue
-		}
-		events = append(events, newStaticEvent(e))
-	}
-	sort.SliceStable(events, func(i, j int) bool {
-		a, b := events[i], events[j]
-		if a.Date != b.Date {
-			return a.Date < b.Date
-		}
-		return a.StartTime < b.StartTime
-	})
 
 	siteURL := strings.TrimRight(inst.Config.BaseURL, "/")
 	abs := func(rel string) string {
@@ -179,6 +155,53 @@ func buildStatic(inst instance.Instance, webDir, out string, logo template.HTML)
 	}
 	log.Printf("static pages: %d events, sitemap.xml", len(events))
 	return nil
+}
+
+// loadStaticEvents reads data/events.json: upcoming events (from today on)
+// whose ID is usable as file name, sorted by date and time.
+func loadStaticEvents(inst instance.Instance) ([]staticEvent, error) {
+	all, err := writer.LoadPrevious(inst.EventsOutput())
+	if err != nil {
+		return nil, fmt.Errorf("load events: %w", err)
+	}
+	today := time.Now().In(model.Local).Format("2006-01-02")
+	var events []staticEvent
+	for _, e := range all {
+		if e.Date < today {
+			continue
+		}
+		if !validPageID.MatchString(e.ID) {
+			log.Printf("static pages: event id %q not usable as file name, skipped", e.ID)
+			continue
+		}
+		events = append(events, newStaticEvent(e))
+	}
+	sort.SliceStable(events, func(i, j int) bool {
+		a, b := events[i], events[j]
+		if a.Date != b.Date {
+			return a.Date < b.Date
+		}
+		return a.StartTime < b.StartTime
+	})
+	return events, nil
+}
+
+// startDay is what index.html shows before (or without) JavaScript: today's
+// events, or - if today has none - the next day that has events.
+type startDay struct {
+	staticDay
+	IsToday bool
+	More    int // upcoming events not shown
+}
+
+func newStartDay(events []staticEvent) *startDay {
+	days := groupDays(events)
+	if len(days) == 0 {
+		return nil
+	}
+	today := time.Now().In(model.Local).Format("2006-01-02")
+	return &startDay{staticDay: days[0], IsToday: days[0].Events[0].Date == today,
+		More: len(events) - len(days[0].Events)}
 }
 
 func renderTo(t *template.Template, name string, data any, dst string) error {

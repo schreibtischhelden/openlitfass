@@ -28,6 +28,10 @@ type page struct {
 	Logo      template.HTML
 	SiteURL   string // BaseURL without trailing slash
 	StaticDir string // static event pages, see static.go
+	// Start is pre-rendered into the list (today's events, else the next
+	// day with events) for crawlers and visitors without JavaScript; the
+	// app replaces it once it has loaded the data. nil = no events.
+	Start *startDay
 }
 
 // BuildSite assembles the deployable static site for an instance into out:
@@ -62,10 +66,14 @@ func BuildSite(inst instance.Instance, webDir, out string) error {
 	if err != nil {
 		return err
 	}
-	if err := renderIndex(webDir, inst, logo, filepath.Join(out, "index.html")); err != nil {
+	events, err := loadStaticEvents(inst)
+	if err != nil {
+		return err
+	}
+	if err := renderIndex(webDir, inst, logo, newStartDay(events), filepath.Join(out, "index.html")); err != nil {
 		return fmt.Errorf("render index.html: %w", err)
 	}
-	if err := buildStatic(inst, webDir, out, logo); err != nil {
+	if err := buildStatic(inst, webDir, out, logo, events); err != nil {
 		return fmt.Errorf("static pages: %w", err)
 	}
 	if err := writeJSON(filepath.Join(out, "data", "site.json"), inst.Config); err != nil {
@@ -184,7 +192,7 @@ func readLogo(webDir string, inst instance.Instance) (template.HTML, error) {
 	return template.HTML(logo), nil
 }
 
-func renderIndex(webDir string, inst instance.Instance, logo template.HTML, dst string) error {
+func renderIndex(webDir string, inst instance.Instance, logo template.HTML, start *startDay, dst string) error {
 	tmpl, err := template.ParseFiles(filepath.Join(webDir, "index.html"))
 	if err != nil {
 		return err
@@ -193,7 +201,7 @@ func renderIndex(webDir string, inst instance.Instance, logo template.HTML, dst 
 	if err != nil {
 		return err
 	}
-	if err := tmpl.Execute(f, page{Config: inst.Config, Logo: logo, SiteURL: strings.TrimRight(inst.Config.BaseURL, "/"), StaticDir: StaticDir}); err != nil {
+	if err := tmpl.Execute(f, page{Config: inst.Config, Logo: logo, SiteURL: strings.TrimRight(inst.Config.BaseURL, "/"), StaticDir: StaticDir, Start: start}); err != nil {
 		f.Close()
 		return err
 	}

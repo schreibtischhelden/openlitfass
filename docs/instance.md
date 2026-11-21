@@ -116,8 +116,12 @@ Link-Vorschauen und Besucher ohne JavaScript:
   Open-Graph-Tags und schema.org-`Event` (JSON-LD, inkl. abgesagt-Status)
 - `sitemap.xml` und `robots.txt` (nur mit `baseUrl`, da Sitemaps absolute
   Adressen brauchen; ein eigenes `site/robots.txt` hat Vorrang)
-- `index.html` bekommt Canonical- und Open-Graph-Tags, ohne JavaScript
-  einen Hinweis mit Link auf `termine/`.
+- `index.html` (also `/`) enthält die heutigen Termine schon im HTML (gibt
+  es heute keine: die des nächsten Tages mit Terminen) plus Link auf
+  `termine/`, dazu Canonical- und Open-Graph-Tags. Die App ersetzt die
+  Liste, sobald sie geladen hat. "Heute" ist der Stand des letzten Builds:
+  `serve` baut nach jedem Abruf neu, über Mitternacht hinweg also erst
+  mit dem nächsten Abruf.
 
 Die Vorlagen liegen in `web/templates/` (Go `html/template`) und werden
 nicht mit ausgeliefert. Vergangene Termine bekommen keine Seite mehr.

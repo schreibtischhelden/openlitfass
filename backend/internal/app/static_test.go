@@ -91,8 +91,13 @@ func TestBuildSiteStaticPages(t *testing.T) {
 	if rb := readFile(t, filepath.Join(out, "robots.txt")); !strings.Contains(rb, "Sitemap: https://example.org/sitemap.xml") {
 		t.Errorf("robots.txt:\n%s", rb)
 	}
-	if idx := readFile(t, filepath.Join(out, "index.html")); !strings.Contains(idx, `<link rel="canonical" href="https://example.org/">`) {
+	idx := readFile(t, filepath.Join(out, "index.html"))
+	if !strings.Contains(idx, `<link rel="canonical" href="https://example.org/">`) {
 		t.Error("index.html lacks canonical link")
+	}
+	// No event today: the start page pre-renders the next day with events.
+	if !strings.Contains(idx, `href="termine/lesung-abc123.html"`) || !strings.Contains(idx, "Lesung &lt;im&gt; Hof") || strings.Contains(idx, "Heute ·") {
+		t.Error("index.html lacks the pre-rendered next day")
 	}
 }
 
