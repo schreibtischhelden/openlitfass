@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io/fs"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -16,6 +17,14 @@ import (
 
 	"openlitfass/backend/internal/instance"
 )
+
+// Types Go's built-in table lacks. Responses carry nosniff, so browsers
+// need the right type: the sitemap stylesheet only applies as XML, the
+// manifest is fetched as JSON.
+func init() {
+	_ = mime.AddExtensionType(".xsl", "text/xsl; charset=utf-8")
+	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
+}
 
 // Server runs one instance self-contained: it fetches on an interval,
 // rebuilds the site and serves it over HTTP - "one instance per container",
