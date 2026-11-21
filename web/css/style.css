@@ -745,3 +745,69 @@ button { font: inherit; }
   font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);
 }
+
+/* ---------- Kategorie-Gruppen im Filterpanel ----------
+   Oberkategorie + Sparten in einem gemeinsamen Rahmen. Ist die Gruppe
+   gewählt, erscheinen die Sparten als "mitgemeint" (gedämpft gefüllt). */
+.chip-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border: 1px dashed color-mix(in srgb, var(--color-text-muted) 60%, transparent);
+  border-radius: calc(var(--radius-pill) + 4px);
+}
+.chip--sub { min-height: 30px; padding: 2px 10px; font-size: 0.8rem; }
+.chip--sub svg { width: 16px; height: 16px; }
+.chip.is-implied {
+  background: color-mix(in srgb, var(--accent-primary, var(--color-primary)) 35%, var(--color-surface));
+  border-color: var(--accent-primary, var(--color-primary));
+  border-style: dashed;
+  color: var(--color-text);
+}
+
+/* ---------- Spalten: mehrere Tage nebeneinander ----------
+   app.js (updateColumns) setzt --cols und .is-columns/.is-wide je nach
+   Breite (mind. 260 px je Spalte). Die Seite wird dann breiter; Detail-
+   und Über-Seite bleiben lesbar schmal. */
+.is-wide .content { max-width: 1960px; }
+.is-wide .app-header__inner,
+.is-wide .search-bar,
+.is-wide .filter-panel { max-width: 1960px; }
+@media (min-width: 900px) {
+  .is-wide .toolbar .date-nav { max-width: 1960px; }
+}
+.is-wide .view.detail,
+.is-wide .view.about,
+.is-wide .site-footer { max-width: 760px; margin-left: auto; margin-right: auto; }
+
+#eventGroups.is-columns {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
+  gap: var(--space-2) 16px;
+  align-items: start;
+}
+.is-columns .day-heading {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-2) 2px;
+}
+
+/* Kompakte Karte: Zeit, "Läuft", Kategorie in einer Zeile, darunter Titel
+   und Ort. Die Zeit fließt links, der Titel beginnt darunter. */
+.is-columns .event-card {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  padding-right: 40px;
+}
+.is-columns .event-card__time {
+  float: left;
+  margin-right: 8px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.is-columns .event-card__time small { display: inline; margin-left: 2px; }
+.is-columns .event-card__body { line-height: 1.45; }
+.is-columns .event-card__title { clear: both; margin-top: 2px; font-size: 0.95rem; }
+.is-columns .event-card__meta { font-size: 0.78rem; }
+.is-columns .card-star { top: 2px; right: 2px; width: 36px; height: 36px; }

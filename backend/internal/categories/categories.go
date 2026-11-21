@@ -36,6 +36,11 @@ import (
 type Entry struct {
 	Name string   `json:"name"`
 	Icon []string `json:"icon"`
+	// Group, if set, names another category this one belongs to, e.g. Kino
+	// and Theater in group Kultur: the frontend lists them under it, and
+	// choosing the group filters for all of its members. Events keep exactly
+	// one category.
+	Group string `json:"group,omitempty"`
 }
 
 // Config is the loaded, ready-to-use form of <instance>/categories.json:
@@ -46,6 +51,7 @@ type Entry struct {
 // Registry doesn't recognize (see Build).
 type Config struct {
 	Registry map[string][]string
+	Groups   map[string]string // member -> group
 	Order    []string
 	Fallback string
 }
@@ -87,6 +93,7 @@ func Load(path string) (Config, error) {
 	}
 
 	registry := make(map[string][]string, len(raw.Categories))
+	groups := map[string]string{}
 	order := make([]string, 0, len(raw.Categories))
 	for _, c := range raw.Categories {
 		if c.Name == "" {
@@ -99,14 +106,25 @@ func Load(path string) (Config, error) {
 			return Config{}, fmt.Errorf("%s: category %q is listed twice", path, c.Name)
 		}
 		registry[c.Name] = c.Icon
+		if c.Group != "" {
+			groups[c.Name] = c.Group
+		}
 		order = append(order, c.Name)
 	}
 
 	if _, ok := registry[raw.Fallback]; !ok {
 		return Config{}, fmt.Errorf("%s: fallback %q is not one of the listed categories", path, raw.Fallback)
 	}
+	for member, group := range groups {
+		if _, ok := registry[group]; !ok || group == member {
+			return Config{}, fmt.Errorf("%s: category %q: group %q is not another listed category", path, member, group)
+		}
+		if _, nested := groups[group]; nested {
+			return Config{}, fmt.Errorf("%s: category %q: group %q is itself in a group (only one level)", path, member, group)
+		}
+	}
 
-	return Config{Registry: registry, Order: order, Fallback: raw.Fallback}, nil
+	return Config{Registry: registry, Groups: groups, Order: order, Fallback: raw.Fallback}, nil
 }
 
 // Build returns the full category menu for a set of events: every category
@@ -126,7 +144,7 @@ func (c Config) Build(events []model.Event) []Entry {
 	known := make(map[string]bool, len(c.Order))
 	entries := make([]Entry, 0, len(c.Order))
 	for _, name := range c.Order {
-		entries = append(entries, Entry{Name: name, Icon: c.Registry[name]})
+		entries = append(entries, Entry{Name: name, Icon: c.Registry[name], Group: c.Groups[name]})
 		known[name] = true
 	}
 

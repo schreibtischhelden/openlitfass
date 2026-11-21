@@ -73,6 +73,12 @@ Die Standard-Oberfläche (`web/`) bringt mit:
   (`#tag/2026-11-22`, `#wochenende/…`, `#woche/…`); ist er leer, springt
   "Nächster Termin" zum nächsten passenden Tag. Weitere Filtergruppen
   kommen als weitere `.fp-group` dazu, ohne die Zeile zu verbreitern.
+- **Kategorie-Gruppen:** In `categories.json` kann eine Kategorie
+  `"group": "<andere Kategorie>"` tragen (eine Ebene), z. B. Kino, Theater,
+  Musik, Kunst in der Gruppe Kultur. Die Sparten stehen im Panel in einem
+  Rahmen hinter der Oberkategorie. "Kultur" wählt die ganze Gruppe (die
+  Sparten erscheinen als mitgemeint); eine Sparte bei aktiver Gruppe engt
+  auf diese ein. Jeder Termin hat weiter genau eine Kategorie.
 - Zeitstatus für heute: laufende Termine sind grün getönt mit Etikett
   "Läuft", beendete stärker abgestuft (entsättigt, gedämpft, gestrichelter
   Rand - auch im Dunkelmodus erkennbar). Ohne Endzeit gilt ein Termin
@@ -80,7 +86,13 @@ Die Standard-Oberfläche (`web/`) bringt mit:
   beim Öffnen zum ersten noch nicht beendeten Termin und frischt den
   Status jede Minute auf.
 - Liste nach Tagen gruppiert (Tagesüberschriften bleiben unter der
-  Werkzeugzeile stehen), Suche über das Lupen-Symbol (gilt über alle
+  Werkzeugzeile stehen). **Mehrere Tage nebeneinander**, so viele Spalten,
+  wie bei mindestens 260 px je Spalte in die Breite passen, höchstens so
+  viele wie Tage im Zeitraum (Tablet hochkant: Wochenende, quer: 4 Tage,
+  ab ~1950 px die ganze Woche); weitere Tage fließen in die nächste Reihe,
+  gescrollt wird die ganze Seite. Die Seite wird dann bis 1960 px breit,
+  die Karten kompakt (Zeit, "Läuft", Kategorie in einer Zeile über dem
+  Titel). Detail- und Über-Seite bleiben schmal. Suche über das Lupen-Symbol (gilt über alle
   Daten, nicht nur den Zeitraum; ohne Akzente, ß = ss)
 - Suchvorschläge ab 2 Zeichen: **Ort** (Ortsnamen und ihre Einzelwörter,
   z. B. "Brotfabrik", "Kino" aus "KINO Brotfabrik"), **Typ** (Kategorie,

@@ -145,6 +145,8 @@
     generatedAt: null,
     categories: [],
     categoryIcons: new Map(),
+    categoryGroup: new Map(),   // Mitglied -> Gruppe (categories.json "group")
+    groupMembers: new Map(),    // Gruppe -> [Mitglieder]
     sources: new Map(),
     site: {},
     search: "",
@@ -347,6 +349,13 @@
     if (cats.status === "fulfilled") {
       state.categories = cats.value.categories || [];
       state.categoryIcons = new Map(state.categories.map((c) => [c.name, c.icon]));
+      state.categoryGroup = new Map(state.categories.filter((c) => c.group).map((c) => [c.name, c.group]));
+      state.groupMembers = new Map();
+      for (const c of state.categories) {
+        if (!c.group) continue;
+        if (!state.groupMembers.has(c.group)) state.groupMembers.set(c.group, []);
+        state.groupMembers.get(c.group).push(c);
+      }
     } else {
       console.warn("categories.json fehlt, Kategorie-Menü bleibt leer", cats.reason);
     }
@@ -399,11 +408,38 @@
       `${svg(icon)}<span>${escapeHtml(label)}</span></button>`;
   }
 
+  // Kategorie-Gruppen (categories.json "group"): Mitglieder stehen in einem
+  // gemeinsamen Rahmen direkt hinter ihrer Oberkategorie. Die Oberkategorie
+  // wählt die ganze Gruppe; eine Sparte bei aktiver Gruppe engt darauf ein.
   function buildCategoryMenu() {
+    const members = state.groupMembers;
     el.categoryMenu.innerHTML = state.categories
-      .map((c) => filterChip("category", c.name, c.name, c.icon)).join("");
+      .filter((c) => !c.group || !state.categoryIcons.has(c.group))
+      .map((c) => {
+        const chip = filterChip("category", c.name, c.name, c.icon);
+        const subs = members.get(c.name);
+        if (!subs || !subs.length) return chip;
+        return `<span class="chip-group" role="group" aria-label="${escapeHtml(c.name)}">${chip}` +
+          subs.map((m) => filterChip("category", m.name, m.name, m.icon).replace('class="chip"', 'class="chip chip--sub"')).join("") +
+          `</span>`;
+      }).join("");
     $("catClearSlot").innerHTML = resetLink("categories", STR.reset);
     el.categoryMenu.closest(".fp-group").hidden = state.categories.length === 0;
+  }
+
+  // Kategorie an/aus mit Gruppen-Regeln: Oberkategorie an = ganze Gruppe
+  // (Mitglieder einzeln werden dann überflüssig und entfernt); eine Sparte
+  // antippen, während ihre Gruppe aktiv ist, engt auf diese Sparte ein.
+  function toggleCategory(name) {
+    const on = state.categoriesOn;
+    const group = state.categoryGroup.get(name);
+    if (group && on.has(group)) {
+      on.delete(group);
+      on.add(name);
+      return;
+    }
+    toggleIn(on, name);
+    if (on.has(name)) (state.groupMembers.get(name) || []).forEach((m) => on.delete(m.name));
   }
 
   function buildQuickFilters() {
@@ -496,7 +532,12 @@
   }
 
   function syncFilterButtons() {
-    el.categoryMenu.querySelectorAll("[data-category]").forEach((b) => setPressed(b, state.categoriesOn.has(b.dataset.category)));
+    el.categoryMenu.querySelectorAll("[data-category]").forEach((b) => {
+      const name = b.dataset.category;
+      const implied = !state.categoriesOn.has(name) && state.categoriesOn.has(state.categoryGroup.get(name));
+      setPressed(b, state.categoriesOn.has(name) || implied);
+      b.classList.toggle("is-implied", implied);
+    });
     el.quickFilters.querySelectorAll("[data-attr]").forEach((b) => setPressed(b, state.attrsOn.has(b.dataset.attr)));
     const catClear = $("catClearSlot").querySelector("[data-clear]");
     if (catClear) catClear.hidden = state.categoriesOn.size === 0;
@@ -783,7 +824,7 @@
       const b = e.target.closest(".chip");
       if (!b) return;
       if (b.dataset.period) { setRange(b.dataset.period, currentRange()[0]); return; }
-      if (b.dataset.category) toggleIn(state.categoriesOn, b.dataset.category);
+      if (b.dataset.category) toggleCategory(b.dataset.category);
       if (b.dataset.attr) toggleIn(state.attrsOn, b.dataset.attr);
       afterFilterChange(false);
     });
@@ -814,7 +855,7 @@
 
     window.addEventListener("hashchange", route);
     let t = null;
-    window.addEventListener("resize", () => { clearTimeout(t); t = setTimeout(measureSticky, 120); });
+    window.addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => { updateColumns(); measureSticky(); }, 120); });
   }
 
   function toggleIn(set, v) { if (set.has(v)) set.delete(v); else set.add(v); }
@@ -875,6 +916,28 @@
 
   // Sticky-Abstände an die tatsächlich gerenderten Höhen anpassen (Header
   // mit/ohne Suche, ein- oder mehrzeiliges Kategorie-Menü).
+  // ---- Spalten ----
+  // Mehrere Tage nebeneinander, so viele, wie bei mindestens COLUMN_MIN px
+  // je Spalte in die Breite passen - höchstens so viele, wie Tage angezeigt
+  // werden (Tablet hoch: Wochenende, quer/Desktop: mehr von der Woche).
+  // Weitere Tage fließen in die nächste Reihe. Gescrollt wird die ganze
+  // Seite; im Spaltenmodus wird sie breiter (bis WIDE_MAX) und die Karten
+  // kompakt (Zeit, "Läuft", Kategorie in einer Zeile über dem Titel).
+  const COLUMN_MIN = 260;
+  const COLUMN_GAP = 16;
+  const WIDE_MAX = 1960;
+  let shownDays = 1;
+  function updateColumns(days = shownDays) {
+    shownDays = days;
+    const avail = Math.min(document.documentElement.clientWidth, WIDE_MAX) - 2 * COLUMN_GAP;
+    const fit = Math.floor((avail + COLUMN_GAP) / (COLUMN_MIN + COLUMN_GAP));
+    const cols = Math.max(1, Math.min(days, fit));
+    const multi = cols > 1;
+    document.body.classList.toggle("is-wide", multi);
+    el.groups.classList.toggle("is-columns", multi);
+    el.groups.style.setProperty("--cols", String(cols));
+  }
+
   function measureSticky() {
     const root = document.documentElement.style;
     root.setProperty("--hdr", `${el.header.offsetHeight}px`);
@@ -918,7 +981,8 @@
       if (ev.date < today) return false;
       if (savedOnly) return saved.has(ev.id);
       if (ev.date < from || ev.date > to) return false;
-      if (state.categoriesOn.size && !state.categoriesOn.has(ev.category)) return false;
+      if (state.categoriesOn.size && !state.categoriesOn.has(ev.category) &&
+          !state.categoriesOn.has(state.categoryGroup.get(ev.category))) return false;
       for (const a of ATTRS) {
         if (state.attrsOn.has(a.key) && !a.test(ev)) return false;
       }
@@ -957,6 +1021,7 @@
       `<h2 class="day-heading">${escapeHtml(dayHeading(date))}</h2>` +
       `<ul class="event-list">${evs.map(cardHtml).join("")}</ul></section>`
     ).join("");
+    updateColumns(groups.size || 1);
 
     // "Zurück zu heute", wenn ein anderer Zeitraum gewählt ist.
     if (!savedView && !state.search && currentRange()[0] > todayISO()) {
