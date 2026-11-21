@@ -25,7 +25,7 @@
     tomorrow: "Morgen",
     periodDay: "Tag",
     periodWeekend: "Wochenende",
-    periodWeek: "Woche",
+    periodWeek: "7 Tage",
     period: "Zeitraum",
     earlier: "Früher",
     later: "Später",
@@ -122,12 +122,12 @@
   // Zeiträume der Datumsleiste: die Pfeile blättern um genau diese Einheit.
   // Eigene Symbole aus einer Familie (Tabler-Stil): derselbe Kalender, die
   // Markierung zeigt den Zeitraum - ein Punkt = Tag, zwei Punkte rechts =
-  // die letzten beiden Wochentage, ein Balken = die ganze Woche.
+  // die letzten beiden Wochentage, Doppelpfeil = 7 Tage ab Datum.
   const CAL = ["M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12", "M16 3v4", "M8 3v4", "M4 11h16"];
   const PERIODS = [
     { key: "tag", label: STR.periodDay, icon: CAL.concat(["M10.5 14.5h3v2.5h-3z"]) },
     { key: "wochenende", label: STR.periodWeekend, icon: CAL.concat(["M12 14.5h2v2.5h-2z", "M15.5 14.5h2v2.5h-2z"]) },
-    { key: "woche", label: STR.periodWeek, icon: CAL.concat(["M6.5 14.5h11v2.5h-11z"]) }
+    { key: "woche", label: STR.periodWeek, icon: CAL.concat(["M7 15.5h10", "M9 13.5l-2 2l2 2", "M15 13.5l2 2l-2 2"]) }
   ];
 
   // ---- State ----
@@ -250,12 +250,14 @@
   }
   // ---- Zeitraum (Datumsleiste) ----
   // Normalisiert ein Datum auf den Anfang seines Zeitraums: Tag = der Tag,
-  // Wochenende = dessen Samstag (am Sonntag: der Samstag davor), Woche = Montag.
+  // Wochenende = dessen Samstag (am Sonntag: der Samstag davor), 7 Tage = das Datum selbst.
   function periodStart(period, dateStr) {
     const d = parseDate(dateStr);
     const dow = d.getDay(); // 0 = So
     if (period === "wochenende") return iso(dow === 0 ? addDays(d, -1) : addDays(d, 6 - dow));
-    if (period === "woche") return iso(addDays(d, -((dow + 6) % 7)));
+    // "woche" ist ein Zeitraum von 7 Tagen ab dem gewählten Datum, keine
+    // Kalenderwoche Mo-So.
+    if (period === "woche") return dateStr;
     return dateStr;
   }
   function periodLength(period) {
@@ -282,13 +284,11 @@
     const start = periodStart(state.period, state.anchor || today);
     const end = iso(addDays(parseDate(start), periodLength(state.period) - 1));
     if (state.period === "tag") {
-      if (start === today) return `${STR.today}, ${shortDate(start)}`;
-      if (start === iso(addDays(new Date(), 1))) return `${STR.tomorrow}, ${shortDate(start)}`;
+      // Immer Wochentag + Datum (kein "Heute"/"Morgen"), damit die
+      // Beschriftung beim Blättern nicht die Breite wechselt.
       const d = parseDate(start);
       return `${WEEKDAYS_SHORT[d.getDay()]}, ${shortDate(start)}`;
     }
-    // Beschriftet wird, was sichtbar ist: die laufende Woche beginnt heute,
-    // nicht am vergangenen Montag.
     const visibleStart = currentRange()[0];
     if (visibleStart === end) return shortDate(end);
     const s = parseDate(visibleStart), e = parseDate(end);
@@ -372,7 +372,8 @@
 
   // ---- Aufbau ----
   // Eine Werkzeugzeile statt mehrerer Filterzeilen:
-  //   [‹] [Datum 📅] [›] [Tag|WE|Woche] … [gesetzte Filter] [Filter-Knopf]
+  //   [‹] [Datum 📅] [›] … [gesetzte Filter] [Filter-Knopf]; der Zeitraum
+  //   (Tag | Wochenende | 7 Tage) steht im Filter-Panel.
   // Der Filter-Knopf klappt ein Panel mit Kategorien und Merkmalen auf
   // (Chips mit Symbol und Text) - dort ist Platz für weitere Filter.
   // Gesetzte Filter erscheinen als kleine Symbole in der Zeile; Antippen
@@ -590,6 +591,21 @@
     // Klick auf eine Karte merkt sich, dass "Zurück" in die Liste führt
     // (dann history.back() statt Hash-Sprung, damit die Scrollposition bleibt).
     el.groups.addEventListener("click", (e) => {
+      const star = e.target.closest("[data-star]");
+      if (star) {
+        // Nur den Knopf umschalten, nicht neu rendern: in "Gemerkt"
+        // verschwindet die Karte so nicht unterm Finger (versehentliches
+        // Antippen bleibt umkehrbar), beim nächsten Aufbau ist sie weg.
+        const id = star.dataset.star;
+        toggleSaved(id);
+        const on = saved.has(id);
+        star.classList.toggle("is-active", on);
+        star.setAttribute("aria-pressed", String(on));
+        const ev = state.byId.get(id);
+        star.setAttribute("aria-label", `${on ? STR.unsave : STR.save}${ev ? ": " + ev.title : ""}`);
+        star.title = on ? STR.unsave : STR.save;
+        return;
+      }
       if (e.target.closest(".event-card")) state.cameFromList = true;
     });
 
@@ -807,13 +823,17 @@
     const tsBadge = ts === "running" && !ev.cancelled
       ? `<span class="running-badge">${STR.running}</span>`
       : ts === "ended" ? `<span class="sr-only">${STR.ended}: </span>` : "";
-    return `<li><a class="event-card${ev.cancelled ? " event-card--cancelled" : ""}${ts ? ` event-card--${ts}` : ""}" href="#${encodeURIComponent(ev.id)}">` +
+    const isSaved = saved.has(ev.id);
+    return `<li class="event-item"><a class="event-card${ev.cancelled ? " event-card--cancelled" : ""}${ts ? ` event-card--${ts}` : ""}" href="#${encodeURIComponent(ev.id)}">` +
       `<div class="event-card__time">${time}</div>` +
       `<div class="event-card__body">${tsBadge}${cancelled}${categoryLabelHtml(ev.category)}` +
       `<h3 class="event-card__title">${escapeHtml(ev.title)}</h3>` +
       `<p class="event-card__meta">${meta.join("")}</p></div>` +
-      (saved.has(ev.id) ? `<span class="event-card__saved" aria-label="${STR.savedHeading}">${svg(ICON.star)}</span>` : "") +
-      `</a></li>`;
+      `</a>` +
+      // Merken direkt aus der Liste: eigener Knopf neben (nicht im) Link.
+      `<button type="button" class="card-star${isSaved ? " is-active" : ""}" data-star="${escapeHtml(ev.id)}" ` +
+      `aria-pressed="${isSaved}" aria-label="${isSaved ? STR.unsave : STR.save}: ${escapeHtml(ev.title)}" ` +
+      `title="${isSaved ? STR.unsave : STR.save}">${svg(ICON.star)}</button></li>`;
   }
 
   // ---- Detail ----
@@ -827,7 +847,7 @@
       const mapUrl = `https://www.openstreetmap.org/search?query=${encodeURIComponent(q)}`;
       facts.push(fact(ICON.pin, `${escapeHtml(ev.location.name || ev.location.address)}` +
         `<small>${ev.location.name && ev.location.address ? escapeHtml(ev.location.address) + " · " : ""}` +
-        `<a href="${mapUrl}" target="_blank" rel="noopener">${STR.openMap}</a></small>`));
+        `<a href="${mapUrl}" target="_blank" rel="noopener noreferrer">${STR.openMap}</a></small>`));
     }
     const priceBits = [priceText(ev)];
     if (ev.ticketRequired) priceBits.push(STR.ticket);
@@ -837,7 +857,7 @@
     if (ev.organizer) facts.push(fact(ICON.users, escapeHtml(ev.organizer)));
 
     const external = ev.url && !isSelfLink(ev.url)
-      ? `<a class="btn btn--primary" href="${escapeHtml(safeUrl(ev.url))}" target="_blank" rel="noopener">${STR.toEvent} ${svg(ICON.external)}</a>`
+      ? `<a class="btn btn--primary" href="${escapeHtml(safeUrl(ev.url))}" target="_blank" rel="noopener noreferrer">${STR.toEvent} ${svg(ICON.external)}</a>`
       : "";
 
     // Derselbe Termin kann aus mehreren Quellen stammen (vom Backend
@@ -866,7 +886,7 @@
       categoryLabelHtml(ev.category) +
       `<h1 class="detail__title${ev.cancelled ? " is-cancelled" : ""}">${escapeHtml(ev.title)}</h1>` +
       `<ul class="facts">${facts.join("")}</ul>` +
-      (ev.description ? `<p class="detail__desc">${escapeHtml(ev.description)}</p>` : "") +
+      (ev.description ? `<p class="detail__desc">${linkify(ev.description)}</p>` : "") +
       `<div class="btn-row">` +
       `<button type="button" class="btn" id="detailIcs">${svg(ICON.calendarPlus)} ${STR.addToCalendar}</button>` +
       `<button type="button" class="btn" id="detailShare">${svg(ICON.share)} ${STR.share}</button>` +
@@ -964,7 +984,7 @@
     const sources = [...state.sources.values()].map((src) => {
       const name = src.name === "inbox" ? STR.inbox : src.label;
       const label = src.homepage
-        ? `<a href="${escapeHtml(safeUrl(src.homepage))}" target="_blank" rel="noopener">${escapeHtml(name)}</a>`
+        ? `<a href="${escapeHtml(safeUrl(src.homepage))}" target="_blank" rel="noopener noreferrer">${escapeHtml(name)}</a>`
         : escapeHtml(name);
       const when = src.lastSuccess ? `<small>${STR.updated} ${relativeTime(new Date(src.lastSuccess))}</small>` : "";
       return `<li><span>${label}</span>${when}</li>`;
@@ -998,6 +1018,15 @@
 
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  // Text escapen und darin enthaltene http(s)-Adressen als Links ausgeben
+  // (neuer Tab). Satzzeichen am Ende gehören nicht zur Adresse.
+  function linkify(text) {
+    return String(text).split(/(https?:\/\/[^\s<>"]+)/g).map((part, i) => {
+      if (i % 2 === 0) return escapeHtml(part);
+      const m = /^(.*?)([.,;:!?)\]]*)$/.exec(part);
+      return `<a href="${escapeHtml(m[1])}" target="_blank" rel="noopener noreferrer">${escapeHtml(m[1])}</a>${escapeHtml(m[2])}`;
+    }).join("");
   }
 
   // ---- PWA ----

@@ -246,8 +246,31 @@ button { font: inherit; }
   gap: 2px 8px;
 }
 .event-card__meta svg { width: 15px; height: 15px; vertical-align: -3px; }
-.event-card__saved { flex: 0 0 auto; color: var(--color-accent); }
-.event-card__saved svg { width: 18px; height: 18px; }
+/* Merken-Stern: eigener Knopf über der rechten oberen Kartenecke (nicht im
+   Link, damit Antippen nicht die Detailansicht öffnet). Grau = nicht
+   gemerkt, gefüllt in Akzentfarbe = gemerkt. */
+.event-item { position: relative; }
+.event-item .event-card { padding-right: 44px; }
+.card-star {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-muted);
+  opacity: 0.6;
+  cursor: pointer;
+}
+.card-star svg { width: 20px; height: 20px; }
+.card-star:hover { opacity: 1; color: var(--color-accent); }
+.card-star.is-active { opacity: 1; color: var(--color-accent); }
+.card-star.is-active svg { fill: currentColor; }
 
 .category-label {
   display: inline-flex;
@@ -640,8 +663,16 @@ button { font: inherit; }
   text-transform: uppercase;
   vertical-align: 1px;
 }
+/* Beendet: Fläche wie die Seite, Farben entsättigt, Text gedämpft. Nicht
+   nur über opacity - im Dunkelmodus liegen Seite und Karte so nah
+   beieinander, dass das allein kaum sichtbar ist. */
 .event-card--ended {
   background: var(--color-bg);
-  opacity: 0.55;
+  border-style: dashed;
+  filter: grayscale(1);
+  opacity: 0.5;
 }
+.event-card--ended .event-card__time,
+.event-card--ended .event-card__title { color: var(--color-text-muted); font-weight: 400; }
 .event-card--ended:hover { opacity: 0.8; }
+.event-card--ended + .card-star:not(.is-active) { opacity: 0.35; }

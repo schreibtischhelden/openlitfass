@@ -61,11 +61,12 @@ Die Standard-Oberfläche (`web/`) bringt mit:
   `[‹] [Datum] [›] … [gesetzte Filter] [Filter]`. Die Pfeile blättern um
   den gewählten Zeitraum, das Datum öffnet die native Datumsauswahl;
   startet auf "Heute", nie vor heute. Das Datum zeigt den Zeitraum
-  ("Heute, 21.11.", "28.–29.11."). Gesetzte Filter erscheinen als kleine
+  (immer Wochentag + Datum, z. B. "Sa, 21.11." oder "21.–27.11.", damit
+  die Breite beim Blättern gleich bleibt). Gesetzte Filter erscheinen als kleine
   Symbole (Antippen entfernt den Filter), der Filter-Knopf zeigt ihre
   Anzahl und klappt das Filter-Panel auf. Passt die Zeile nicht, weichen
   zuerst die Symbole.
-- Filter-Panel mit Gruppen: Zeitraum (Tag / Wochenende / Woche),
+- Filter-Panel mit Gruppen: Zeitraum (Tag / Wochenende / 7 Tage ab dem gewählten Datum),
   Kategorien aus `categories.json`, Merkmale (Kostenlos, Familie, Ticket,
   Anmeldung), als Chips mit Symbol und Text, je Filtergruppe
   "zurücksetzen"; Escape schließt es. Der Zeitraum steht in der Adresse
@@ -73,7 +74,8 @@ Die Standard-Oberfläche (`web/`) bringt mit:
   "Nächster Termin" zum nächsten passenden Tag. Weitere Filtergruppen
   kommen als weitere `.fp-group` dazu, ohne die Zeile zu verbreitern.
 - Zeitstatus für heute: laufende Termine sind grün getönt mit Etikett
-  "Läuft", beendete stärker abgestuft. Ohne Endzeit gilt ein Termin
+  "Läuft", beendete stärker abgestuft (entsättigt, gedämpft, gestrichelter
+  Rand - auch im Dunkelmodus erkennbar). Ohne Endzeit gilt ein Termin
   2 Stunden als laufend, ganztägige den ganzen Tag. Die Liste scrollt
   beim Öffnen zum ersten noch nicht beendeten Termin und frischt den
   Status jede Minute auf.
@@ -81,8 +83,11 @@ Die Standard-Oberfläche (`web/`) bringt mit:
   Werkzeugzeile stehen), Suche über das Lupen-Symbol (gilt über alle
   Daten, nicht nur den Zeitraum)
 - Detailansicht je Termin mit teilbarer Adresse (`/#<event-id>`), Kartenlink
-  (OpenStreetMap), "In Kalender" (.ics) und "Teilen"
-- "Gemerkt": Sterne werden nur lokal im Browser gespeichert, kein Konto
+  (OpenStreetMap), "In Kalender" (.ics) und "Teilen". Adressen in der
+  Beschreibung werden zu Links; alle externen Links öffnen in einem neuen Tab.
+- "Gemerkt": jede Karte hat einen Stern (grau = nicht gemerkt, gefüllt =
+  gemerkt), der direkt aus der Liste merkt, ohne die Detailansicht zu
+  öffnen. Gespeichert wird nur lokal im Browser, kein Konto.
 - Über-Seite mit `about`, Quellenliste, "Termin melden", Impressum/Datenschutz
 - PWA: `build-site` erzeugt `manifest.webmanifest`, `sw.js` hält die Seite
   und die zuletzt geladenen Termine offline vor. Für installierbare Icons
