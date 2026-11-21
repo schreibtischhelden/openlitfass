@@ -72,6 +72,11 @@ Die Standard-Oberfläche (`web/`) bringt mit:
   (`#tag/2026-11-22`, `#wochenende/…`, `#woche/…`); ist er leer, springt
   "Nächster Termin" zum nächsten passenden Tag. Weitere Filtergruppen
   kommen als weitere `.fp-group` dazu, ohne die Zeile zu verbreitern.
+- Zeitstatus für heute: laufende Termine sind grün getönt mit Etikett
+  "Läuft", beendete stärker abgestuft. Ohne Endzeit gilt ein Termin
+  2 Stunden als laufend, ganztägige den ganzen Tag. Die Liste scrollt
+  beim Öffnen zum ersten noch nicht beendeten Termin und frischt den
+  Status jede Minute auf.
 - Liste nach Tagen gruppiert (Tagesüberschriften bleiben unter der
   Werkzeugzeile stehen), Suche über das Lupen-Symbol (gilt über alle
   Daten, nicht nur den Zeitraum)

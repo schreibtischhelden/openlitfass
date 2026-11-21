@@ -39,6 +39,8 @@
     reset: "zurücksetzen",
     emptyRange: ["Keine Termine in diesem Zeitraum.", ""],
     allDay: "ganztägig",
+    running: "Läuft",
+    ended: "Beendet",
     free: "Kostenlos",
     ticket: "Ticket nötig",
     registration: "Anmeldung nötig",
@@ -212,6 +214,29 @@
   }
   function todayISO() { return iso(new Date()); }
 
+  // Zeitstatus eines Termins von heute: "running" (läuft gerade), "ended"
+  // (heute schon vorbei) oder "" (später / anderer Tag). Ohne Endzeit
+  // gilt ein Termin DEFAULT_DURATION Minuten lang als laufend; eine Endzeit
+  // vor dem Beginn heißt "über Mitternacht" (läuft bis Tagesende).
+  // Ganztägige Termine laufen den ganzen Tag.
+  const DEFAULT_DURATION = 120;
+  function minutes(hm) {
+    const m = /^(\d{1,2}):(\d{2})/.exec(hm || "");
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  }
+  function timeState(ev, now = new Date()) {
+    if (ev.date !== iso(now)) return "";
+    const start = minutes(ev.startTime);
+    if (start === null) return "running";
+    let end = minutes(ev.endTime);
+    if (end === null) end = start + DEFAULT_DURATION;
+    else if (end <= start) end = 24 * 60;
+    const cur = now.getHours() * 60 + now.getMinutes();
+    if (cur >= end) return "ended";
+    if (cur >= start) return "running";
+    return "";
+  }
+
   function dayHeading(dateStr) {
     const d = parseDate(dateStr);
     const base = `${WEEKDAYS_SHORT[d.getDay()]} ${d.getDate()}. ${MONTHS_SHORT[d.getMonth()]}`;
@@ -336,6 +361,8 @@
     updateSavedCount();
     bindEvents();
     route();
+    setInterval(refreshTimeStates, 60 * 1000);
+    document.addEventListener("visibilitychange", refreshTimeStates);
   });
 
   function showLoadError() {
@@ -456,7 +483,7 @@
     history.replaceState(null, "", isDefault ? location.pathname + location.search : `#${period}/${a}`);
     syncDateNav();
     renderList();
-    window.scrollTo({ top: 0 });
+    scrollToNow();
   }
 
   function syncFilterButtons() {
@@ -575,7 +602,7 @@
   function afterFilterChange(scrollTop = true) {
     syncFilterButtons();
     renderList();
-    if (scrollTop) window.scrollTo({ top: 0 });
+    if (scrollTop) scrollToNow();
   }
   function resetFilters() {
     state.search = "";
@@ -615,7 +642,7 @@
 
     if (view === "list" || view === "saved") {
       renderList();
-      if (fromView !== "detail") window.scrollTo({ top: 0 });
+      if (fromView !== "detail") scrollToNow();
     } else if (view === "detail") {
       renderDetail(state.byId.get(hash));
       window.scrollTo({ top: 0 });
@@ -633,6 +660,30 @@
     const root = document.documentElement.style;
     root.setProperty("--hdr", `${el.header.offsetHeight}px`);
     root.setProperty("--tb", `${el.toolbar.hidden ? 0 : el.toolbar.offsetHeight}px`);
+  }
+
+  // Scrollt zum ersten Termin, der noch nicht vorbei ist: Beendete Termine
+  // von heute liegen dann oberhalb (hochscrollen zeigt sie), laufende und
+  // kommende sind sofort im Blick. Gibt es heute nichts Beendetes, bleibt
+  // die Liste oben.
+  function scrollToNow() {
+    const cards = [...el.groups.querySelectorAll(".event-card")];
+    const target = cards.find((c) => !c.classList.contains("event-card--ended"));
+    if (!target || target === cards[0]) { window.scrollTo({ top: 0 }); return; }
+    measureSticky();
+    const li = target.closest("li");
+    const group = target.closest(".day-group");
+    const firstInGroup = group.querySelector("li") === li;
+    const stuck = el.header.offsetHeight + (el.toolbar.hidden ? 0 : el.toolbar.offsetHeight);
+    const heading = group.querySelector(".day-heading");
+    const anchor = firstInGroup ? group : li;
+    const offset = stuck + (firstInGroup ? 0 : heading.offsetHeight) + 8;
+    window.scrollTo({ top: Math.max(0, anchor.getBoundingClientRect().top + window.scrollY - offset) });
+  }
+
+  // Zeitstatus der Karten jede Minute auffrischen (ohne zu scrollen).
+  function refreshTimeStates() {
+    if ((state.view === "list" || state.view === "saved") && !document.hidden) renderList();
   }
 
   // ---- Liste ----
@@ -752,9 +803,13 @@
     const cancelled = ev.cancelled
       ? `<span class="cancelled-badge">${STR.cancelled}</span>`
       : "";
-    return `<li><a class="event-card${ev.cancelled ? " event-card--cancelled" : ""}" href="#${encodeURIComponent(ev.id)}">` +
+    const ts = timeState(ev);
+    const tsBadge = ts === "running" && !ev.cancelled
+      ? `<span class="running-badge">${STR.running}</span>`
+      : ts === "ended" ? `<span class="sr-only">${STR.ended}: </span>` : "";
+    return `<li><a class="event-card${ev.cancelled ? " event-card--cancelled" : ""}${ts ? ` event-card--${ts}` : ""}" href="#${encodeURIComponent(ev.id)}">` +
       `<div class="event-card__time">${time}</div>` +
-      `<div class="event-card__body">${cancelled}${categoryLabelHtml(ev.category)}` +
+      `<div class="event-card__body">${tsBadge}${cancelled}${categoryLabelHtml(ev.category)}` +
       `<h3 class="event-card__title">${escapeHtml(ev.title)}</h3>` +
       `<p class="event-card__meta">${meta.join("")}</p></div>` +
       (saved.has(ev.id) ? `<span class="event-card__saved" aria-label="${STR.savedHeading}">${svg(ICON.star)}</span>` : "") +

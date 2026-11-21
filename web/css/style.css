@@ -617,3 +617,31 @@ button { font: inherit; }
   .toolbar .date-nav { max-width: 960px; margin: 0 auto; }
 }
 
+
+/* ---------- Zeitstatus (nur Termine von heute) ----------
+   Laufende Termine: grün getönt + Etikett "Läuft" (Text, nicht nur Farbe).
+   Beendete Termine: stärker abgestuft, bleiben aber lesbar und antippbar.
+   color-mix tönt die jeweilige Kartenfläche, passt also hell wie dunkel. */
+.event-card--running {
+  background: color-mix(in srgb, var(--color-erfolg-500) 12%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-erfolg-500) 45%, var(--color-border));
+  box-shadow: inset 4px 0 0 var(--color-erfolg-500);
+}
+.running-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--color-erfolg-500);
+  color: var(--color-erfolg-text-on-500, #fff);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+.event-card--ended {
+  background: var(--color-bg);
+  opacity: 0.55;
+}
+.event-card--ended:hover { opacity: 0.8; }
