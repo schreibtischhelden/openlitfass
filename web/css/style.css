@@ -701,3 +701,44 @@ button { font: inherit; }
 .static-back { margin: 0 0 var(--space-3); }
 .static-facts li { display: block; }
 .static-more { margin: var(--space-4) 0; text-align: center; }
+
+/* ---------- Suchvorschläge (Combobox unter dem Suchfeld) ---------- */
+.search-suggest {
+  position: absolute;
+  top: calc(100% - var(--space-2));
+  left: var(--space-4);
+  right: var(--space-4);
+  z-index: 40;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-m);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.sg-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  cursor: pointer;
+}
+.sg-item svg { width: 18px; height: 18px; flex: 0 0 auto; color: var(--color-text-muted); }
+.sg-item:hover, .sg-item.is-active { background: color-mix(in srgb, var(--color-primary-text) 10%, var(--color-surface)); }
+.sg-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sg-label mark { background: none; color: inherit; font-weight: 700; }
+.sg-type { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted); }
+.sg-count {
+  min-width: 1.8em;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg);
+  font-size: 0.75rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}

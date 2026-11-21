@@ -50,7 +50,10 @@
       </div>
     </div>
     <div class="search-bar" id="searchBar" hidden>
-      <input type="search" id="searchInput" placeholder="Flohmarkt, Lesung, Yoga …" aria-label="Events durchsuchen" autocomplete="off">
+      <input type="search" id="searchInput" placeholder="Ort, Art oder Name …" aria-label="Events durchsuchen" autocomplete="off"
+             role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="searchSuggest">
+      <!-- Suchvorschläge (Ort, Typ, Name), gefüllt von app.js -->
+      <ul class="search-suggest" id="searchSuggest" role="listbox" aria-label="Suchvorschläge" hidden></ul>
     </div>
   </header>
 

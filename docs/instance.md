@@ -81,7 +81,11 @@ Die Standard-Oberfläche (`web/`) bringt mit:
   Status jede Minute auf.
 - Liste nach Tagen gruppiert (Tagesüberschriften bleiben unter der
   Werkzeugzeile stehen), Suche über das Lupen-Symbol (gilt über alle
-  Daten, nicht nur den Zeitraum)
+  Daten, nicht nur den Zeitraum; ohne Akzente, ß = ss)
+- Suchvorschläge ab 2 Zeichen: **Ort** (Ortsnamen und ihre Einzelwörter,
+  z. B. "Brotfabrik", "Kino" aus "KINO Brotfabrik"), **Typ** (Kategorie,
+  setzt den Kategorie-Filter) und **Termin** (Titel), je mit Anzahl der
+  kommenden Termine; Pfeiltasten, Enter, Escape (ARIA-Combobox)
 - Detailansicht je Termin mit teilbarer Adresse (`/#<event-id>`), Kartenlink
   (OpenStreetMap), "In Kalender" (.ics) und "Teilen". Adressen in der
   Beschreibung werden zu Links. Externe Links (Veranstaltung, Karte,

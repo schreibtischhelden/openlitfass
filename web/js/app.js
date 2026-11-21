@@ -63,6 +63,11 @@
     save: "Merken",
     unsave: "Nicht mehr merken",
     newTab: "(öffnet externe Seite in neuem Tab)",
+    suggestPlace: "Ort",
+    suggestType: "Typ",
+    suggestName: "Termin",
+    suggestEventOne: "Termin",
+    suggestEventMany: "Termine",
     themeDark: "Dunkles Farbschema",
     themeLight: "Helles Farbschema",
     addToCalendar: "In Kalender",
@@ -556,6 +561,163 @@
     syncThemeToggle();
   }
 
+  // ---- Suchvorschläge ----
+  // Beim Tippen (ab 2 Zeichen) schlägt die Suche passende Orte, Typen und
+  // Termine vor, mit Anzahl der kommenden Termine. Orte umfassen auch die
+  // einzelnen Wörter der Ortsnamen ("KINO Brotfabrik" -> "Kino",
+  // "Brotfabrik"), damit man nach Haus oder Art eines Raums suchen kann.
+  // Ort/Name übernehmen den Text in die Suche, ein Typ setzt den
+  // Kategorie-Filter. Bedienung als Combobox: Pfeile, Enter, Escape.
+  const SUGGEST = [
+    { key: "place", label: STR.suggestPlace, icon: ICON.pin, max: 4 },
+    { key: "type", label: STR.suggestType, icon: ICON.fallback, max: 2 },
+    { key: "name", label: STR.suggestName, icon: ICON.calendar, max: 4 }
+  ];
+  let suggestItems = [];
+  let suggestActive = -1;
+
+  // Vergleichsform: klein, ohne Akzente, ß = ss ("Weißensee" ~ "weissensee").
+  function fold(s) {
+    return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ß/g, "ss");
+  }
+  // "KINO" -> "Kino": Versalien aus Ortsnamen lesbar machen.
+  function niceWord(w) {
+    return w.length > 3 && w === w.toUpperCase() ? w[0] + w.slice(1).toLowerCase() : w;
+  }
+
+  function buildSuggestions(query) {
+    const q = fold(query.trim());
+    if (q.length < 2) return [];
+    const today = todayISO();
+    const pools = { place: new Map(), type: new Map(), name: new Map() };
+    const add = (pool, label) => {
+      if (!label) return;
+      const key = fold(label);
+      const hit = pool.get(key);
+      if (hit) hit.count++;
+      else pool.set(key, { key, label, count: 1 });
+    };
+    for (const ev of state.events) {
+      if (ev.date < today) continue;
+      const place = ev.location && ev.location.name;
+      add(pools.place, place);
+      if (place) {
+        // Einzelwörter nur, wenn der Name aus mehreren besteht.
+        const words = [...new Set(place.split(/[\s,/–-]+/).filter((w) => w.length >= 4))];
+        if (words.length > 1) words.forEach((w) => add(pools.place, niceWord(w)));
+      }
+      add(pools.type, ev.category);
+      add(pools.name, ev.title);
+    }
+    const rank = (e) => (e.key.startsWith(q) ? 0 : e.key.includes(" " + q) ? 1 : 2);
+    const out = [];
+    for (const t of SUGGEST) {
+      [...pools[t.key].values()]
+        .filter((e) => e.key.includes(q))
+        .sort((a, b) => rank(a) - rank(b) || b.count - a.count || a.label.localeCompare(b.label, "de"))
+        .slice(0, t.max)
+        .forEach((e) => out.push({ type: t.key, label: e.label, count: e.count }));
+    }
+    return out;
+  }
+
+  function highlight(label, query) {
+    const i = label.toLowerCase().indexOf(query.trim().toLowerCase());
+    if (i < 0 || !query.trim()) return escapeHtml(label);
+    const j = i + query.trim().length;
+    return escapeHtml(label.slice(0, i)) + "<mark>" + escapeHtml(label.slice(i, j)) + "</mark>" + escapeHtml(label.slice(j));
+  }
+
+  function renderSuggestions() {
+    const list = $("searchSuggest");
+    if (!list) return;
+    const open = suggestItems.length > 0 && document.activeElement === el.searchInput;
+    list.hidden = !open;
+    el.searchInput.setAttribute("aria-expanded", String(open));
+    if (!open) {
+      el.searchInput.removeAttribute("aria-activedescendant");
+      return;
+    }
+    const typeOf = Object.fromEntries(SUGGEST.map((t) => [t.key, t]));
+    list.innerHTML = suggestItems.map((s, i) =>
+      `<li class="sg-item${i === suggestActive ? " is-active" : ""}" id="sg-${i}" role="option" data-i="${i}" aria-selected="${i === suggestActive}">` +
+      svg(typeOf[s.type].icon) +
+      `<span class="sg-label">${highlight(s.label, el.searchInput.value)}</span>` +
+      `<span class="sg-type">${typeOf[s.type].label}</span>` +
+      `<span class="sg-count" aria-label="${s.count} ${s.count === 1 ? STR.suggestEventOne : STR.suggestEventMany}">${s.count}</span></li>`
+    ).join("");
+    if (suggestActive >= 0) el.searchInput.setAttribute("aria-activedescendant", `sg-${suggestActive}`);
+    else el.searchInput.removeAttribute("aria-activedescendant");
+  }
+
+  function updateSuggestions() {
+    suggestItems = buildSuggestions(el.searchInput.value);
+    suggestActive = -1;
+    renderSuggestions();
+  }
+
+  function closeSuggestions() {
+    suggestItems = [];
+    suggestActive = -1;
+    renderSuggestions();
+  }
+
+  function applySuggestion(s) {
+    if (s.type === "type") {
+      // Typ = Kategorie: als Filter setzen, Suchtext leeren.
+      state.categoriesOn.add(s.label);
+      state.search = "";
+      el.searchInput.value = "";
+      if (el.searchClear) el.searchClear.hidden = true;
+      closeSuggestions();
+      syncDateNav();
+      afterFilterChange();
+      return;
+    }
+    el.searchInput.value = s.label;
+    state.search = s.label.toLowerCase();
+    if (el.searchClear) el.searchClear.hidden = false;
+    closeSuggestions();
+    syncDateNav();
+    renderList();
+  }
+
+  function bindSuggestions() {
+    const list = $("searchSuggest");
+    if (!list) return;
+    // mousedown statt click: sonst verliert das Feld vorher den Fokus und
+    // die Liste schließt sich, bevor der Klick ankommt.
+    list.addEventListener("mousedown", (e) => {
+      const li = e.target.closest("[data-i]");
+      if (!li) return;
+      e.preventDefault();
+      applySuggestion(suggestItems[Number(li.dataset.i)]);
+    });
+    el.searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        if (!suggestItems.length) { updateSuggestions(); return; }
+        e.preventDefault();
+        const n = suggestItems.length;
+        suggestActive = e.key === "ArrowDown" ? (suggestActive + 1) % n : (suggestActive - 1 + n) % n;
+        renderSuggestions();
+        const act = $(`sg-${suggestActive}`);
+        if (act) act.scrollIntoView({ block: "nearest" });
+      } else if (e.key === "Enter") {
+        if (suggestActive >= 0 && suggestItems[suggestActive]) {
+          e.preventDefault();
+          applySuggestion(suggestItems[suggestActive]);
+        } else {
+          closeSuggestions();
+        }
+      } else if (e.key === "Escape" && suggestItems.length) {
+        e.stopPropagation();
+        closeSuggestions();
+      }
+    });
+    el.searchInput.addEventListener("focus", updateSuggestions);
+    el.searchInput.addEventListener("blur", () => setTimeout(closeSuggestions, 100));
+  }
+
   // ---- Interaktion ----
   function bindEvents() {
     const themeBtn = $("themeToggle");
@@ -582,7 +744,9 @@
       if (el.searchClear) el.searchClear.hidden = !state.search;
       syncDateNav();
       renderList();
+      updateSuggestions();
     });
+    bindSuggestions();
 
     el.dateNav.addEventListener("click", (e) => {
       if (e.target.closest("#filterToggle")) { toggleFilterPanel(); return; }
@@ -760,8 +924,9 @@
       }
       if (state.search) {
         const hay = [ev.title, ev.description, ev.category, ev.organizer, ev.location && ev.location.name]
-          .filter(Boolean).join(" ").toLowerCase();
-        if (!hay.includes(state.search)) return false;
+          .filter(Boolean).join(" ");
+        // Ohne Akzente, ß = ss: "weissensee" findet "Weißensee".
+        if (!fold(hay).includes(fold(state.search))) return false;
       }
       return true;
     });
