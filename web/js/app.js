@@ -303,11 +303,18 @@
   function periodStep(period) {
     return period === "tag" ? 1 : 7;
   }
+  // Anfang des gewählten Zeitraums, nie vor dem Zeitraum von heute: ein
+  // Anker aus einem alten Link oder von vor Mitternacht zählt als heute.
+  function anchorDay() {
+    const today = periodStart(state.period, todayISO());
+    const a = periodStart(state.period, state.anchor || todayISO());
+    return a < today ? today : a;
+  }
   // [erster, letzter] Tag des aktuellen Zeitraums; nie vor heute beginnend
   // (der Kalender hat keine vergangenen Termine).
   function currentRange() {
     const today = todayISO();
-    const start = periodStart(state.period, state.anchor || today);
+    const start = anchorDay();
     const end = iso(addDays(parseDate(start), periodLength(state.period) - 1));
     return [start < today ? today : start, end];
   }
@@ -319,8 +326,7 @@
   }
   function rangeLabel() {
     if (state.search) return STR.allDates;
-    const today = todayISO();
-    const start = periodStart(state.period, state.anchor || today);
+    const start = anchorDay();
     const end = iso(addDays(parseDate(start), periodLength(state.period) - 1));
     if (state.period === "tag") {
       // Immer Wochentag + Datum (kein "Heute"/"Morgen"), damit die
@@ -562,8 +568,10 @@
     state.period = period;
     let a = periodStart(period, anchor || today);
     if (a < periodStart(period, today)) a = periodStart(period, today);
-    state.anchor = a;
     const isDefault = period === "tag" && a === today;
+    // Heute als "" merken, nicht als festes Datum: sonst bleibt nach
+    // Mitternacht der Vortag als "heute" stehen.
+    state.anchor = isDefault ? "" : a;
     history.replaceState(null, "", isDefault ? location.pathname + location.search : `#${period}/${a}`);
     syncDateNav();
     renderList();
@@ -839,7 +847,7 @@
       const step = e.target.closest("[data-step]");
       if (step && !step.disabled) {
         const [start] = currentRange();
-        const base = periodStart(state.period, state.anchor || todayISO());
+        const base = anchorDay();
         const from = step.dataset.step === "1" ? base : start;
         setRange(state.period, iso(addDays(parseDate(from), Number(step.dataset.step) * periodStep(state.period))));
         return;
@@ -1028,7 +1036,16 @@
   }
 
   // Zeitstatus der Karten jede Minute auffrischen (ohne zu scrollen).
+  // Läuft die Seite über Mitternacht, folgt auch die Datumsleiste dem neuen
+  // Tag (Beschriftung, frühestes Datum, Zurück-Knopf) - unabhängig davon,
+  // wann die Instanz zuletzt gebaut wurde.
+  let shownDay = todayISO();
   function refreshTimeStates() {
+    const today = todayISO();
+    if (today !== shownDay) {
+      shownDay = today;
+      syncDateNav();
+    }
     if ((state.view === "list" || state.view === "saved") && !document.hidden) renderList();
   }
 
