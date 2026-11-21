@@ -41,7 +41,7 @@ Instanz weglassen, dann wird alle 6 Stunden abgerufen – siehe
 
 Dann <http://localhost:8080> öffnen.
 
-Fertige Images: `ghcr.io/<owner>/openlitfass` (amd64/arm64), gebaut von
+Fertige Images: `ghcr.io/schreibtischhelden/openlitfass` (amd64/arm64), gebaut von
 `.github/workflows/image.yml`.
 
 ## Lizenz

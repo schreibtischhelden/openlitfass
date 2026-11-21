@@ -801,7 +801,7 @@ Forgejo/Gitea-Runnern mit Docker. Das Veröffentlichen von `public/` kommt
 dazu, sobald das Hosting feststeht.
 
 **Vor dem ersten Lauf einer Instanz:** in `update-events.yml` `IMAGE` auf
-`ghcr.io/<owner>/openlitfass:<tag>` setzen.
+`ghcr.io/schreibtischhelden/openlitfass:<tag>` setzen.
 
 ## Teststand
 

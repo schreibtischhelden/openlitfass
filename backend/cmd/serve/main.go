@@ -2,7 +2,7 @@
 // site over HTTP and fetches + rebuilds on an interval (see
 // internal/app.Server). Default command of the container image:
 //
-//	docker run -v ./weissens.ee:/instance -p 8080:8080 ghcr.io/<owner>/openlitfass
+//	docker run -v ./weissens.ee:/instance -p 8080:8080 ghcr.io/schreibtischhelden/openlitfass
 //
 // Usage:
 //

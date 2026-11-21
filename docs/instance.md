@@ -122,7 +122,7 @@ enthält nur die Startseite. Canonical- und Open-Graph-Tags in `index.html`
 gibt es immer (Link-Vorschau beim Teilen).
 
 ```sh
-docker run -d … -e OL_STATIC_PAGES=true -e OL_SITEMAP_GENERATOR=true ghcr.io/<owner>/openlitfass
+docker run -d … -e OL_STATIC_PAGES=true -e OL_SITEMAP_GENERATOR=true ghcr.io/schreibtischhelden/openlitfass
 ```
 
 Mit `OL_STATIC_PAGES` erzeugt `build-site` neben der App reines HTML, für
@@ -170,7 +170,7 @@ Instanz-Verzeichnis in den Container hängen, fertig.
 docker run -d --name weissens --restart unless-stopped \
   -v /pfad/zu/weissens.ee:/instance \
   -p 8080:8080 \
-  ghcr.io/<owner>/openlitfass
+  ghcr.io/schreibtischhelden/openlitfass
 ```
 
 Der Standardbefehl des Images ist `serve /instance`:
@@ -209,7 +209,7 @@ eigenen Port und sind **nicht** neben der öffentlichen Seite erreichbar –
 empfohlen; ohne `OL_METRICS_ADDR` liegt `/metrics` auf dem Haupt-Port.
 
 ```sh
-docker run -d … -p 8080:8080 -p 127.0.0.1:9090:9090 -e OL_METRICS_ADDR=:9090 ghcr.io/<owner>/openlitfass
+docker run -d … -p 8080:8080 -p 127.0.0.1:9090:9090 -e OL_METRICS_ADDR=:9090 ghcr.io/schreibtischhelden/openlitfass
 ```
 
 | Metrik | Typ | Bedeutung |
