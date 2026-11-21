@@ -76,8 +76,8 @@
 
   <main class="content" id="main" tabindex="-1">
     <!-- Ohne JavaScript (und für Suchmaschinen): die statische Terminliste. -->
-    <noscript><p class="noscript">Der interaktive Kalender braucht JavaScript.
-      <a href="{{.StaticDir}}/">Alle Termine als einfache Liste</a></p></noscript>
+    <noscript><p class="noscript">Der interaktive Kalender braucht JavaScript.{{if .StaticPages}}
+      <a href="{{.StaticDir}}/">Alle Termine als einfache Liste</a>{{end}}</p></noscript>
     <section id="viewList" class="view" aria-labelledby="listHeading">
       <h1 class="sr-only" id="listHeading">Termine</h1>
       <p class="result-count" id="resultCount" role="status"></p>

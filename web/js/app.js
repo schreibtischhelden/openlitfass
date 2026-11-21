@@ -957,14 +957,9 @@
     return (base && url.startsWith(base + "/#")) || url.startsWith("#");
   }
 
-  // Geteilt wird die statische Seite des Termins (build-site: termine/<id>.html):
-  // sie hat Titel und Beschreibung für die Link-Vorschau in Messengern und
-  // funktioniert ohne JavaScript. Dieselbe ID-Regel wie im Backend
-  // (static.go validPageID); sonst der App-Link.
+  // Die App teilt immer ihren eigenen Link /#<id>. Die statischen Seiten
+  // (OL_STATIC_PAGES) teilen ihre Adresse termine/<id>.html selbst.
   function eventLink(ev) {
-    if (/^[A-Za-z0-9][A-Za-z0-9_-]{0,150}$/.test(ev.id)) {
-      return new URL(`termine/${ev.id}.html`, location.href.split("#")[0]).href;
-    }
     return location.href.split("#")[0] + "#" + encodeURIComponent(ev.id);
   }
 

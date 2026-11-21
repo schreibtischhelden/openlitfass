@@ -14,7 +14,24 @@
       {{if .Description}}<p class="detail__desc">{{.Description}}</p>{{end}}
       <div class="btn-row">
         <a class="btn" href="../#{{.ID}}">Im Kalender ansehen</a>
+        <button type="button" class="btn" id="staticShare" hidden>Teilen</button>
         {{if .URL}}<a class="btn btn--primary" href="{{.URL}}" target="_blank" rel="noopener">Zur Veranstaltung{{template "ext"}}</a>{{end}}
       </div>
     </article>
+    <!-- Teilen nur mit JavaScript (Web Share API, sonst Link kopieren); ohne
+         bleibt der Knopf verborgen. Geteilt wird die Adresse dieser Seite. -->
+    <script>(function () {
+      var b = document.getElementById("staticShare");
+      if (!b || !(navigator.share || navigator.clipboard)) return;
+      var c = document.querySelector("link[rel=canonical]");
+      var url = c ? c.href : location.href;
+      b.hidden = false;
+      b.addEventListener("click", function () {
+        if (navigator.share) {
+          navigator.share({ title: document.title, url: url }).catch(function () {});
+        } else {
+          navigator.clipboard.writeText(url).then(function () { b.textContent = "Link kopiert"; });
+        }
+      });
+    })();</script>
 {{end}}{{template "bottom" .}}

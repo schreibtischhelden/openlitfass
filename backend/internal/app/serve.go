@@ -40,6 +40,9 @@ type Server struct {
 	// listener instead of next to the site - so metrics don't have to be
 	// public. Empty: /metrics on the main address.
 	MetricsAddr string
+	// Options switches optional parts of the built site on (OL_STATIC_PAGES,
+	// OL_SITEMAP_GENERATOR).
+	Options SiteOptions
 
 	current atomic.Pointer[string] // live build directory
 
@@ -83,7 +86,7 @@ func (s *Server) Rebuild() error {
 		return err
 	}
 	dir := filepath.Join(s.PublicDir, "build-"+time.Now().UTC().Format("20060102T150405.000000000"))
-	if err := BuildSite(s.Instance, s.WebDir, dir); err != nil {
+	if err := BuildSite(s.Instance, s.WebDir, dir, s.Options); err != nil {
 		os.RemoveAll(dir)
 		s.mu.Lock()
 		s.metrics.init()

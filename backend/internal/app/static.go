@@ -80,7 +80,7 @@ type staticPage struct {
 	Generated string
 }
 
-// buildStatic writes the static pages, sitemap.xml and robots.txt into out.
+// buildStatic writes the static pages (termine/) into out.
 // Missing templates (an older or customised web dir) only skip the pages.
 func buildStatic(inst instance.Instance, webDir, out string, logo template.HTML, events []staticEvent) error {
 	tdir := filepath.Join(webDir, templatesDir)
@@ -138,14 +138,23 @@ func buildStatic(inst instance.Instance, webDir, out string, logo template.HTML,
 		}
 	}
 
+	log.Printf("static pages: %d events", len(events))
+	return nil
+}
+
+// buildSitemap writes sitemap.xml and, unless the instance brings its own
+// (site/robots.txt), a robots.txt pointing to it. Sitemaps need absolute
+// URLs, so without baseUrl nothing is written. events are the static event
+// pages to list (nil when static pages are off: only the start page).
+func buildSitemap(inst instance.Instance, out string, events []staticEvent, withPages bool) error {
+	siteURL := strings.TrimRight(inst.Config.BaseURL, "/")
 	if siteURL == "" {
-		log.Printf("static pages: %d events; no baseUrl in instance.json, so no sitemap.xml", len(events))
+		log.Printf("sitemap: no baseUrl in instance.json, skipped")
 		return nil
 	}
-	if err := writeSitemap(filepath.Join(out, "sitemap.xml"), siteURL, events); err != nil {
+	if err := writeSitemap(filepath.Join(out, "sitemap.xml"), siteURL, events, withPages); err != nil {
 		return fmt.Errorf("sitemap.xml: %w", err)
 	}
-	// robots.txt only if the instance doesn't bring its own (site/).
 	robots := filepath.Join(out, "robots.txt")
 	if _, err := os.Stat(robots); errors.Is(err, fs.ErrNotExist) {
 		body := "User-agent: *\nAllow: /\n\nSitemap: " + siteURL + "/sitemap.xml\n"
@@ -153,7 +162,7 @@ func buildStatic(inst instance.Instance, webDir, out string, logo template.HTML,
 			return err
 		}
 	}
-	log.Printf("static pages: %d events, sitemap.xml", len(events))
+	log.Printf("sitemap: %d event pages", len(events))
 	return nil
 }
 
@@ -348,12 +357,14 @@ type sitemapSet struct {
 	URLs    []sitemapURL `xml:"url"`
 }
 
-func writeSitemap(path, siteURL string, events []staticEvent) error {
+func writeSitemap(path, siteURL string, events []staticEvent, withPages bool) error {
 	today := time.Now().In(model.Local).Format("2006-01-02")
 	set := sitemapSet{XMLNS: "http://www.sitemaps.org/schemas/sitemap/0.9", URLs: []sitemapURL{
 		{Loc: siteURL + "/", LastMod: today},
-		{Loc: siteURL + "/" + StaticDir + "/", LastMod: today},
 	}}
+	if withPages {
+		set.URLs = append(set.URLs, sitemapURL{Loc: siteURL + "/" + StaticDir + "/", LastMod: today})
+	}
 	for _, e := range events {
 		set.URLs = append(set.URLs, sitemapURL{Loc: siteURL + "/" + StaticDir + "/" + e.Page})
 	}

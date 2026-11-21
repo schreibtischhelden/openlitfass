@@ -103,13 +103,30 @@ Die Standard-Oberfläche (`web/`) bringt mit:
   plus `[data-theme="dark"] { … }` - sonst gewinnt bei "Hell" das System.
 - "Teilen" öffnet auf dem Handy das System-Teilen-Menü (Web Share API,
   nur über HTTPS bzw. localhost); ohne die API wird der Link kopiert.
-  Geteilt wird die statische Terminseite (siehe unten), damit Messenger
-  eine Vorschau mit Titel und Datum zeigen.
+  Die App teilt ihren Link `/#<id>`; die statischen Terminseiten (siehe
+  unten) haben einen eigenen Teilen-Knopf, der ihre Adresse
+  `termine/<id>.html` teilt (mit Vorschau in Messengern).
 
 ### Statische Seiten und SEO
 
-`build-site` erzeugt neben der App reines HTML, für Suchmaschinen,
-Link-Vorschauen und Besucher ohne JavaScript:
+Optional und **standardmäßig aus** - nicht jede Instanz braucht SEO.
+Eingeschaltet per Umgebungsvariable (oder Flag von `build-site`/`serve`):
+
+| Variable / Flag | erzeugt |
+|---|---|
+| `OL_STATIC_PAGES=true` / `-static-pages` | `termine/`, heutige Termine im HTML von `/` |
+| `OL_SITEMAP_GENERATOR=true` / `-sitemap` | `sitemap.xml`, `robots.txt` (nur mit `baseUrl`) |
+
+Beide zusammen ergeben die volle SEO-Ausstattung; die Sitemap allein
+enthält nur die Startseite. Canonical- und Open-Graph-Tags in `index.html`
+gibt es immer (Link-Vorschau beim Teilen).
+
+```sh
+docker run -d … -e OL_STATIC_PAGES=true -e OL_SITEMAP_GENERATOR=true ghcr.io/<owner>/openlitfass
+```
+
+Mit `OL_STATIC_PAGES` erzeugt `build-site` neben der App reines HTML, für
+Suchmaschinen, Link-Vorschauen und Besucher ohne JavaScript:
 
 - `termine/index.html`: alle kommenden Termine nach Tagen
 - `termine/<id>.html`: je Termin eine Seite mit Titel, Beschreibung,
@@ -124,7 +141,7 @@ Link-Vorschauen und Besucher ohne JavaScript:
   über https://github.com/zcorpan/xslt_extension.
 - `index.html` (also `/`) enthält die heutigen Termine schon im HTML (gibt
   es heute keine: die des nächsten Tages mit Terminen) plus Link auf
-  `termine/`, dazu Canonical- und Open-Graph-Tags. Die App ersetzt die
+  `termine/`. Die App ersetzt die
   Liste, sobald sie geladen hat. "Heute" ist der Stand des letzten Builds:
   `serve` baut nach jedem Abruf neu, über Mitternacht hinweg also erst
   mit dem nächsten Abruf.
@@ -160,7 +177,7 @@ Der Standardbefehl des Images ist `serve /instance`:
 
 - liefert die Seite auf Port 8080 aus – aus den vorhandenen Daten schon
   Sekunden nach dem Start,
-- ruft sofort und dann alle `FETCH_INTERVAL` (Standard `6h`) alle Quellen ab
+- ruft sofort und dann alle `OL_FETCH_INTERVAL` (Standard `6h`) alle Quellen ab
   und baut die Seite neu; jeder Build landet in einem neuen Verzeichnis unter
   `.openlitfass-serve/` und wird erst live geschaltet, wenn er vollständig ist
   (ein fehlgeschlagener Build lässt die alte Version stehen),
@@ -172,20 +189,27 @@ Der Standardbefehl des Images ist `serve /instance`:
 
 | Variable / Flag | Standard | Bedeutung |
 |---|---|---|
-| `FETCH_INTERVAL` / `-interval` | `6h` | Abruf-Intervall; `0` = nur ausliefern |
-| `ADDR` / `-addr` | `:8080` | Listen-Adresse |
-| `PUBLIC_DIR` / `-public` | `<instance>/.openlitfass-serve` | Build-Verzeichnis |
-| `METRICS_ADDR` / `-metrics-addr` | leer | eigener Port für `/metrics`, z.B. `:9090` |
+| `OL_FETCH_INTERVAL` / `-interval` | `6h` | Abruf-Intervall; `0` = nur ausliefern |
+| `OL_LISTEN_ADDR` / `-addr` | `:8080` | Listen-Adresse |
+| `OL_PUBLIC_DIR` / `-public` | `<instance>/.openlitfass-serve` | Build-Verzeichnis |
+| `OL_METRICS_ADDR` / `-metrics-addr` | leer | eigener Port für `/metrics`, z.B. `:9090` |
+| `OL_STATIC_PAGES` / `-static-pages` | `false` | statische Terminseiten, siehe "Statische Seiten und SEO" |
+| `OL_SITEMAP_GENERATOR` / `-sitemap` | `false` | `sitemap.xml` + `robots.txt` |
+| `OL_WEB_DIR` / `-web` | `/opt/openlitfass/web` | Kern-Oberfläche (im Image gesetzt) |
+| `OL_INSTANCE_DIR` / Argument | `.` (Image: `/instance`) | Instanz-Verzeichnis |
+
+Alle Umgebungsvariablen beginnen mit `OL_` (openLitfass). Optionale
+Funktionen sind standardmäßig aus.
 
 ### Metriken (Prometheus)
 
 `/metrics` liefert Kennzahlen im Prometheus-Textformat (geprüft mit
-`promtool check metrics`). Mit `METRICS_ADDR=:9090` laufen sie auf einem
+`promtool check metrics`). Mit `OL_METRICS_ADDR=:9090` laufen sie auf einem
 eigenen Port und sind **nicht** neben der öffentlichen Seite erreichbar –
-empfohlen; ohne `METRICS_ADDR` liegt `/metrics` auf dem Haupt-Port.
+empfohlen; ohne `OL_METRICS_ADDR` liegt `/metrics` auf dem Haupt-Port.
 
 ```sh
-docker run -d … -p 8080:8080 -p 127.0.0.1:9090:9090 -e METRICS_ADDR=:9090 ghcr.io/<owner>/openlitfass
+docker run -d … -p 8080:8080 -p 127.0.0.1:9090:9090 -e OL_METRICS_ADDR=:9090 ghcr.io/<owner>/openlitfass
 ```
 
 | Metrik | Typ | Bedeutung |
@@ -244,7 +268,7 @@ Worker werden nie gecacht).
 
 Wer die Daten zusätzlich im Git-Repo der Instanz versionieren möchte, nimmt
 stattdessen (oder zusätzlich) den CI-Workflow `update-events.yml`; mit
-`FETCH_INTERVAL=0` liefert `serve` dann nur aus.
+`OL_FETCH_INTERVAL=0` liefert `serve` dann nur aus.
 
 ## Lokal testen
 

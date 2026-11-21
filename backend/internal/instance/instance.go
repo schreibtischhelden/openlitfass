@@ -108,12 +108,12 @@ func (i Instance) EventsOutput() string     { return i.Path("data", "events.json
 func (i Instance) CategoriesOutput() string { return i.Path("data", "categories.json") }
 
 // Dir resolves the instance directory: the first command-line argument if
-// given, else $INSTANCE_DIR, else the current directory.
+// given, else $OL_INSTANCE_DIR, else the current directory.
 func Dir(args []string) string {
 	if len(args) > 0 && args[0] != "" {
 		return args[0]
 	}
-	if v := os.Getenv("INSTANCE_DIR"); v != "" {
+	if v := os.Getenv("OL_INSTANCE_DIR"); v != "" {
 		return v
 	}
 	return "."

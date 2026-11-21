@@ -3,7 +3,7 @@
 // internal/app.Fetch). Intended for CI workflows; `serve` does the same on
 // a schedule. Works the same locally:
 //
-//	go run ./cmd/fetch ../path/to/instance     (or $INSTANCE_DIR, else ".")
+//	go run ./cmd/fetch ../path/to/instance     (or $OL_INSTANCE_DIR, else ".")
 //
 // Exit code 1 if nothing could be written because sources failed; 0 for a
 // fresh instance without sources.

@@ -52,7 +52,7 @@ func TestBuildSiteStaticPages(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := filepath.Join(root, "out")
-	if err := BuildSite(inst, webDir, out); err != nil {
+	if err := BuildSite(inst, webDir, out, SiteOptions{StaticPages: true, Sitemap: true}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -115,7 +115,7 @@ func TestBuildSiteWithoutBaseURLHasNoSitemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := filepath.Join(root, "out")
-	if err := BuildSite(inst, webDir, out); err != nil {
+	if err := BuildSite(inst, webDir, out, SiteOptions{StaticPages: true, Sitemap: true}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(out, "sitemap.xml")); err == nil {
@@ -123,5 +123,60 @@ func TestBuildSiteWithoutBaseURLHasNoSitemap(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(out, StaticDir, "index.html")); err != nil {
 		t.Error("list page missing")
+	}
+}
+
+// Default (no OL_STATIC_PAGES / OL_SITEMAP_GENERATOR): no SEO extras.
+func TestBuildSiteDefaultsWithoutExtras(t *testing.T) {
+	webDir, _ := filepath.Abs(filepath.Join("..", "..", "..", "web"))
+	root := t.TempDir()
+	instDir := filepath.Join(root, "inst")
+	tomorrow := time.Now().In(model.Local).AddDate(0, 0, 1).Format("2006-01-02")
+	writeFile(t, filepath.Join(instDir, "instance.json"), `{"name":"Schlicht","baseUrl":"https://example.org"}`)
+	writeFile(t, filepath.Join(instDir, "data", "events.json"), `{"events":[
+	  {"id":"lesung-abc123","title":"Lesung","date":"`+tomorrow+`","location":{"name":""},"price":{"free":true,"amount":null}}]}`)
+	inst, err := instance.Load(instDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(root, "out")
+	if err := BuildSite(inst, webDir, out, SiteOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{StaticDir, "sitemap.xml", "robots.txt"} {
+		if _, err := os.Stat(filepath.Join(out, name)); err == nil {
+			t.Errorf("%s should not exist by default", name)
+		}
+	}
+	if idx := readFile(t, filepath.Join(out, "index.html")); strings.Contains(idx, "lesung-abc123") || strings.Contains(idx, StaticDir+"/") {
+		t.Error("index.html should not pre-render or link static pages by default")
+	}
+}
+
+func TestSitemapWithoutStaticPagesListsOnlyStart(t *testing.T) {
+	webDir, _ := filepath.Abs(filepath.Join("..", "..", "..", "web"))
+	root := t.TempDir()
+	instDir := filepath.Join(root, "inst")
+	writeFile(t, filepath.Join(instDir, "instance.json"), `{"name":"Nur Sitemap","baseUrl":"https://example.org"}`)
+	inst, err := instance.Load(instDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(root, "out")
+	if err := BuildSite(inst, webDir, out, SiteOptions{Sitemap: true}); err != nil {
+		t.Fatal(err)
+	}
+	sm := readFile(t, filepath.Join(out, "sitemap.xml"))
+	if !strings.Contains(sm, "<loc>https://example.org/</loc>") || strings.Contains(sm, StaticDir) {
+		t.Errorf("sitemap:\n%s", sm)
+	}
+}
+
+func TestEnvBool(t *testing.T) {
+	for v, want := range map[string]bool{"": false, "true": true, "1": true, "false": false, "ja": false} {
+		t.Setenv("OL_TEST_BOOL", v)
+		if got := EnvBool("OL_TEST_BOOL", false); got != want {
+			t.Errorf("EnvBool(%q) = %t, want %t", v, got, want)
+		}
 	}
 }

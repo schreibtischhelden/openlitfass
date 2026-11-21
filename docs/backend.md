@@ -742,7 +742,7 @@ Mit Go:
 
 ```sh
 cd backend
-go run ./cmd/fetch ../example-instance                       # oder $INSTANCE_DIR
+go run ./cmd/fetch ../example-instance                       # oder $OL_INSTANCE_DIR
 go run ./cmd/build-site -web ../web ../example-instance      # -> example-instance/public/
 ```
 

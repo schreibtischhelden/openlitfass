@@ -25,9 +25,10 @@ const marker = BuildMarker
 // page is what web/index.html gets rendered with.
 type page struct {
 	instance.Config
-	Logo      template.HTML
-	SiteURL   string // BaseURL without trailing slash
-	StaticDir string // static event pages, see static.go
+	Logo        template.HTML
+	SiteURL     string // BaseURL without trailing slash
+	StaticDir   string // static event pages, see static.go
+	StaticPages bool   // OL_STATIC_PAGES: termine/ exists
 	// Start is pre-rendered into the list (today's events, else the next
 	// day with events) for crawlers and visitors without JavaScript; the
 	// app replaces it once it has loaded the data. nil = no events.
@@ -41,13 +42,14 @@ type page struct {
 //  3. plus <instance>/data/*.json (written by Fetch)
 //  4. webDir/index.html rendered as a Go html/template with the values from
 //     instance.json and the instance logo inlined
-//  5. static pages for search engines and visitors without JavaScript
-//     (termine/, sitemap.xml, robots.txt; see static.go)
+//  5. optional (SiteOptions): static pages for search engines and visitors
+//     without JavaScript (termine/, pre-rendered start page), sitemap.xml
+//     and robots.txt; see static.go
 //  6. data/site.json, manifest.webmanifest, sw.js with a build id
 //
 // out is wiped first, but only if BuildSite created it (BuildMarker) or it
 // is empty/missing.
-func BuildSite(inst instance.Instance, webDir, out string) error {
+func BuildSite(inst instance.Instance, webDir, out string, opts SiteOptions) error {
 	if err := prepareOut(out, inst.Dir, webDir); err != nil {
 		return fmt.Errorf("prepare %s: %w", out, err)
 	}
@@ -66,15 +68,28 @@ func BuildSite(inst instance.Instance, webDir, out string) error {
 	if err != nil {
 		return err
 	}
-	events, err := loadStaticEvents(inst)
-	if err != nil {
-		return err
+	// Optional parts (SiteOptions, off by default): static pages incl. the
+	// pre-rendered start page, and the sitemap.
+	var events []staticEvent
+	var start *startDay
+	if opts.StaticPages {
+		if events, err = loadStaticEvents(inst); err != nil {
+			return err
+		}
+		start = newStartDay(events)
 	}
-	if err := renderIndex(webDir, inst, logo, newStartDay(events), filepath.Join(out, "index.html")); err != nil {
+	if err := renderIndex(webDir, inst, logo, start, opts, filepath.Join(out, "index.html")); err != nil {
 		return fmt.Errorf("render index.html: %w", err)
 	}
-	if err := buildStatic(inst, webDir, out, logo, events); err != nil {
-		return fmt.Errorf("static pages: %w", err)
+	if opts.StaticPages {
+		if err := buildStatic(inst, webDir, out, logo, events); err != nil {
+			return fmt.Errorf("static pages: %w", err)
+		}
+	}
+	if opts.Sitemap {
+		if err := buildSitemap(inst, out, events, opts.StaticPages); err != nil {
+			return err
+		}
 	}
 	if err := writeJSON(filepath.Join(out, "data", "site.json"), inst.Config); err != nil {
 		return fmt.Errorf("write site.json: %w", err)
@@ -192,7 +207,7 @@ func readLogo(webDir string, inst instance.Instance) (template.HTML, error) {
 	return template.HTML(logo), nil
 }
 
-func renderIndex(webDir string, inst instance.Instance, logo template.HTML, start *startDay, dst string) error {
+func renderIndex(webDir string, inst instance.Instance, logo template.HTML, start *startDay, opts SiteOptions, dst string) error {
 	tmpl, err := template.ParseFiles(filepath.Join(webDir, "index.html"))
 	if err != nil {
 		return err
@@ -201,7 +216,7 @@ func renderIndex(webDir string, inst instance.Instance, logo template.HTML, star
 	if err != nil {
 		return err
 	}
-	if err := tmpl.Execute(f, page{Config: inst.Config, Logo: logo, SiteURL: strings.TrimRight(inst.Config.BaseURL, "/"), StaticDir: StaticDir, Start: start}); err != nil {
+	if err := tmpl.Execute(f, page{Config: inst.Config, Logo: logo, SiteURL: strings.TrimRight(inst.Config.BaseURL, "/"), StaticDir: StaticDir, StaticPages: opts.StaticPages, Start: start}); err != nil {
 		f.Close()
 		return err
 	}

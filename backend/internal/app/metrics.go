@@ -66,7 +66,7 @@ func fetchResultLabel(res FetchResult, err error) string {
 }
 
 // loadEventStats reads the instance's current data/events.json, so event
-// gauges are right even when serve doesn't fetch itself (FETCH_INTERVAL=0).
+// gauges are right even when serve doesn't fetch itself (OL_FETCH_INTERVAL=0).
 func (s *Server) loadEventStats() eventStats {
 	evs, err := writer.LoadPrevious(s.Instance.EventsOutput())
 	st := eventStats{loaded: err == nil, bySource: map[string]int{}, byCategory: map[string]int{}}

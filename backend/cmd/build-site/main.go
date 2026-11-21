@@ -3,24 +3,29 @@
 //
 // Usage:
 //
-//	build-site [-web DIR] [-out DIR] [INSTANCE_DIR]
+//	build-site [-web DIR] [-out DIR] [-static-pages] [-sitemap] [INSTANCE_DIR]
 //
-// -web defaults to $WEB_DIR, else /opt/openlitfass/web (where the
-// container image puts it). -out defaults to <instance>/public.
+// Flags fall back to environment variables (see internal/app/env.go):
+// -web $OL_WEB_DIR (else /opt/openlitfass/web, where the container image
+// puts it), -static-pages $OL_STATIC_PAGES, -sitemap $OL_SITEMAP_GENERATOR
+// (both off by default), INSTANCE_DIR $OL_INSTANCE_DIR. -out defaults to
+// <instance>/public.
 package main
 
 import (
 	"flag"
 	"log"
-	"os"
 
 	"openlitfass/backend/internal/app"
 	"openlitfass/backend/internal/instance"
 )
 
 func main() {
-	webDir := flag.String("web", envOr("WEB_DIR", "/opt/openlitfass/web"), "core frontend directory")
+	env := app.SiteOptionsFromEnv()
+	webDir := flag.String("web", app.DefaultWebDir(), "core frontend directory")
 	outDir := flag.String("out", "", "output directory (default <instance>/public)")
+	staticPages := flag.Bool("static-pages", env.StaticPages, "static event pages and pre-rendered start page")
+	sitemap := flag.Bool("sitemap", env.Sitemap, "sitemap.xml and robots.txt (needs baseUrl)")
 	flag.Parse()
 
 	inst, err := instance.Load(instance.Dir(flag.Args()))
@@ -31,14 +36,7 @@ func main() {
 	if out == "" {
 		out = inst.Path("public")
 	}
-	if err := app.BuildSite(inst, *webDir, out); err != nil {
+	if err := app.BuildSite(inst, *webDir, out, app.SiteOptions{StaticPages: *staticPages, Sitemap: *sitemap}); err != nil {
 		log.Fatal(err)
 	}
-}
-
-func envOr(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
 }

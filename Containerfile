@@ -36,18 +36,22 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates git nodejs
 COPY --from=build /out/fetch /out/build-site /out/serve /usr/local/bin/
 COPY web/ /opt/openlitfass/web/
-ENV WEB_DIR=/opt/openlitfass/web
+ENV OL_WEB_DIR=/opt/openlitfass/web
 LABEL org.opencontainers.image.title="openLitfass" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.description="Die digitale Litfaßsäule für deinen Kiez: fetch + build-site"
 
 # Default: run one instance self-contained - mount the instance directory
 # at /instance; the site is served on 8080 and refreshed every 6 hours
-# (FETCH_INTERVAL). CI workflows call `fetch` / `build-site` explicitly.
+# (OL_FETCH_INTERVAL). CI workflows call `fetch` / `build-site` explicitly.
 WORKDIR /instance
-ENV FETCH_INTERVAL=6h
+ENV OL_FETCH_INTERVAL=6h
 EXPOSE 8080
-# Optional: METRICS_ADDR=:9090 serves /metrics on its own port (not public).
+# Optional: OL_METRICS_ADDR=:9090 serves /metrics on its own port (not public).
+# Optional SEO extras, off by default (see docs/instance.md):
+# OL_STATIC_PAGES=true (termine/, pre-rendered start page),
+# OL_SITEMAP_GENERATOR=true (sitemap.xml, robots.txt).
+ENV OL_STATIC_PAGES=false OL_SITEMAP_GENERATOR=false
 HEALTHCHECK --interval=1m --timeout=5s --start-period=30s \
   CMD wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1
 CMD ["serve", "/instance"]
