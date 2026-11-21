@@ -880,6 +880,18 @@
       if (e.target.closest(".event-card")) state.cameFromList = true;
     });
 
+    // "Termine" in der unteren Leiste: wie beim Aufruf der Seite zurück auf
+    // heute und zur aktuellen Uhrzeit - auch aus der Detailansicht und auch,
+    // wenn die Liste schon offen ist.
+    document.querySelector('.bottom-nav__item[data-view="list"]').addEventListener("click", (e) => {
+      e.preventDefault();
+      state.period = "tag";
+      state.anchor = "";
+      if (location.hash) history.pushState(null, "", location.pathname + location.search);
+      route();
+      scrollToNow();
+    });
+
     window.addEventListener("hashchange", route);
     let t = null;
     window.addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => { updateColumns(); measureSticky(); }, 120); });
