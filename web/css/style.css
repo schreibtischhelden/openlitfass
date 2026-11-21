@@ -578,8 +578,11 @@ button { font: inherit; }
   padding: 0;
   border: 0;
   border-radius: var(--radius-pill);
-  background: var(--color-primary-light, #e6e9ec);
-  color: var(--color-primary-text);
+  /* Wie ein aktiver Chip im Panel: dasselbe Farbpaar, das in Hell und
+     Dunkel zueinander kontrastiert (primary-light/-text sind im Dunkeln
+     beide helles Petrol - das Symbol war unsichtbar). */
+  background: var(--accent-primary, var(--color-primary));
+  color: var(--accent-primary-text, #fff);
   display: inline-flex;
   align-items: center;
   justify-content: center;
