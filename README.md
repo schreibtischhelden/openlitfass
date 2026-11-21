@@ -1,9 +1,10 @@
 # openLitfass
 
-**The digital advertising pillar for your neighbourhood.** · <https://openlitfass.org>
+**Your own digital advertising pillar.** · <https://openlitfass.org>
 
-openLitfass is a lightweight, static events calendar for a neighbourhood
-(*Kiez*), a village or a district. Events are collected automatically from
+openLitfass is a lightweight, static events calendar that you build for
+yourself and can share publicly: for a neighbourhood (*Kiez*), a village, a
+club, or event days with many talks and workshops. Events are collected automatically from
 RSS feeds, JSON APIs, iCalendar exports, HTML pages and WordPress calendars,
 complemented by individual events added by hand. The result is served as a
 static website: no database and no API server.

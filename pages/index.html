@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>openLitfass – the digital advertising pillar for your neighbourhood</title>
-<meta name="description" content="openLitfass collects events from the feeds, calendars and websites of organisers in your neighbourhood and shows them in one lightweight web app. Static, no tracking, open source (MIT).">
-<meta property="og:title" content="openLitfass – the digital advertising pillar for your neighbourhood">
+<title>openLitfass – your own digital advertising pillar</title>
+<meta name="description" content="openLitfass collects events from the feeds, calendars and websites you choose and shows them in your own lightweight calendar, which you can share publicly. Static, no tracking, open source (MIT).">
+<meta property="og:title" content="openLitfass – your own digital advertising pillar">
 <meta property="og:description" content="Events from feeds, calendars and websites in one place. Static, no tracking, open source.">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="en_GB">
@@ -65,7 +65,7 @@
   .facts svg { width: 18px; height: 18px; color: #f0a37e; }
 
   /* Sections */
-  section { padding: 56px 0 8px; }
+  section { padding: 56px 0 8px; scroll-margin-top: 60px; }
   .eyebrow { color: var(--accent); font-weight: 700; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 6px; }
   h2 { font-size: clamp(1.4rem, 3.5vw, 1.9rem); line-height: 1.2; margin: 0 0 10px; }
   .intro { color: var(--muted); max-width: 62ch; margin: 0 0 24px; }
@@ -87,6 +87,17 @@
   /* Split */
   .split { display: grid; gap: 28px; align-items: center; grid-template-columns: 1fr; }
   @media (min-width: 820px) { .split { grid-template-columns: 1fr 1.15fr; } }
+  @media (min-width: 820px) { .split--rev { grid-template-columns: 1.1fr 1fr; } }
+  .sched { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; box-shadow: var(--shadow); display: grid; gap: 8px; }
+  .sched__head { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: .85rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .sched__head .chip { text-transform: none; letter-spacing: 0; }
+  .slot { display: grid; grid-template-columns: 52px 1fr auto; gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); font-weight: 600; }
+  .slot b { font-variant-numeric: tabular-nums; }
+  .slot small { display: block; font-weight: 400; color: var(--muted); font-size: .85rem; }
+  .slot__cat { display: block; color: var(--accent); font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+  .slot--now { border-color: #3f8f5a; background: color-mix(in srgb, #3f8f5a 10%, var(--bg)); }
+  .now { font-size: .72rem; font-weight: 700; color: #fff; background: #3f8f5a; border-radius: 999px; padding: 2px 8px; }
+  .star { color: #d9a53c; font-size: 1.1rem; line-height: 1; }
   .split img { border-radius: 12px; border: 1px solid var(--border); box-shadow: var(--shadow); }
   .ticks { list-style: none; padding: 0; margin: 0; }
   .ticks li { position: relative; padding-left: 28px; margin: 10px 0; }
@@ -133,8 +144,8 @@
 </div></header>
 
 <div class="hero" id="top"><div class="wrap">
-  <h1>The digital advertising pillar for your <em>neighbourhood</em></h1>
-  <p class="lead">openLitfass collects events from the websites, feeds and calendars of local organisers – libraries, cinemas, clubs, galleries – and shows them in one place: lightweight, fast, without accounts and without tracking.</p>
+  <h1>Build <em>your own</em> events calendar</h1>
+  <p class="lead">openLitfass is a digital advertising pillar you put together for yourself. Pick the sources you care about – venues, clubs, feeds, your own events – and it collects them in one calendar: lightweight, fast, without accounts and without tracking. Keep it for yourself or share it publicly.</p>
   <ul class="facts">
     <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5l10 -10"/></svg>Open source, MIT licence</li>
     <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5l10 -10"/></svg>Static site, no database</li>
@@ -153,7 +164,7 @@
   <section id="features">
     <p class="eyebrow">Features</p>
     <h2>Everything that's on, in one list</h2>
-    <p class="intro">Organisers keep publishing where they always have. openLitfass picks their events up automatically and turns them into a calendar residents actually want to use.</p>
+    <p class="intro">Organisers keep publishing where they always have. openLitfass picks their events up automatically and turns them into a calendar you actually want to use.</p>
     <div class="grid">
       <div class="card"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M4 4a16 16 0 0 1 16 16"/><path d="M4 11a9 9 0 0 1 9 9"/></svg></div>
         <h3>Many kinds of source</h3><p>RSS, iCalendar, JSON APIs, WordPress calendar plugins and plain web pages without a feed – configured in JSON, no custom code.</p></div>
@@ -186,10 +197,34 @@
     </div>
   </section>
 
+  <section id="slots">
+    <div class="split split--rev">
+      <div>
+        <p class="eyebrow">Event days</p>
+        <h2>Talks, workshops, many slots</h2>
+        <p class="intro">Not only for ongoing events: openLitfass also works for your own event days – a hackerspace's open day, a club congress, a barcamp, a festival or any occasion where talks are given.</p>
+        <ul class="ticks">
+          <li><strong>Bring the schedule as it is</strong><span>Import an iCalendar export from your planning tool, or add single talks by hand through the inbox.</span></li>
+          <li><strong>Rooms and tracks</strong><span>Rooms become places, tracks become categories – filterable, searchable, each with its own icon.</span></li>
+          <li><strong>Several days side by side</strong><span>Weekend and week views show the days in columns; talks in progress are highlighted.</span></li>
+          <li><strong>A personal timetable</strong><span>Visitors star the talks they want to see and add them to their own calendar.</span></li>
+        </ul>
+      </div>
+      <div class="sched" aria-hidden="true">
+        <div class="sched__head"><span>Day 1 · Saturday</span><span class="chip">3 rooms</span></div>
+        <div class="slot"><b>10:00</b><div><span class="slot__cat">Opening</span>Welcome and orientation<small>Hall A</small></div></div>
+        <div class="slot slot--now"><b>11:00</b><div><span class="slot__cat">Security</span>Hardening your home router<small>Hall A</small></div><span class="now">Now</span></div>
+        <div class="slot slot--now"><b>11:00</b><div><span class="slot__cat">Workshop</span>Soldering for beginners<small>Workshop room</small></div><span class="now">Now</span></div>
+        <div class="slot"><b>12:30</b><div><span class="slot__cat">Society</span>Open data in local government<small>Hall B</small></div><span class="star">★</span></div>
+        <div class="slot"><b>14:00</b><div><span class="slot__cat">Lightning talks</span>Five minutes each, sign up on site<small>Hall A</small></div></div>
+      </div>
+    </div>
+  </section>
+
   <section>
     <div class="split">
       <div>
-        <p class="eyebrow">Made for residents</p>
+        <p class="eyebrow">Made for visitors</p>
         <h2>Respectful by design</h2>
         <ul class="ticks">
           <li><strong>No tracking, no cookies, no accounts</strong><span>Preferences and saved events live in the visitor's own browser.</span></li>
@@ -204,7 +239,7 @@
 
   <section id="run">
     <p class="eyebrow">Run your own</p>
-    <h2>A calendar for your neighbourhood in five steps</h2>
+    <h2>Your own calendar in five steps</h2>
     <p class="intro">The core lives in one repository; each calendar is an <em>instance</em> in a repository of its own that holds only configuration, sources and styling.</p>
     <ol class="steps">
       <li>Copy <code>example-instance/</code> into a new, empty repository.</li>
@@ -244,7 +279,7 @@ docker run -d --restart unless-stopped \
   <section>
     <div class="cta">
       <h2>Get involved</h2>
-      <p>openLitfass is free software. Report a bug, suggest an idea or a source type, or start a calendar for your own neighbourhood.</p>
+      <p>openLitfass is free software. Report a bug, suggest an idea or a source type, or start a calendar of your own.</p>
       <div class="btns" style="margin:0">
         <a class="btn btn--accent" href="https://github.com/schreibtischhelden/openlitfass/issues">Issues and ideas</a>
         <a class="btn btn--ghost" href="https://github.com/schreibtischhelden/openlitfass">Repository</a>
