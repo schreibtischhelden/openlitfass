@@ -116,11 +116,12 @@ Link-Vorschauen und Besucher ohne JavaScript:
   Open-Graph-Tags und schema.org-`Event` (JSON-LD, inkl. abgesagt-Status)
 - `sitemap.xml` und `robots.txt` (nur mit `baseUrl`, da Sitemaps absolute
   Adressen brauchen; ein eigenes `site/robots.txt` hat Vorrang)
-- `sitemap.xml` verweist auf `sitemap.xsl`: im Browser erscheint sie als
-  Terminliste nach Tagen (Titel, Zeit, Ort, Kategorie, abgesagt). Die
-  Angaben dafür stehen im eigenen Namensraum `urn:openlitfass:sitemap`,
-  den Suchmaschinen ignorieren. Chrome/Chromium unterstützen XSLT nicht
-  mehr und zeigen dort das rohe XML; Firefox und Safari formatieren es.
+- `sitemap.xml` ist reines sitemaps.org-XML ohne Stylesheet, damit jeder
+  Browser seine XML-Baumansicht zeigt (Firefox zeigt mit Stylesheet-Verweis
+  bei blockiertem XSLT nur Text, und XSLT verschwindet aus den Browsern).
+  Die lesbare Liste für Menschen ist `termine/`. Eine XSL-Fassung liegt in
+  der Git-Historie (Commit ab98aff) - denkbar später nur mit JavaScript
+  über https://github.com/zcorpan/xslt_extension.
 - `index.html` (also `/`) enthält die heutigen Termine schon im HTML (gibt
   es heute keine: die des nächsten Tages mit Terminen) plus Link auf
   `termine/`, dazu Canonical- und Open-Graph-Tags. Die App ersetzt die

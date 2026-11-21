@@ -142,7 +142,7 @@ func buildStatic(inst instance.Instance, webDir, out string, logo template.HTML,
 		log.Printf("static pages: %d events; no baseUrl in instance.json, so no sitemap.xml", len(events))
 		return nil
 	}
-	if err := writeSitemap(filepath.Join(out, "sitemap.xml"), siteURL, base.Name, events); err != nil {
+	if err := writeSitemap(filepath.Join(out, "sitemap.xml"), siteURL, events); err != nil {
 		return fmt.Errorf("sitemap.xml: %w", err)
 	}
 	// robots.txt only if the instance doesn't bring its own (site/).
@@ -330,68 +330,38 @@ func eventJSONLD(e staticEvent, canonical string) map[string]any {
 	return ld
 }
 
-// SitemapXSL is the stylesheet (in webDir) that makes sitemap.xml readable
-// in a browser. Search engines ignore it.
-const SitemapXSL = "sitemap.xsl"
-
-// sitemapNS is openLitfass' own namespace for the event details in the
-// sitemap that only the stylesheet uses. Sitemaps may carry elements of
-// other namespaces; search engines ignore those they don't know.
-const sitemapNS = "urn:openlitfass:sitemap"
+// The sitemap is plain sitemaps.org XML without a stylesheet: browsers show
+// their XML tree view (Firefox replaces it with the stylesheet's output, or
+// with bare text when XSLT is blocked, and browsers are dropping XSLT). A
+// readable list for people is termine/. An XSL version (with event details
+// in an own namespace) is in the git history (commit ab98aff), for a later
+// JavaScript-only variant (e.g. via an XSLT polyfill).
 
 type sitemapURL struct {
-	Loc     string        `xml:"loc"`
-	LastMod string        `xml:"lastmod,omitempty"`
-	Event   *sitemapEvent `xml:",omitempty"`
-}
-
-type sitemapEvent struct {
-	XMLName   xml.Name `xml:"urn:openlitfass:sitemap event"`
-	Title     string   `xml:"title,attr"`
-	Date      string   `xml:"date,attr"`
-	Day       string   `xml:"day,attr"`
-	Time      string   `xml:"time,attr,omitempty"`
-	Place     string   `xml:"place,attr,omitempty"`
-	Category  string   `xml:"category,attr,omitempty"`
-	Cancelled bool     `xml:"cancelled,attr,omitempty"`
-}
-
-type sitemapSite struct {
-	XMLName xml.Name `xml:"urn:openlitfass:sitemap site"`
-	Name    string   `xml:"name,attr"`
-	Base    string   `xml:"base,attr"`
-	Count   int      `xml:"events,attr"`
+	Loc     string `xml:"loc"`
+	LastMod string `xml:"lastmod,omitempty"`
 }
 
 type sitemapSet struct {
 	XMLName xml.Name     `xml:"urlset"`
 	XMLNS   string       `xml:"xmlns,attr"`
-	Site    sitemapSite  `xml:"site"`
 	URLs    []sitemapURL `xml:"url"`
 }
 
-func writeSitemap(path, siteURL, siteName string, events []staticEvent) error {
+func writeSitemap(path, siteURL string, events []staticEvent) error {
 	today := time.Now().In(model.Local).Format("2006-01-02")
-	set := sitemapSet{XMLNS: "http://www.sitemaps.org/schemas/sitemap/0.9",
-		Site: sitemapSite{Name: siteName, Base: siteURL, Count: len(events)},
-		URLs: []sitemapURL{
-			{Loc: siteURL + "/", LastMod: today},
-			{Loc: siteURL + "/" + StaticDir + "/", LastMod: today},
-		}}
+	set := sitemapSet{XMLNS: "http://www.sitemaps.org/schemas/sitemap/0.9", URLs: []sitemapURL{
+		{Loc: siteURL + "/", LastMod: today},
+		{Loc: siteURL + "/" + StaticDir + "/", LastMod: today},
+	}}
 	for _, e := range events {
-		ev := &sitemapEvent{Title: e.Title, Date: e.Date, Day: e.DateLong, Place: e.Location.Name,
-			Category: e.Category, Cancelled: e.Cancelled}
-		if e.StartTime != "" {
-			ev.Time = e.StartTime
-		}
-		set.URLs = append(set.URLs, sitemapURL{Loc: siteURL + "/" + StaticDir + "/" + e.Page, Event: ev})
+		set.URLs = append(set.URLs, sitemapURL{Loc: siteURL + "/" + StaticDir + "/" + e.Page})
 	}
 	data, err := xml.MarshalIndent(set, "", "  ")
 	if err != nil {
 		return err
 	}
-	head := xml.Header + `<?xml-stylesheet type="text/xsl" href="` + SitemapXSL + `"?>` + "\n"
-	return os.WriteFile(path, append([]byte(head), append(data, '\n')...), 0o644)
+	return os.WriteFile(path, append([]byte(xml.Header), append(data, '\n')...), 0o644)
 }
 
 // relToRoot makes a site-relative link from the instance config (e.g.

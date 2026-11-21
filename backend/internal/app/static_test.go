@@ -88,13 +88,9 @@ func TestBuildSiteStaticPages(t *testing.T) {
 	if !strings.Contains(sm, "<loc>https://example.org/termine/lesung-abc123.html</loc>") || !strings.Contains(sm, "<loc>https://example.org/</loc>") {
 		t.Errorf("sitemap:\n%s", sm)
 	}
-	for _, want := range []string{`<?xml-stylesheet type="text/xsl" href="sitemap.xsl"?>`, `title="Lesung &lt;im&gt; Hof"`, `cancelled="true"`, `xmlns="urn:openlitfass:sitemap"`} {
-		if !strings.Contains(sm, want) {
-			t.Errorf("sitemap lacks %q", want)
-		}
-	}
-	if _, err := os.Stat(filepath.Join(out, "sitemap.xsl")); err != nil {
-		t.Error("sitemap.xsl missing in output")
+	// Plain sitemap: no stylesheet, so browsers show their XML tree view.
+	if strings.Contains(sm, "xml-stylesheet") || strings.Contains(sm, "urn:openlitfass") {
+		t.Errorf("sitemap should be plain sitemaps.org XML:\n%s", sm)
 	}
 	if rb := readFile(t, filepath.Join(out, "robots.txt")); !strings.Contains(rb, "Sitemap: https://example.org/sitemap.xml") {
 		t.Errorf("robots.txt:\n%s", rb)

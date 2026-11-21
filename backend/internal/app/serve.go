@@ -19,10 +19,8 @@ import (
 )
 
 // Types Go's built-in table lacks. Responses carry nosniff, so browsers
-// need the right type: the sitemap stylesheet only applies as XML, the
-// manifest is fetched as JSON.
+// need the right type.
 func init() {
-	_ = mime.AddExtensionType(".xsl", "text/xsl; charset=utf-8")
 	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
 }
 
