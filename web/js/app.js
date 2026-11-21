@@ -124,6 +124,7 @@
     family: ["M6 19a2 2 0 1 0 4 0a2 2 0 1 0 -4 0", "M16 19a2 2 0 1 0 4 0a2 2 0 1 0 -4 0", "M2 5h2.5l1.632 4.897a6 6 0 0 0 5.693 4.103h2.675a5.5 5.5 0 0 0 0 -11h-.5v6", "M6 9h14", "M9 17l1 -3", "M16 14l1 3"],
     pin: ["M9 11a3 3 0 1 0 6 0a3 3 0 0 0 -6 0", "M17.657 16.657l-4.243 4.243a2 2 0 0 1 -2.827 0l-4.244 -4.243a8 8 0 1 1 11.314 0"],
     calendar: ["M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12", "M16 3v4", "M8 3v4", "M4 11h16"],
+    calendarToday: ["M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12", "M16 3v4", "M8 3v4", "M4 11h16", "M11 16a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"],
     calendarPlus: ["M12.5 21h-6.5a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v5", "M16 3v4", "M8 3v4", "M4 11h16", "M16 19h6", "M19 16v6"],
     clock: ["M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0", "M12 7v5l3 3"],
     users: ["M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0", "M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2", "M16 3.13a4 4 0 0 1 0 7.75", "M21 21v-2a4 4 0 0 0 -3 -3.85"],
@@ -495,7 +496,7 @@
     $("periodMenu").innerHTML = PERIODS.map((p) => filterChip("period", p.key, p.label, p.icon)).join("");
     el.dateNav.innerHTML =
       `<button type="button" class="date-step" data-step="-1" aria-label="${STR.earlier}" title="${STR.earlier}">${svg(ICON.back)}</button>` +
-      `<button type="button" class="date-step date-today" data-today aria-label="${STR.backToToday}" title="${STR.backToToday}">${STR.today}</button>` +
+      `<button type="button" class="date-step" data-today aria-label="${STR.backToToday}" title="${STR.backToToday}">${svg(ICON.calendarToday)}</button>` +
       `<label class="date-label" title="${STR.pickDate}"><span class="date-label__text" id="dateText"></span>${svg(ICON.calendar)}` +
       `<input type="date" class="date-input" id="dateInput" aria-label="${STR.pickDate}"></label>` +
       `<button type="button" class="date-step" data-step="1" aria-label="${STR.later}" title="${STR.later}">${svg(ICON.forward)}</button>` +
