@@ -1,0 +1,46 @@
+name: Pages
+
+# Publishes the project website (pages/) to the branch "pages" for GitHub
+# Pages. The branch holds only the built files as a single commit that is
+# replaced on every run.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pages/**'
+      - 'web/logo.svg'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  # Custom domain for GitHub Pages (written as CNAME). Empty = served at
+  # https://schreibtischhelden.github.io/openlitfass/
+  PAGES_DOMAIN: ""
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish to branch pages
+        run: |
+          mkdir -p "$RUNNER_TEMP/site"
+          cp -r pages/. "$RUNNER_TEMP/site/"
+          cp web/logo.svg "$RUNNER_TEMP/site/logo.svg"
+          cd "$RUNNER_TEMP/site"
+          touch .nojekyll
+          if [ -n "$PAGES_DOMAIN" ]; then echo "$PAGES_DOMAIN" > CNAME; fi
+          git init -q -b pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Pages build ${GITHUB_SHA::7}"
+          git push -q --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" pages
