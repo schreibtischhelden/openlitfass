@@ -34,6 +34,8 @@ openlitfass (this repository)                   instance repository (e.g. weisse
   event sources
 - [GitHub Pages](docs/pages.md): publishing via GitHub Pages and DNS for a
   custom domain
+- [Roadmap and releases](docs/releases.md): GitHub Project, milestones,
+  versions and how to release
 
 ## Quick start (Docker)
 

@@ -348,8 +348,11 @@ instance instead of `example-instance`.
 
 ## Updating the core
 
-Instances pull the image `…/openlitfass:latest`. For reproducible runs, pin a
-commit tag instead (`…/openlitfass:sha-<short>`) and upgrade deliberately.
+Instances pull the image `…/openlitfass:latest`, which follows every commit on
+`main`. For reproducible runs, pin a release instead: `…/openlitfass:0.2`
+receives the patch releases of 0.2, `…/openlitfass:0.2.0` exactly one release
+(see [Roadmap and releases](releases.md#instances-and-versions)). The release
+notes on GitHub list what changed, including breaking changes.
 
 ## Limitations
 
