@@ -2,6 +2,7 @@ package mapping
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,23 +45,41 @@ func (r FieldRule) resolveString(item interface{}) string {
 	}
 	if r.Regex != "" && s != "" {
 		if re, err := regexp.Compile(r.Regex); err == nil {
-			if m := re.FindStringSubmatch(s); m != nil {
-				if idx := re.SubexpIndex("value"); idx >= 0 && idx < len(m) && m[idx] != "" {
-					s = m[idx]
-				} else if len(m) > 1 {
-					s = m[1]
-				} else {
-					s = m[0]
-				}
-			} else {
-				s = ""
-			}
+			s = RegexValue(re, s)
 		}
 	}
 	if s == "" {
 		s = r.Default
 	}
 	return s
+}
+
+// RegexValue applies re to s and returns, in this order:
+//   - the named group "value", if re has one;
+//   - all non-empty capture groups joined by a space - so alternatives
+//     work ("(\d+)\s*€|Eintritt (frei)" gives "27" or "frei") and parts
+//     from different places can be combined ("(\d+\.\d+\.\d+).*?(\d+) Uhr"
+//     on "{title} {content}" gives "21.11.26 20");
+//   - the whole match, if re has no groups;
+//   - "" if re doesn't match.
+func RegexValue(re *regexp.Regexp, s string) string {
+	m := re.FindStringSubmatch(s)
+	if m == nil {
+		return ""
+	}
+	if idx := re.SubexpIndex("value"); idx > 0 {
+		return m[idx]
+	}
+	if len(m) == 1 {
+		return m[0]
+	}
+	var parts []string
+	for _, g := range m[1:] {
+		if g = strings.TrimSpace(g); g != "" {
+			parts = append(parts, g)
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 func (r FieldRule) resolveTime(item interface{}) (time.Time, bool) {
@@ -192,9 +211,32 @@ type PriceRule struct {
 	// frontend) instead of the default "missing = kostenlos". For sources
 	// that omit the price when they don't know it, not when it's free.
 	UnknownIfMissing bool `json:"unknownIfMissing,omitempty"`
+	// AmountRegex, if set, pulls the amount out of the text at AmountPath
+	// (same rules as FieldRule.Regex), e.g. from a description:
+	// `(?i)eintritt\W{0,3}(frei)|(\d+(?:,\d+)?)\s*€`. A result that isn't
+	// a number ("frei") counts as 0 = free; no match counts as missing.
+	AmountRegex string `json:"amountRegex,omitempty"`
 }
 
 func (r PriceRule) resolve(item interface{}) model.Price {
+	if r.AmountRegex != "" && r.AmountPath != "" {
+		re, err := regexp.Compile(r.AmountRegex)
+		if err != nil {
+			return model.Price{Free: false, Amount: nil}
+		}
+		v := RegexValue(re, String(item, r.AmountPath))
+		if v == "" {
+			if r.UnknownIfMissing {
+				return model.Price{Free: false, Amount: nil}
+			}
+			return model.Price{Free: true, Amount: nil}
+		}
+		amount, _ := strconv.ParseFloat(strings.Replace(v, ",", ".", 1), 64)
+		if amount == 0 {
+			return model.Price{Free: true, Amount: nil}
+		}
+		return model.Price{Free: false, Amount: &amount}
+	}
 	if r.UnknownIfMissing && r.AmountPath != "" && String(item, r.AmountPath) == "" {
 		return model.Price{Free: false, Amount: nil}
 	}

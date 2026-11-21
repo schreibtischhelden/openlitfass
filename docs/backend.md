@@ -105,6 +105,25 @@ neben leeren Werten auf (fehlt die Straße, wird daraus "13086 Berlin", nicht
 ", 13086 Berlin"). Mit `{a|b}` wird der erste nicht-leere Wert genommen
 (z.B. `{beginn|einlass}`).
 
+`regex` wirkt auf den Wert aus `path` bzw. `template` und liefert: die
+Gruppe `value`, falls vorhanden; sonst **alle nicht-leeren Gruppen mit
+Leerzeichen verbunden**; ohne Gruppen den ganzen Treffer; ohne Treffer
+nichts (dann greift `default`). Damit funktionieren Alternativen
+(`(\d+)\s*€|Eintritt (frei)` → "27" oder "frei") und Teile aus
+verschiedenen Feldern lassen sich zusammensetzen – etwa Datum aus dem
+Titel, Uhrzeit aus dem Text:
+
+```jsonc
+"start": {
+  "template": "{title} | {encoded}",   // "21.11.26 jazz … | <h4>20 Uhr, Aula</h4>…"
+  "regex": "(?s)(\\d{1,2}\\.\\d{1,2}\\.\\d{2,4}).*?[|](?:.*?(\\d{1,2}(?::\\d{2})?)\\s*Uhr)?",
+  "format": "2.1.06 15:04|2.1.06 15|2.1.06"   // "21.11.26 20", ohne Uhrzeit ganztägig
+}
+```
+
+(`[|]` statt `\|`: spart eine Escape-Ebene im JSON.) Dieselbe Regel gilt für
+`regex` in `extract` von html-Quellen.
+
 **Text wird immer bereinigt:** Alle Textfelder aus `rss`/`json`-Quellen
 laufen durch `mapping.CleanText` — HTML-Tags raus, Entitäten dekodiert
 (`&#8211;` → `–`, `&#038;` → `&`), weiche Trennstriche und Nullbreite-Zeichen
@@ -147,7 +166,10 @@ sinnvolles Ergebnis braucht's mindestens `title`):
   0/fehlend = kostenlos) und/oder `freePath` (expliziter Boolean, hat
   Vorrang). Mit `"unknownIfMissing": true` bedeutet ein fehlender Betrag
   "Preis unbekannt" (keine Anzeige) statt "kostenlos" — für Quellen, die den
-  Preis weglassen, wenn sie ihn nicht kennen.
+  Preis weglassen, wenn sie ihn nicht kennen. `amountRegex` zieht den Betrag
+  aus freiem Text bei `amountPath` (Regeln wie `regex`), z.B.
+  `"(?i)eintritt\\W{0,3}(frei)|(\\d+(?:,\\d+)?)\\s*€"`; "frei" zählt als
+  kostenlos, kein Treffer als fehlend.
 
 `format` akzeptiert entweder einen Go-Referenz-Layout-String
 (`2006-01-02T15:04:05Z07:00`) oder die Aliase `RFC3339`, `RFC1123Z`
@@ -378,7 +400,7 @@ CSS-Selektor aus dem HTML gelesen. Drei Teile:
    | `attr` | Attribut statt Text, z.B. `"href"` (relative URLs werden aufgelöst) |
    | `html` | inneres HTML statt Text – für Beschreibungen, damit Absätze erhalten bleiben |
    | `all` / `skip` | alle Treffer verbinden (statt nur des ersten), die ersten `skip` überspringen |
-   | `regex` | Teil des Werts herausziehen (Gruppe `value`, sonst erste Gruppe) |
+   | `regex` | Teil des Werts herausziehen (Gruppe `value`, sonst alle nicht-leeren Gruppen) |
 
 3. `mapping` – wie bei `json`-Quellen; `path` verweist auf die Namen aus
    `extract`.

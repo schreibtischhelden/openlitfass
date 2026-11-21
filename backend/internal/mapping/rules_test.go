@@ -2,6 +2,7 @@ package mapping
 
 import (
 	"encoding/json"
+	"regexp"
 	"testing"
 	"time"
 )
@@ -146,5 +147,55 @@ func TestPriceDecimalComma(t *testing.T) {
 	}
 	if p := r.resolve(item(t, `{"p":"frei"}`)); !p.Free {
 		t.Errorf("a non-number like 'frei' should count as 0 = free, got %+v", p)
+	}
+}
+
+func TestRegexValue(t *testing.T) {
+	cases := []struct{ re, in, want string }{
+		{`Beginn (?P<value>\d{2}:\d{2})`, "Einlass 18:00, Beginn 19:00", "19:00"},
+		{`(\d+)\s*€|Eintritt (frei)`, "Eintritt frei", "frei"},
+		{`(\d+)\s*€|Eintritt (frei)`, "ab 27 €", "27"},
+		{`\d{2}:\d{2}`, "um 19:30", "19:30"},
+		{`(x)`, "nichts", ""},
+		// Parts from different places combined: date from the title, time
+		// from the text; the time is optional.
+		{`(?s)(\d{1,2}\.\d{1,2}\.\d{2,4}).*?\|(?:.*?(\d{1,2}(?::\d{2})?)\s*Uhr)?`, "21.11.26 jazz | <h4>20 Uhr, Aula</h4>", "21.11.26 20"},
+		{`(?s)(\d{1,2}\.\d{1,2}\.\d{2,4}).*?\|(?:.*?(\d{1,2}(?::\d{2})?)\s*Uhr)?`, "21.11.26 jazz | ohne Zeit", "21.11.26"},
+	}
+	for _, c := range cases {
+		if got := RegexValue(regexp.MustCompile(c.re), c.in); got != c.want {
+			t.Errorf("RegexValue(%q, %q) = %q, want %q", c.re, c.in, got, c.want)
+		}
+	}
+}
+
+func TestPriceAmountRegex(t *testing.T) {
+	r := PriceRule{AmountPath: "text", AmountRegex: `(?i)eintritt\W{0,3}(frei)|(\d+(?:,\d+)?)\s*€`, UnknownIfMissing: true}
+	cases := []struct {
+		text    string
+		free    bool
+		amount  float64
+		unknown bool
+	}{
+		{"<p>Eintritt frei</p>", true, 0, false},
+		{"Tickets 12,50 € an der Abendkasse", false, 12.5, false},
+		{"Eintritt 10-15 Euro", false, 0, true},
+	}
+	for _, c := range cases {
+		p := r.resolve(item(t, `{"text":"`+c.text+`"}`))
+		switch {
+		case c.unknown:
+			if p.Free || p.Amount != nil {
+				t.Errorf("%q: want unknown, got %+v", c.text, p)
+			}
+		case c.free:
+			if !p.Free {
+				t.Errorf("%q: want free, got %+v", c.text, p)
+			}
+		default:
+			if p.Amount == nil || *p.Amount != c.amount {
+				t.Errorf("%q: want %v, got %+v", c.text, c.amount, p)
+			}
+		}
 	}
 }

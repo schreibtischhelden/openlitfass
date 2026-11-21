@@ -178,25 +178,7 @@ func extractValue(item *html.Node, r compiledExtract, base *url.URL) string {
 	v := strings.Join(parts, sep)
 
 	if r.re != nil && v != "" {
-		m := r.re.FindStringSubmatch(v)
-		switch {
-		case m == nil:
-			v = ""
-		case r.re.SubexpIndex("value") > 0:
-			v = m[r.re.SubexpIndex("value")]
-		case len(m) > 1:
-			// First non-empty group, so alternatives work:
-			// "(\d+)\s*€|Eintritt (frei)" gives "27" or "frei".
-			v = ""
-			for _, g := range m[1:] {
-				if g != "" {
-					v = g
-					break
-				}
-			}
-		default:
-			v = m[0]
-		}
+		v = mapping.RegexValue(r.re, v)
 	}
 	return strings.TrimSpace(v)
 }
