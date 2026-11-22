@@ -1050,7 +1050,7 @@
   // die Liste oben.
   function scrollToNow() {
     const cards = [...el.groups.querySelectorAll(".event-card")];
-    const target = cards.find((c) => !c.classList.contains("event-card--ended"));
+    const target = cards.find((c) => c.dataset.time !== "ended");
     if (!target || target === cards[0]) { window.scrollTo({ top: 0 }); return; }
     measureSticky();
     const li = target.closest("li");
@@ -1197,12 +1197,16 @@
     const cancelled = ev.cancelled
       ? `<span class="cancelled-badge">${STR.cancelled}</span>`
       : "";
-    const ts = timeState(ev);
-    const tsBadge = ts === "running" && !ev.cancelled
+    // Abgesagt schlägt den Zeitstatus: keine "Läuft"-/"Beendet"-Färbung und
+    // kein Etikett. data-time bleibt trotzdem gesetzt, damit scrollToNow
+    // vergangene (auch abgesagte) Termine überspringt.
+    const time0 = timeState(ev);
+    const ts = ev.cancelled ? "" : time0;
+    const tsBadge = ts === "running"
       ? `<span class="running-badge">${STR.running}</span>`
       : ts === "ended" ? `<span class="sr-only">${STR.ended}: </span>` : "";
     const isSaved = saved.has(ev.id);
-    return `<li class="event-item"><a class="event-card${ev.cancelled ? " event-card--cancelled" : ""}${ts ? ` event-card--${ts}` : ""}" href="#${encodeURIComponent(ev.id)}">` +
+    return `<li class="event-item"><a class="event-card${ev.cancelled ? " event-card--cancelled" : ""}${ts ? ` event-card--${ts}` : ""}"${time0 ? ` data-time="${time0}"` : ""} href="#${encodeURIComponent(ev.id)}">` +
       `<div class="event-card__time">${time}</div>` +
       `<div class="event-card__body">${tsBadge}${cancelled}${categoryLabelHtml(ev.category)}` +
       `<h3 class="event-card__title">${escapeHtml(ev.title)}</h3>` +
