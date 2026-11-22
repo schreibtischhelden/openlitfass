@@ -1044,13 +1044,16 @@
     root.setProperty("--tb", `${el.toolbar.hidden ? 0 : el.toolbar.offsetHeight}px`);
   }
 
-  // Scrollt zum ersten Termin, der noch nicht vorbei ist: Beendete Termine
-  // von heute liegen dann oberhalb (hochscrollen zeigt sie), laufende und
-  // kommende sind sofort im Blick. Gibt es heute nichts Beendetes, bleibt
-  // die Liste oben.
+  // Scrollt zur aktuellen Uhrzeit: zum ersten Termin, der jetzt oder später
+  // beginnt. Alles, was heute schon begonnen hat (auch laufende und
+  // ganztägige Termine, data-start -1), liegt oberhalb. Beginnt heute nichts
+  // mehr, ist es der erste Termin eines späteren Tages. Steht davor nichts,
+  // bleibt die Liste oben.
   function scrollToNow() {
     const cards = [...el.groups.querySelectorAll(".event-card")];
-    const target = cards.find((c) => c.dataset.time !== "ended");
+    const now = instanceNow();
+    const cur = now.getHours() * 60 + now.getMinutes();
+    const target = cards.find((c) => !("start" in c.dataset) || Number(c.dataset.start) >= cur);
     if (!target || target === cards[0]) { window.scrollTo({ top: 0 }); return; }
     measureSticky();
     const li = target.closest("li");
@@ -1198,15 +1201,14 @@
       ? `<span class="cancelled-badge">${STR.cancelled}</span>`
       : "";
     // Abgesagt schlägt den Zeitstatus: keine "Läuft"-/"Beendet"-Färbung und
-    // kein Etikett. data-time bleibt trotzdem gesetzt, damit scrollToNow
-    // vergangene (auch abgesagte) Termine überspringt.
-    const time0 = timeState(ev);
-    const ts = ev.cancelled ? "" : time0;
+    // kein Etikett.
+    const ts = ev.cancelled ? "" : timeState(ev);
     const tsBadge = ts === "running"
       ? `<span class="running-badge">${STR.running}</span>`
       : ts === "ended" ? `<span class="sr-only">${STR.ended}: </span>` : "";
     const isSaved = saved.has(ev.id);
-    return `<li class="event-item"><a class="event-card${ev.cancelled ? " event-card--cancelled" : ""}${ts ? ` event-card--${ts}` : ""}"${time0 ? ` data-time="${time0}"` : ""} href="#${encodeURIComponent(ev.id)}">` +
+    const start = ev.date === todayISO() ? ` data-start="${minutes(ev.startTime) ?? -1}"` : "";
+    return `<li class="event-item"><a class="event-card${ev.cancelled ? " event-card--cancelled" : ""}${ts ? ` event-card--${ts}` : ""}"${start} href="#${encodeURIComponent(ev.id)}">` +
       `<div class="event-card__time">${time}</div>` +
       `<div class="event-card__body">${tsBadge}${cancelled}${categoryLabelHtml(ev.category)}` +
       `<h3 class="event-card__title">${escapeHtml(ev.title)}</h3>` +
