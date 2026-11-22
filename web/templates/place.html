@@ -8,9 +8,11 @@
         {{if .OpeningHours}}<li><strong>Öffnungszeiten:</strong> {{.OpeningHours}}</li>{{end}}
         {{if .Season}}<li><strong>Saison:</strong> {{.Season}}</li>{{end}}
       </ul>
+      {{if or .Lat .Lon}}<div class="map-snippet" data-lat="{{.Lat}}" data-lon="{{.Lon}}" data-label="{{.Name}}" hidden></div>{{end}}
       {{if .Description}}<p class="detail__desc">{{.Description}}</p>{{end}}
       <div class="btn-row">
         <a class="btn" href="../#ort/{{.ID}}">Im Kalender ansehen</a>
+        <button type="button" class="btn" id="staticShare" hidden>Teilen</button>
         {{if .URL}}<a class="btn btn--primary" href="{{.URL}}" target="_blank" rel="noopener">Website{{template "ext"}}</a>{{end}}
       </div>
       {{if .Events}}
@@ -26,4 +28,20 @@
       {{if .More}}<p class="static-more">… und {{.More}} weitere Termine</p>{{end}}
       {{end}}
     </article>
+    <!-- Teilen wie auf den Terminseiten (templates/event.html). -->
+    <script>(function () {
+      var b = document.getElementById("staticShare");
+      if (!b || !(navigator.share || navigator.clipboard)) return;
+      var c = document.querySelector("link[rel=canonical]");
+      var url = c ? c.href : location.href;
+      b.hidden = false;
+      b.addEventListener("click", function () {
+        if (navigator.share) {
+          navigator.share({ title: document.title, url: url }).catch(function () {});
+        } else {
+          navigator.clipboard.writeText(url).then(function () { b.textContent = "Link kopiert"; });
+        }
+      });
+    })();</script>
+    {{if or .Lat .Lon}}<script src="{{$.Root}}js/map.js" defer></script>{{end}}
 {{end}}{{template "bottom" .}}

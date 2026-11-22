@@ -170,3 +170,25 @@ func placeJSONLD(p staticPlace, canonical string) map[string]any {
 	}
 	return ld
 }
+
+// withPlaceGeo gives events without coordinates those of the first place
+// they match, so their static page can show the map snippet too (the app
+// does the same with placeForEvent).
+func withPlaceGeo(events []staticEvent, pl *places.File) {
+	if pl == nil {
+		return
+	}
+	for i := range events {
+		e := &events[i]
+		if e.Lat != nil && e.Lon != nil {
+			continue
+		}
+		for _, p := range pl.Places {
+			if (p.Lat != 0 || p.Lon != 0) && p.Matches(e.Event) {
+				lat, lon := p.Lat, p.Lon
+				e.Lat, e.Lon = &lat, &lon
+				break
+			}
+		}
+	}
+}

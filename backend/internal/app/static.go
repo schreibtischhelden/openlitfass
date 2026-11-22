@@ -56,6 +56,9 @@ type staticEvent struct {
 	TimeText  string // "19:00 – 21:00 Uhr", "ganztägig"
 	PriceText string
 	MapURL    string
+	// Lat/Lon place the map snippet: the event's own coordinates, else
+	// those of the matched place (withPlaceGeo). Both nil = no map.
+	Lat, Lon *float64
 	Summary   string // short plain text for meta description / list
 }
 
@@ -243,6 +246,9 @@ func newStaticEvent(e model.Event) staticEvent {
 	} else if e.Price.Amount != nil {
 		se.PriceText = strings.Replace(strconv.FormatFloat(*e.Price.Amount, 'f', 2, 64), ".", ",", 1) + " €"
 		se.PriceText = strings.Replace(se.PriceText, ",00 €", " €", 1)
+	}
+	if e.Location.Lat != nil && e.Location.Lng != nil {
+		se.Lat, se.Lon = e.Location.Lat, e.Location.Lng
 	}
 	if q := firstNonEmpty(e.Location.Address, e.Location.Name); q != "" {
 		se.MapURL = "https://www.openstreetmap.org/search?query=" + urlQueryEscape(q)
