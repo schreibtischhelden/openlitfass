@@ -120,6 +120,12 @@ The default user interface (`web/`) provides:
   Addresses in the description become links. External links (event, map,
   sources, addresses in descriptions) open in a new tab and carry the same
   icon as "Zur Veranstaltung" (to the event).
+- **Map snippet** on event and place details when coordinates are known (the
+  event's own `lat`/`lng`, else those of its place): a "Karte anzeigen"
+  (show map) button that loads OpenStreetMap tiles only on click, as plain
+  images without cookies (`crossorigin="anonymous"`), no iframe and no map
+  library. The visitor's IP address reaches tile.openstreetmap.org, so
+  mention it in the privacy policy. Static pages show the same button.
 - **Saved events** ("Gemerkt"): every card has a star (grey = not saved,
   filled = saved) that saves the event directly from the list without opening
   the details. Saved events are stored only locally in the browser; no
@@ -172,8 +178,9 @@ without a date. Format:
   the file and writes `data/places.json`.
 - The **Orte** view lists the places by type with type chips. Each place
   page shows the description, address with a map link (OpenStreetMap, at
-  `lat`/`lon` if given), opening hours, season, website and the
-  **upcoming events held there**.
+  `lat`/`lon` if given), the map snippet (with `lat`/`lon`), opening hours,
+  season, website, a "Teilen" (share) button and the **upcoming events held
+  there**.
 - An event belongs to a place when one of the `match` terms (default: the
   name) occurs in the event's location name or address, ignoring case and
   accents (ß = ss). Choose terms that are specific enough: `"Antonplatz"`

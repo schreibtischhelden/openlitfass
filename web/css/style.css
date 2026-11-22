@@ -872,3 +872,32 @@ button { font: inherit; }
 .place-none { color: var(--color-text-muted); }
 .is-wide .view.places { max-width: 1960px; }
 .is-wide #viewPlace { max-width: 760px; margin-left: auto; margin-right: auto; }
+
+/* ---------- Kartenausschnitt (js/map.js) ----------
+   Erst ein Knopf, nach dem Klick 5 x 3 OSM-Kacheln, deren Mitte der
+   Punkt ist; der Rahmen schneidet zu. */
+.map-snippet { margin: 0 0 var(--space-4); max-width: 720px; }
+.map-snippet__note { margin: var(--space-1) 0 0; font-size: 0.8rem; color: var(--color-text-muted); }
+.map-snippet__map {
+  position: relative;
+  height: 220px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-s);
+  background: var(--color-surface);
+}
+.map-snippet__tiles { position: absolute; left: 50%; top: 50%; }
+.map-snippet__tiles img { position: absolute; width: 256px; height: 256px; max-width: none; user-select: none; }
+.map-snippet__pin {
+  position: absolute; left: 50%; top: 50%;
+  width: 34px; height: 34px;
+  transform: translate(-50%, -92%);
+  fill: var(--accent-primary, var(--color-primary)); stroke: #fff; stroke-width: 1.5;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+}
+.map-snippet__pin circle { fill: #fff; stroke: none; }
+.map-snippet__credit { margin: 2px 0 0; font-size: 0.75rem; color: var(--color-text-muted); text-align: right; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .map-snippet__tiles img { filter: brightness(0.85) contrast(0.95); }
+}
+[data-theme="dark"] .map-snippet__tiles img { filter: brightness(0.85) contrast(0.95); }

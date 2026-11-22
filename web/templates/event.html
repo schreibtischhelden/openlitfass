@@ -11,6 +11,7 @@
         {{if .PriceText}}<li><strong>Eintritt:</strong> {{.PriceText}}</li>{{end}}
         {{if .Organizer}}<li><strong>Veranstalter:</strong> {{.Organizer}}</li>{{end}}
       </ul>
+      {{if and .Lat .Lon}}<div class="map-snippet" data-lat="{{.Lat}}" data-lon="{{.Lon}}" data-label="{{or .Location.Name .Location.Address}}" hidden></div>{{end}}
       {{if .Description}}<p class="detail__desc">{{.Description}}</p>{{end}}
       <div class="btn-row">
         <a class="btn" href="../#{{.ID}}">Im Kalender ansehen</a>
@@ -34,4 +35,5 @@
         }
       });
     })();</script>
+    {{if and .Lat .Lon}}<script src="{{$.Root}}js/map.js" defer></script>{{end}}
 {{end}}{{template "bottom" .}}

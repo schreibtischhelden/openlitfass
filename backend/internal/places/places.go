@@ -11,7 +11,7 @@
 //	    "name": "Jüdischer Friedhof Weißensee",
 //	    "type": "Sehenswürdigkeit",            // one of types[].name
 //	    "description": "…", "address": "…",
-//	    "lat": 52.546, "lon": 13.456,         // optional, for the map link
+//	    "lat": 52.546, "lon": 13.456,         // optional, for the map link and snippet
 //	    "url": "https://…",                    // optional, own website
 //	    "openingHours": "…", "season": "…",    // optional, free text
 //	    "match": ["Jüdischer Friedhof"]        // optional, see Matches

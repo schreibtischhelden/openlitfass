@@ -215,6 +215,19 @@ func TestBuildSitePlaces(t *testing.T) {
 	if strings.Contains(page, "Woanders") {
 		t.Error("place page lists an event held elsewhere")
 	}
+	// Map snippet (loaded on request by js/map.js) and share button.
+	for _, want := range []string{`class="map-snippet" data-lat="52.55" data-lon="13.45"`, `js/map.js`, `id="staticShare"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("place page lacks %q", want)
+		}
+	}
+	// Events take the matched place's coordinates; others get no map.
+	if ev := readFile(t, filepath.Join(out, StaticDir, "film-1.html")); !strings.Contains(ev, `data-lat="52.55" data-lon="13.45"`) {
+		t.Error("event at a known place lacks the map snippet")
+	}
+	if ev := readFile(t, filepath.Join(out, StaticDir, "anders-1.html")); strings.Contains(ev, "map-snippet") || strings.Contains(ev, "map.js") {
+		t.Error("event without coordinates has a map snippet")
+	}
 	if list := readFile(t, filepath.Join(out, PlacesDir, "index.html")); !strings.Contains(list, `href="hof.html"`) {
 		t.Error("places list lacks the place")
 	}
