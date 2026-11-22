@@ -59,7 +59,7 @@ type staticEvent struct {
 	// Lat/Lon place the map snippet: the event's own coordinates, else
 	// those of the matched place (withPlaceGeo). Both nil = no map.
 	Lat, Lon *float64
-	Summary   string // short plain text for meta description / list
+	Summary  string // short plain text for meta description / list
 }
 
 type staticDay struct {
