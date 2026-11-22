@@ -68,30 +68,49 @@ owner; instance-specific work is tracked in the instance repository.
 | `documentation` | Documentation |
 | `skip-changelog` | left out |
 
-The release notes list the closed issues of the milestone (with their labels)
-and, appended by GitHub, the merged pull requests sorted into the sections
-above (`.github/release.yml`).
+## Release notes
+
+The *Release* workflow assembles the notes from four parts:
+
+1. **Highlights**: the message of the annotated tag, without its first line.
+   A few hand-written bullet points on what matters to users and instance
+   operators.
+2. **Roadmap items**: the closed issues of the milestone, with their labels.
+3. **Pull requests**: GitHub's generated notes, sorted into the label
+   sections above (`.github/release.yml`), with a full-changelog link.
+4. **Commits**: every commit since the previous tag, collapsed.
 
 ## Releasing a version
 
-1. Check the milestone: all issues closed, or move the remaining ones to the
-   next milestone.
+1. Check the milestone: closed issues belong to it (select them in the issue
+   list → *Milestone*); move open ones to the next milestone.
 2. Make sure `main` is green (*CI* workflow).
-3. Tag and push:
+3. Write the highlights into a file, first line the title, then a blank line
+   and the bullet points (no lines starting with `#`, git drops them):
+
+   ```text
+   openLitfass v0.2.0
+
+   - Places show their opening hours.
+   - Fixed: …
+   ```
+
+4. Tag and push:
 
    ```sh
-   git tag -a v0.2.0 -m "openLitfass v0.2.0"
+   git tag -a v0.2.0 -F notes.txt
    git push origin v0.2.0
    ```
 
-4. The *Release* workflow (`.github/workflows/release.yml`) creates the GitHub
-   release with notes from the milestone and closes the milestone; the *Image*
-   workflow publishes `ghcr.io/schreibtischhelden/openlitfass:0.2.0` and
-   `:0.2`. The version is also visible in the metric `openlitfass_info`.
-5. Create the next milestone if it does not exist yet.
+5. The *Release* workflow (`.github/workflows/release.yml`) creates the GitHub
+   release and closes the milestone; the *Image* workflow publishes
+   `ghcr.io/schreibtischhelden/openlitfass:0.2.0` and `:0.2`. The version is
+   also visible in the metric `openlitfass_info`.
+6. Create the next milestone if it does not exist yet.
 
 If a tag has no matching milestone, the release is still created, with a
-warning and without roadmap items.
+warning and without roadmap items. A lightweight tag (`git tag v0.2.0`
+without `-a`) gives a release without highlights.
 
 ## Instances and versions
 

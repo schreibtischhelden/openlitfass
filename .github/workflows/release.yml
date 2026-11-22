@@ -1,11 +1,15 @@
 name: Release
 
 # Turns a version tag (v1.2.3) into a GitHub release and ties it to the
-# roadmap (docs/releases.md):
-#   - the release notes list the closed issues of the milestone named like
-#     the tag, followed by GitHub's generated notes (merged PRs, compare link);
-#   - the milestone is closed (not for pre-releases such as v1.2.0-rc.1).
-# The container image for the tag is built by image.yml.
+# roadmap (docs/releases.md). The release notes are put together from:
+#   1. Highlights: the message of the annotated tag (hand-written bullets,
+#      `git tag -a v1.2.3 -F notes.md`);
+#   2. Roadmap items: the closed issues of the milestone named like the tag;
+#   3. Pull requests: GitHub's generated notes, grouped by label
+#      (.github/release.yml), with the full-changelog link;
+#   4. All commits since the previous tag, collapsed.
+# Afterwards the milestone is closed (not for pre-releases such as
+# v1.2.0-rc.1). The container image for the tag is built by image.yml.
 on:
   push:
     tags: ['v*']
@@ -30,6 +34,16 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - uses: actions/checkout@v7
+        if: steps.exists.outputs.skip != 'true'
+        with:
+          fetch-depth: 0
+
+      # checkout leaves the tag without its annotation; fetch the tag object.
+      - name: Fetch tag annotation
+        if: steps.exists.outputs.skip != 'true'
+        run: git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+
       - name: Find milestone
         if: steps.exists.outputs.skip != 'true'
         id: milestone
@@ -46,7 +60,23 @@ jobs:
         env:
           MILESTONE: ${{ steps.milestone.outputs.number }}
         run: |
+          # Previous release tag reachable from this one (empty for the first).
+          prev=$(git describe --tags --abbrev=0 --match 'v*' "$TAG^" 2>/dev/null || true)
+
           {
+            if [ "$(git cat-file -t "$TAG")" = tag ]; then
+              # Tag message without its subject line ("openLitfass v1.2.3").
+              highlights=$(git tag -l --format='%(contents:body)' "$TAG" | sed '/-----BEGIN/,$d')
+              if [ -n "$(echo "$highlights" | tr -d '[:space:]')" ]; then
+                echo "## Highlights"
+                echo
+                echo "$highlights"
+                echo
+              fi
+            else
+              echo "::warning::$TAG is a lightweight tag - no highlights." >&2
+            fi
+
             if [ -n "$MILESTONE" ]; then
               echo "## Roadmap items"
               echo
@@ -57,10 +87,22 @@ jobs:
               echo "Milestone: https://github.com/$GH_REPO/milestone/$MILESTONE?closed=1"
               echo
             fi
+
             echo "Container image: \`ghcr.io/$GH_REPO:${TAG#v}\`"
             echo
           } > notes.md
-          cat notes.md
+
+          {
+            range="$TAG"; label="all commits"
+            if [ -n "$prev" ]; then range="$prev..$TAG"; label="commits since $prev"; fi
+            count=$(git rev-list --count --no-merges "$range")
+            echo
+            echo "<details><summary>$count $label</summary>"
+            echo
+            git log --no-merges --format='- %s (%h)' "$range"
+            echo
+            echo "</details>"
+          } > commits.md
 
           pre=""
           case "$TAG" in *-*) pre="--prerelease" ;; esac
@@ -68,6 +110,12 @@ jobs:
           # --generate-notes appends merged PRs and the full-changelog link.
           gh release create "$TAG" --verify-tag --title "openLitfass $TAG" \
             --notes-file notes.md --generate-notes $pre
+
+          # Append the commit list after GitHub's generated part.
+          gh release view "$TAG" --json body --jq .body > body.md
+          cat commits.md >> body.md
+          gh release edit "$TAG" --notes-file body.md
+          cat body.md
 
       - name: Close milestone
         if: steps.exists.outputs.skip != 'true' && steps.milestone.outputs.number != '' && !contains(github.ref_name, '-')
