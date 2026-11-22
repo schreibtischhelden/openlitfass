@@ -1237,6 +1237,14 @@
     if (p.lat || p.lon) return `https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lon}#map=17/${p.lat}/${p.lon}`;
     return `https://www.openstreetmap.org/search?query=${encodeURIComponent(p.address || p.name)}`;
   }
+  // Platzhalter für den Kartenausschnitt (js/map.js lädt erst auf Klick).
+  function mapSnippetHtml(lat, lon, label) {
+    if (!isFinite(lat) || !isFinite(lon) || (!lat && !lon)) return "";
+    return `<div class="map-snippet" data-lat="${lat}" data-lon="${lon}" data-label="${escapeHtml(label || "")}" hidden></div>`;
+  }
+  function mountMaps(root) {
+    if (window.openLitfassMap) window.openLitfassMap.mountAll(root);
+  }
   function placeTypeLabel(type) {
     return `<span class="category-label">${svg(state.placeTypeIcons.get(type) || ICON.pin)}${escapeHtml(type)}</span>`;
   }
@@ -1285,8 +1293,12 @@
       placeTypeLabel(p.type) +
       `<h1 class="detail__title">${escapeHtml(p.name)}</h1>` +
       `<ul class="facts">${facts.join("")}</ul>` +
+      mapSnippetHtml(Number(p.lat), Number(p.lon), p.name) +
       (p.description ? `<p class="detail__desc">${linkify(p.description)}</p>` : "") +
-      (p.url ? `<div class="btn-row">${extLink(p.url, STR.website, "btn btn--primary")}</div>` : "") +
+      `<div class="btn-row">` +
+      `<button type="button" class="btn" id="placeShare">${svg(ICON.share)} ${STR.share}</button>` +
+      (p.url ? extLink(p.url, STR.website, "btn btn--primary") : "") +
+      `</div>` +
       `<h2 class="place-events-heading">${STR.upcomingHere}${events.length ? ` (${events.length})` : ""}</h2>` +
       (shown.length
         ? `<ul class="event-list place-events">${shown.map(cardHtml).join("")}</ul>` +
@@ -1296,6 +1308,8 @@
       if (history.length > 1 && state.cameFromPlaces) history.back();
       else location.hash = "orte";
     });
+    $("placeShare").addEventListener("click", () => sharePlace(p));
+    mountMaps(el.viewPlace);
     // Termin aus der Ortsseite öffnen: "Zurück" führt wieder hierher.
     el.viewPlace.querySelector(".place-events") && el.viewPlace.querySelector(".place-events").addEventListener("click", (e) => {
       if (e.target.closest(".event-card")) state.cameFromList = true;
@@ -1307,6 +1321,7 @@
 
   function renderDetail(ev) {
     const facts = [];
+    let map = "";
     facts.push(fact(ICON.calendar, escapeHtml(longDate(ev.date))));
     facts.push(fact(ICON.clock, escapeHtml(timeText(ev))));
     if (ev.location && (ev.location.name || ev.location.address)) {
@@ -1318,6 +1333,10 @@
         `<small>${ev.location.name && ev.location.address ? escapeHtml(ev.location.address) + " · " : ""}` +
         `${extLink(mapUrl, STR.openMap)}` +
         `${place ? ` · <a href="#ort/${encodeURIComponent(place.id)}">${STR.aboutPlace}</a>` : ""}</small>`));
+      // Koordinaten aus der Quelle, sonst die des erkannten Orts.
+      const label = ev.location.name || ev.location.address;
+      if (ev.location.lat != null && ev.location.lng != null) map = mapSnippetHtml(Number(ev.location.lat), Number(ev.location.lng), label);
+      else if (place) map = mapSnippetHtml(Number(place.lat), Number(place.lon), label);
     }
     const priceBits = [priceText(ev)];
     if (ev.ticketRequired) priceBits.push(STR.ticket);
@@ -1356,7 +1375,8 @@
       categoryLabelHtml(ev.category) +
       `<h1 class="detail__title${ev.cancelled ? " is-cancelled" : ""}">${escapeHtml(ev.title)}</h1>` +
       `<ul class="facts">${facts.join("")}</ul>` +
-      (ev.description ? `<p class="detail__desc">${linkify(ev.description)}</p>` : "") +
+      map +
+      (ev.description ?`<p class="detail__desc">${linkify(ev.description)}</p>` : "") +
       `<div class="btn-row">` +
       `<button type="button" class="btn" id="detailIcs">${svg(ICON.calendarPlus)} ${STR.addToCalendar}</button>` +
       `<button type="button" class="btn" id="detailShare">${svg(ICON.share)} ${STR.share}</button>` +
@@ -1374,6 +1394,7 @@
     });
     $("detailIcs").addEventListener("click", () => downloadIcs(ev));
     $("detailShare").addEventListener("click", () => shareEvent(ev));
+    mountMaps(el.viewDetail);
     el.main.focus({ preventScroll: true });
   }
 
@@ -1395,10 +1416,16 @@
   }
 
   function shareEvent(ev) {
-    const url = eventLink(ev);
     const text = `${ev.cancelled ? STR.cancelled + ": " : ""}${ev.title} · ${dayHeading(ev.date)}${ev.startTime ? ", " + ev.startTime : ""}`;
+    shareLink(ev.title, text, eventLink(ev));
+  }
+  function sharePlace(p) {
+    const url = location.href.split("#")[0] + "#ort/" + encodeURIComponent(p.id);
+    shareLink(p.name, [p.type, p.address].filter(Boolean).join(" · "), url);
+  }
+  function shareLink(title, text, url) {
     if (navigator.share) {
-      navigator.share({ title: ev.title, text, url }).catch(() => {});
+      navigator.share({ title, text, url }).catch(() => {});
       return;
     }
     if (navigator.clipboard) {
