@@ -1,5 +1,5 @@
 module openlitfass/backend
 
-go 1.22
+go 1.27
 
-require golang.org/x/net v0.29.0
+require golang.org/x/net v0.63.0

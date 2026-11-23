@@ -10,7 +10,7 @@
 # The build stage always runs on the build machine's own architecture and
 # cross-compiles for the target (Go needs no emulation for that) - much
 # faster than compiling under QEMU for arm64.
-FROM --platform=$BUILDPLATFORM golang:1.22-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 ARG TARGETOS=linux
 ARG TARGETARCH
 ARG VERSION=dev
