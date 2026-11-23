@@ -12,7 +12,7 @@ func TestCleanText(t *testing.T) {
 		{"Plain title", "Plain title"},
 		{"Bike the Line &#8211; 80 Jahre", "Bike the Line – 80 Jahre"},
 		{"Lena Tietgen, Elke Cremer &#038; Ingeborg Robles", "Lena Tietgen, Elke Cremer & Ingeborg Robles"},
-		{"Cali­ga­ri­platz 1", "Caligariplatz 1"},
+		{"Cali\u00adga\u00adri\u00adplatz 1", "Caligariplatz 1"},
 		{"  <b>Fett</b>   und\n<i>kursiv</i> ", "Fett und kursiv"},
 		{"Harald Naegeli  – Der Sprayer", "Harald Naegeli – Der Sprayer"},
 		{"A B", "A B"},

@@ -98,7 +98,7 @@ func TestStartGermanMonthsAndDateOnly(t *testing.T) {
 		{`{"t":"e","d":"14","m":"Januar","y":"2027","s":"16:00","e":"17:30"}`, "2027-01-14", "16:00", "17:30"},
 	}
 	for _, tt := range tests {
-		ev := BuildEvent(item(t, tt.in), m, "s", time.Now())
+		ev := BuildEvent(item(t, tt.in), &m, "s", time.Now())
 		if ev.Date != tt.date || ev.StartTime != tt.start || ev.EndTime != tt.end {
 			t.Errorf("%s -> %s %q %q, want %s %q %q", tt.in, ev.Date, ev.StartTime, ev.EndTime, tt.date, tt.start, tt.end)
 		}

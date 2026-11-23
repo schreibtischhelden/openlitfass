@@ -89,7 +89,7 @@ func (s *RSSSource) Fetch(ctx context.Context) ([]model.Event, error) {
 			}
 			item[key] = f.Value
 		}
-		events = append(events, mapping.BuildEvent(item, m, s.cfg.Name, now))
+		events = append(events, mapping.BuildEvent(item, &m, s.cfg.Name, now))
 	}
 	return events, nil
 }

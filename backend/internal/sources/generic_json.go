@@ -72,7 +72,7 @@ func (s *JSONSource) Fetch(ctx context.Context) ([]model.Event, error) {
 
 		beyond := len(list) > 0
 		for _, item := range list {
-			ev := mapping.BuildEvent(item, m, s.cfg.Name, now)
+			ev := mapping.BuildEvent(item, &m, s.cfg.Name, now)
 			events = append(events, ev)
 			if maxDate == "" || ev.Date == "" || ev.Date <= maxDate {
 				beyond = false

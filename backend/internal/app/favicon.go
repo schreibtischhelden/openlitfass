@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
 	"regexp"
@@ -32,8 +33,8 @@ func makeFavicon(logo template.HTML, themeColor string) ([]byte, error) {
 	s := string(logo)
 	open := svgOpenTag.FindStringIndex(s)
 	end := strings.LastIndex(s, "</svg>")
-	if open == nil || end < open[1] {
-		return nil, fmt.Errorf("logo is not an <svg> element")
+	if len(open) != 2 || end < open[1] {
+		return nil, errors.New("logo is not an <svg> element")
 	}
 	viewBox := "0 0 24 24"
 	if m := regexp.MustCompile(`viewBox="([^"]+)"`).FindStringSubmatch(s[open[0]:open[1]]); m != nil {

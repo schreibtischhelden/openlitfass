@@ -209,7 +209,7 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
+		_ = out.Close() // the copy error is the one to report
 		return err
 	}
 	return out.Close()
@@ -228,7 +228,8 @@ func readLogo(webDir string, inst instance.Instance) (template.HTML, error) {
 	if err != nil {
 		return "", fmt.Errorf("read logo: %w", err)
 	}
-	return template.HTML(logo), nil
+	// The logo is the instance's own SVG from its repository, inlined on purpose.
+	return template.HTML(logo), nil //nolint:gosec // trusted instance content
 }
 
 func renderIndex(webDir string, inst instance.Instance, logo template.HTML, start *startDay, opts SiteOptions, dst string) error {
@@ -242,7 +243,7 @@ func renderIndex(webDir string, inst instance.Instance, logo template.HTML, star
 	}
 	if err := tmpl.Execute(f, page{Config: inst.Config, Logo: logo, SiteURL: strings.TrimRight(inst.Config.BaseURL, "/"), StaticDir: StaticDir, StaticPages: opts.StaticPages, Start: start,
 		TouchIcon: fileExists(filepath.Join(filepath.Dir(dst), "icon-192.png"))}); err != nil {
-		f.Close()
+		_ = f.Close() // the template error is the one to report
 		return err
 	}
 	return f.Close()
@@ -307,7 +308,7 @@ func stampServiceWorker(path string) error {
 		return err
 	}
 	id := time.Now().UTC().Format("20060102T150405")
-	return os.WriteFile(path, []byte(strings.ReplaceAll(string(data), "__BUILD_ID__", id)), 0o644)
+	return os.WriteFile(path, []byte(strings.ReplaceAll(string(data), "__BUILD_ID__", id)), 0o644) //nolint:gosec // path is sw.js inside the build directory created by BuildSite
 }
 
 func fileExists(path string) bool {
