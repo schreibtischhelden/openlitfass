@@ -54,4 +54,8 @@ EXPOSE 8080
 ENV OL_STATIC_PAGES=false OL_SITEMAP_GENERATOR=false
 HEALTHCHECK --interval=1m --timeout=5s --start-period=30s \
   CMD wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1
+# Unprivileged by default, so a container escape does not get root. The
+# mounted instance directory must be writable by this user, or the container
+# is started with --user (CI workflows pass the runner's own user).
+USER 65532:65532
 CMD ["serve", "/instance"]

@@ -287,6 +287,26 @@ The image's default command is `serve /instance`. It:
 All environment variables start with `OL_` (openLitfass). Optional features
 are disabled by default.
 
+### File permissions
+
+The image runs as the unprivileged user `65532:65532`, not as root. `serve`
+writes to the mounted instance directory (`data/`, `sources/`, `inbox/`,
+`.openlitfass-serve/`), so that user needs write access. Either start the
+container as the owner of the directory:
+
+```sh
+docker run -d … --user "$(id -u):$(id -g)" -v /path/to/weissens.ee:/instance ghcr.io/schreibtischhelden/openlitfass
+```
+
+or give the directory to the image's user once:
+
+```sh
+sudo chown -R 65532:65532 /path/to/weissens.ee
+```
+
+The `update-events.yml` workflows already pass `--user`. On Docker Desktop
+(Windows, macOS) mounted directories are writable either way.
+
 ### Metrics (Prometheus)
 
 `/metrics` provides metrics in the Prometheus text format (validated with

@@ -34,10 +34,11 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.exists.outputs.skip != 'true'
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       # checkout leaves the tag without its annotation; fetch the tag object.
       - name: Fetch tag annotation
@@ -80,6 +81,7 @@ jobs:
             if [ -n "$MILESTONE" ]; then
               echo "## Roadmap items"
               echo
+              # shellcheck disable=SC2016 # jq expression, not shell
               gh issue list --milestone "$TAG" --state closed --limit 500 \
                 --json number,title,labels \
                 --jq '.[] | "- \(.title) (#\(.number))" + (if (.labels | length) > 0 then " `" + ([.labels[].name] | join("`, `")) + "`" else "" end)'

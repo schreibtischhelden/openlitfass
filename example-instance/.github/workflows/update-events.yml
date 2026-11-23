@@ -38,7 +38,8 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      # Keeps the token in .git/config on purpose: the commit step pushes.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 # zizmor: ignore[artipacked]
 
       - name: Fetch events
         run: docker run --rm -v "$PWD:/instance" -w /instance --user "$(id -u):$(id -g)" "$IMAGE" fetch .

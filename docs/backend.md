@@ -821,12 +821,21 @@ scripts/check.sh lint         # golangci-lint, configured in .golangci.yml
 scripts/check.sh test         # go test -race
 scripts/check.sh smoke        # build-site against example-instance/
 scripts/check.sh vuln         # govulncheck
+
+scripts/check.sh workflows    # actionlint and zizmor on all workflows
+scripts/check.sh image        # build the image, Trivy scan of it and of the Containerfile
 ```
 
-The Go image follows the `go` line in `backend/go.mod`; the golangci-lint
-and govulncheck versions are pinned at the top of the script. Named Docker
-volumes (`ol-gocache`, `ol-gomod`, `ol-lintcache`) keep builds and modules
-between runs.
+`workflows` and `image` are not part of the default run; they belong to
+`security.yml` and `image.yml`. `image` fails on fixable `CRITICAL` or `HIGH`
+vulnerabilities and on serious Containerfile misconfigurations. zizmor runs
+its online audits too when `GH_TOKEN` is set.
+
+The Go image follows the `go` line in `backend/go.mod`; all other tool
+versions are pinned at the top of the script and are updated by hand
+(Dependabot does not see them). Named Docker volumes (`ol-gocache`,
+`ol-gomod`, `ol-lintcache`, `ol-trivycache`) keep builds, modules and the
+vulnerability database between runs.
 
 `.golangci.yml` enables, besides the standard linters, `gosec`, `bodyclose`,
 `noctx`, `errorlint`, `revive`, `unconvert`, `gocritic` (diagnostic and
@@ -848,10 +857,18 @@ each step calls `scripts/check.sh` (gofmt, go vet, golangci-lint,
 `go test -race`, a complete `build-site` run against `example-instance/`,
 govulncheck); see [Checks before pushing](#checks-before-pushing).
 
+**Core: `.github/workflows/security.yml`** runs on pull requests that touch
+code, the image or workflows, every Monday and manually:
+`scripts/check.sh workflows` and `scripts/check.sh image`, plus govulncheck
+on the weekly run, because new vulnerabilities appear without any change in
+the repository. On the weekly and manual runs the zizmor and Trivy results
+are uploaded to the repository's Security tab (code scanning).
+
 **Core: `.github/workflows/image.yml`** runs on pushes to `main` (only if
 `backend/`, `web/` or the `Containerfile` change), on `v*` tags, or manually.
-It builds the image for `linux/amd64` and `linux/arm64` and pushes it to
-`ghcr.io/<owner>/<repo>`:
+It first runs the Trivy gate (`scripts/check.sh image`); only if that
+passes does it build the image for `linux/amd64` and `linux/arm64` and push
+it to `ghcr.io/<owner>/<repo>`:
 
 | Tag | When |
 |---|---|
@@ -868,6 +885,19 @@ visibility).
 In the `Containerfile`, the Go stage always runs on the architecture of the
 build machine and cross-compiles for the target (`--platform=$BUILDPLATFORM`,
 `GOARCH=$TARGETARCH`), which is considerably faster than running under QEMU.
+The runtime image runs as the unprivileged user `65532:65532`
+([instance.md](instance.md#file-permissions)).
+
+**Pinned actions and Dependabot.** Every action is pinned to a commit SHA
+with its version as a comment (`@<sha> # v7.0.1`), because a tag can be
+moved to other code. `.github/dependabot.yml` proposes updates once a week
+as pull requests, for Go modules, the base images in the `Containerfile`
+and the actions (SHA and comment together, as one grouped pull request).
+New releases are proposed only after a 7-day cooldown. Security updates
+(repository setting *Dependabot security updates*, Settings → Advanced
+Security) are not delayed by it. Dependabot is built into GitHub: no token
+and no third-party app. Updated by hand: the Go release (`go` line in `backend/go.mod`) and
+the tool versions in `scripts/check.sh`.
 
 **Core: `.github/workflows/pages.yml`** publishes the project website to the
 `pages` branch; see [pages.md](pages.md).
