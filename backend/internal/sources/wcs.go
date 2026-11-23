@@ -128,13 +128,11 @@ func (s *WCSSource) Fetch(ctx context.Context) ([]model.Event, error) {
 			}
 		}
 
-		// With a room term: room as name, the venue (locationDefault) as
-		// address, so the frontend shows "Bewegungsraum" plus where the
-		// house is (and its map link finds the house, not the room).
-		location := model.Location{Name: s.cfg.LocationDefault}
+		room := ""
 		if len(e.Terms.WcsRoom) > 0 {
-			location = model.Location{Name: e.Terms.WcsRoom[0].Name, Address: s.cfg.LocationDefault}
+			room = e.Terms.WcsRoom[0].Name
 		}
+		location := wcsLocation(s.cfg.LocationDefault, room)
 
 		events = append(events, model.Event{
 			Title:       e.Title,
@@ -165,6 +163,30 @@ func (s *WCSSource) Fetch(ctx context.Context) ([]model.Event, error) {
 		})
 	}
 	return events, nil
+}
+
+// wcsLocation builds the event location from locationDefault ("Venue,
+// Street 1, 12345 City") and the optional wcs_room term. The venue (the part
+// before the first comma) becomes the name, so lists, place matching and the
+// map refer to the house rather than to one of its rooms; the room goes into
+// the full address right after the venue:
+// "Venue, Bewegungsraum, Street 1, 12345 City".
+func wcsLocation(locationDefault, room string) model.Location {
+	venue, rest, hasRest := strings.Cut(locationDefault, ",")
+	venue = strings.TrimSpace(venue)
+	parts := []string{venue}
+	if room != "" {
+		parts = append(parts, room)
+	}
+	if hasRest {
+		if r := strings.TrimSpace(rest); r != "" {
+			parts = append(parts, r)
+		}
+	}
+	if len(parts) == 1 {
+		return model.Location{Name: venue}
+	}
+	return model.Location{Name: venue, Address: strings.Join(parts, ", ")}
 }
 
 // parseWCSLocal parses the plugin's "start"/"end" strings. Despite the

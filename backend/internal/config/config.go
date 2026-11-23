@@ -139,8 +139,10 @@ type SourceConfig struct {
 	// Organizer is used for every event (wcs: the plugin's API doesn't
 	// expose one; ical: when an event has no ORGANIZER;CN).
 	Organizer string `json:"organizer,omitempty"`
-	// LocationDefault is used when an event has no "wcs_room" term (wcs,
-	// then as address) or no LOCATION (ical).
+	// LocationDefault is "Venue, Street 1, 12345 City". wcs: used for every
+	// event - the venue becomes location.name, the full string the address,
+	// with a "wcs_room" term inserted after the venue. ical: used as name
+	// when an event has no LOCATION.
 	LocationDefault string `json:"locationDefault,omitempty"`
 	// CategoryMap translates the source's own category names to the
 	// instance's vocabulary (see <instance>/categories.json), e.g.

@@ -291,7 +291,7 @@ still configured through a source file:
   "url": "https://www.familienzentrum-weissensee.de",  // base URL, not the Ajax endpoint itself
   "daysAhead": 30,               // rolling window from today; default 30
   "organizer": "Familienzentrum Weißensee",   // the plugin provides no organiser
-  "locationDefault": "Familienzentrum Weißensee, Mahlerstraße 4",
+  "locationDefault": "Familienzentrum Weißensee, Mahlerstraße 4, 13088 Berlin",  // name = part before the first comma; address = all of it, room inserted after the venue
   "wcsTypeIds": [27, 28, 29, 30],  // see below; IMPORTANT, do not omit
   "familyFriendly": true,          // applies to EVERY event of this source, see below
   "categoryMap": {                 // wcs_type slug -> instance category (for icons)
