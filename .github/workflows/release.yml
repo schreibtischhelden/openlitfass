@@ -15,12 +15,14 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: write   # create the release
-  issues: write     # close the milestone
+  contents: read
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release
+      issues: write # close the milestone
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
