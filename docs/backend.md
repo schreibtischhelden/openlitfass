@@ -807,11 +807,46 @@ active source and `inbox/` no event, it deliberately writes nothing.
 `build-site` empties its output directory before each run, but only if it
 created the directory itself (marker file `.openlitfass-build`).
 
+## Checks before pushing
+
+`scripts/check.sh` runs every back-end check in Docker (no local Go
+needed) and is exactly what CI runs, so a green local run means a green CI
+run. It works from any directory, in Git Bash on Windows as well.
+
+```sh
+scripts/check.sh              # everything, in this order:
+scripts/check.sh fmt          # gofmt
+scripts/check.sh vet          # go vet
+scripts/check.sh lint         # golangci-lint, configured in .golangci.yml
+scripts/check.sh test         # go test -race
+scripts/check.sh smoke        # build-site against example-instance/
+scripts/check.sh vuln         # govulncheck
+```
+
+The Go image follows the `go` line in `backend/go.mod`; the golangci-lint
+and govulncheck versions are pinned at the top of the script. Named Docker
+volumes (`ol-gocache`, `ol-gomod`, `ol-lintcache`) keep builds and modules
+between runs.
+
+`.golangci.yml` enables, besides the standard linters, `gosec`, `bodyclose`,
+`noctx`, `errorlint`, `revive`, `unconvert`, `gocritic` (diagnostic and
+performance checks) and the performance linters `perfsprint` and `prealloc`.
+A finding that is intentional is silenced on its line with
+`//nolint:<linter> // <reason>`; the reason is required.
+
+To run the fast checks automatically before every push:
+
+```sh
+printf '#!/bin/sh\nexec scripts/check.sh fmt vet lint test\n' > .git/hooks/pre-push
+chmod +x .git/hooks/pre-push
+```
+
 ## Workflows (GitHub Actions)
 
 **Core: `.github/workflows/ci.yml`** runs on every push and pull request:
-`gofmt`, `go vet`, `go build`, `go test` and a complete `build-site` run
-against `example-instance/`.
+each step calls `scripts/check.sh` (gofmt, go vet, golangci-lint,
+`go test -race`, a complete `build-site` run against `example-instance/`,
+govulncheck); see [Checks before pushing](#checks-before-pushing).
 
 **Core: `.github/workflows/image.yml`** runs on pushes to `main` (only if
 `backend/`, `web/` or the `Containerfile` change), on `v*` tags, or manually.
@@ -852,8 +887,9 @@ shows how to publish to GitHub Pages (see [pages.md](pages.md)).
 
 ## Test status
 
-- Built and checked locally with Docker: `go build`, `go vet` and `gofmt`
-  pass.
+- `scripts/check.sh` passes locally and in CI: gofmt, go vet, golangci-lint
+  (0 issues), `go test -race`, `build-site` smoke test and govulncheck (no
+  vulnerabilities, Go 1.27).
 - `fetch` against the real wcs source Familienzentrum Weißensee: 95 events,
   status field and `sources.json` correct; an inbox event is included.
 - `build-site` against `example-instance` and weissens.ee: complete site
