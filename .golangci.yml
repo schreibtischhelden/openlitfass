@@ -1,0 +1,56 @@
+# golangci-lint configuration, run by scripts/check.sh lint (locally and in
+# CI). Version pinned there.
+version: "2"
+
+linters:
+  # errcheck, govet, ineffassign, staticcheck, unused
+  default: standard
+  enable:
+    # Correctness and security
+    - bodyclose   # HTTP response bodies are closed
+    - errorlint   # errors compared and wrapped with errors.Is/As and %w
+    - gosec       # security problems (file permissions, path traversal, …)
+    - noctx       # outgoing HTTP requests carry a context (timeouts)
+    # Best practices
+    - gocritic
+    - revive
+    - unconvert   # unnecessary type conversions
+    # Performance
+    - perfsprint  # fmt.Sprintf where strconv or concatenation is cheaper
+    - prealloc    # slices whose final size is known in advance
+  settings:
+    gocritic:
+      enabled-tags: [diagnostic, performance]
+      settings:
+        # An instance handles a few hundred events per run; copying structs
+        # below this size costs nothing measurable, pointers would invite
+        # aliasing bugs.
+        hugeParam:
+          sizeThreshold: 512
+        rangeValCopy:
+          sizeThreshold: 512
+    gosec:
+      excludes:
+        # data/ and public/ are committed and served: they must stay
+        # readable by git, the web server and CI (0644 files, 0755 dirs).
+        - G301
+        - G306
+  exclusions:
+    presets:
+      - comments
+      - common-false-positives
+      - std-error-handling
+    rules:
+      # Tests read fixtures and start test servers; the security and
+      # request-context rules do not apply there.
+      - path: _test\.go
+        linters: [gosec, noctx, bodyclose, errcheck, prealloc]
+
+issues:
+  # Report every finding, not just the first few per linter.
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gofmt
