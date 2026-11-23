@@ -159,6 +159,11 @@ type SourceConfig struct {
 	// a verified fact about the source itself, not a guess. Leave unset
 	// (false) for sources where family-friendliness varies event to event.
 	FamilyFriendly bool `json:"familyFriendly,omitempty"`
+	// Place links every event of this source to one place of
+	// <instance>/places.json: its id or one of its refs. For sources with a
+	// single venue; events that carry their own reference (mapping
+	// "placeRef") keep it. Applied in withCommonFilters.
+	Place string `json:"place,omitempty"`
 
 	// Status is maintained by the pipeline itself (see RecordAttempt) - not
 	// something you write by hand. Absent until the first fetch attempt.

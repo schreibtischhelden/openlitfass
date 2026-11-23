@@ -71,3 +71,20 @@ func TestMarkCancelledByTitle(t *testing.T) {
 		}
 	}
 }
+
+func TestCommonFiltersSourcePlace(t *testing.T) {
+	// Arrange
+	cfg := config.SourceConfig{Place: "brotfabrik"}
+	evs := []model.Event{
+		{Title: "own venue", Date: day(1)},
+		{Title: "other venue", Date: day(1), Place: "brotfabrik:7"},
+	}
+
+	// Act
+	got := applyCommonFilters(evs, cfg)
+
+	// Assert
+	if got[0].Place != "brotfabrik" || got[1].Place != "brotfabrik:7" {
+		t.Errorf("places = %q, %q", got[0].Place, got[1].Place)
+	}
+}

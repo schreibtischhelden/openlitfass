@@ -14,7 +14,8 @@
 //	    "lat": 52.546, "lon": 13.456,         // optional, for the map link and snippet
 //	    "url": "https://…",                    // optional, own website
 //	    "openingHours": "…", "season": "…",    // optional, free text
-//	    "match": ["Jüdischer Friedhof"]        // optional, see Matches
+//	    "match": ["Jüdischer Friedhof"],       // optional, see Matches
+//	    "refs": ["osm:way/123", "vow:5809"]    // optional, see Lookup
 //	  } ]
 //	}
 package places
@@ -26,6 +27,7 @@ import (
 	"io/fs"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 
 	"openlitfass/backend/internal/model"
@@ -51,11 +53,17 @@ type Place struct {
 	OpeningHours string   `json:"openingHours,omitempty"`
 	Season       string   `json:"season,omitempty"`
 	Match        []string `json:"match,omitempty"`
+	// Refs are further identifiers of the place, e.g. its id in another
+	// directory ("vow:5809", "osm:way/20130679"). Sources refer to a place
+	// by its id or one of these (model.Event.Place, see Lookup).
+	Refs []string `json:"refs,omitempty"`
 }
 
 type File struct {
 	Types  []Type  `json:"types"`
 	Places []Place `json:"places"`
+
+	byKey map[string]int // place id or ref -> index in Places, see Lookup
 }
 
 var validID = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,80}$`)
@@ -95,13 +103,96 @@ func Load(path string) (*File, error) {
 		}
 		ids[p.ID] = true
 	}
+	// A ref must lead to exactly one place, so it may not repeat another
+	// ref or a place id.
+	refs := map[string]string{}
+	for _, p := range f.Places {
+		for _, r := range p.Refs {
+			switch {
+			case strings.TrimSpace(r) != r || r == "":
+				return nil, fmt.Errorf("%s: place %q: ref %q must not be empty or start or end with spaces", path, p.ID, r)
+			case ids[r]:
+				return nil, fmt.Errorf("%s: place %q: ref %q is the id of a place", path, p.ID, r)
+			case refs[r] != "":
+				return nil, fmt.Errorf("%s: ref %q is used by %q and %q", path, r, refs[r], p.ID)
+			}
+			refs[r] = p.ID
+		}
+	}
+	f.index()
 	return &f, nil
+}
+
+// index builds the lookup table for Lookup.
+func (f *File) index() {
+	f.byKey = make(map[string]int, len(f.Places))
+	for i, p := range f.Places {
+		f.byKey[p.ID] = i
+		for _, r := range p.Refs {
+			if _, taken := f.byKey[r]; !taken {
+				f.byKey[r] = i
+			}
+		}
+	}
+}
+
+// Lookup returns the place with id or ref key (exact, case-sensitive).
+func (f *File) Lookup(key string) (*Place, bool) {
+	if f.byKey == nil {
+		f.index()
+	}
+	i, ok := f.byKey[strings.TrimSpace(key)]
+	if !ok {
+		return nil, false
+	}
+	return &f.Places[i], true
+}
+
+// PlaceFor returns the place an event belongs to: the one its Place
+// reference names, else the first place whose match terms fit (see
+// Matches), else nil. known is false when the event names a reference
+// that no place has; the match terms decide then.
+func (f *File) PlaceFor(e model.Event) (p *Place, known bool) {
+	known = true
+	if e.Place != "" {
+		if p, ok := f.Lookup(e.Place); ok {
+			return p, true
+		}
+		known = false
+	}
+	for i := range f.Places {
+		if f.Places[i].Matches(e) {
+			return &f.Places[i], known
+		}
+	}
+	return nil, known
+}
+
+// Assign sets PlaceID on every event (see PlaceFor) and returns the
+// references that no place has, sorted and without repeats, so the caller
+// can warn about them once each.
+func (f *File) Assign(events []model.Event) (unknown []string) {
+	seen := map[string]bool{}
+	for i := range events {
+		e := &events[i]
+		e.PlaceID = ""
+		p, known := f.PlaceFor(*e)
+		if p != nil {
+			e.PlaceID = p.ID
+		}
+		if !known && !seen[e.Place] {
+			seen[e.Place] = true
+			unknown = append(unknown, e.Place)
+		}
+	}
+	sort.Strings(unknown)
+	return unknown
 }
 
 // Matches reports whether an event takes place at p: one of p.Match (or,
 // without Match, p.Name) occurs in the event's location name or address,
-// compared without case, accents and with ß = ss. The frontend uses the
-// same rule (app.js placeMatches).
+// compared without case, accents and with ß = ss. It is the fallback for
+// events without a known Place reference (see PlaceFor).
 func (p Place) Matches(e model.Event) bool {
 	hay := Fold(e.Location.Name + " " + e.Location.Address)
 	terms := p.Match

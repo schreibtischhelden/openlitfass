@@ -1223,21 +1223,14 @@
   // ---- Detail ----
   // ---- Orte ----
   // Gepflegte Orte der Instanz (data/places.json): Sehenswürdigkeiten,
-  // Parks, Spielstätten … ohne Datum. Ein Termin gehört zu einem Ort, wenn
-  // einer der "match"-Begriffe (sonst der Name) in Ortsname oder Adresse des
-  // Termins vorkommt - dieselbe Regel wie im Backend (places.Matches).
-  function placeMatches(place, ev) {
-    if (!ev.location) return false;
-    const hay = fold(`${ev.location.name || ""} ${ev.location.address || ""}`);
-    const terms = place.match && place.match.length ? place.match : [place.name];
-    return terms.some((t) => fold(t) && hay.includes(fold(t)));
-  }
+  // Parks, Spielstätten … ohne Datum. build-site resolves each event's place
+  // (reference from the source, else the match terms) into ev.placeId.
   function placeForEvent(ev) {
-    return state.places.find((p) => placeMatches(p, ev)) || null;
+    return (ev.placeId && state.places.find((p) => p.id === ev.placeId)) || null;
   }
   function upcomingAt(place) {
     const today = todayISO();
-    return state.events.filter((ev) => ev.date >= today && placeMatches(place, ev));
+    return state.events.filter((ev) => ev.date >= today && ev.placeId === place.id);
   }
   function placeMapUrl(p) {
     if (p.lat || p.lon) return `https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lon}#map=17/${p.lat}/${p.lon}`;

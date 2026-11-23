@@ -113,3 +113,18 @@ func TestEventIDIsSourceIndependent(t *testing.T) {
 		t.Errorf("ids %q / %q should be equal and readable", a, b)
 	}
 }
+
+func TestMergeFillsPlaceReference(t *testing.T) {
+	// Arrange
+	venue := ev("venue", "Konzert", "2030-01-01", "20:00")
+	aggregator := ev("aggregator", "Konzert", "2030-01-01", "20:00")
+	aggregator.Place = "vow:5809"
+
+	// Act
+	got := MergeAcrossSources([]model.Event{venue, aggregator}, map[string]int{"venue": 1})
+
+	// Assert
+	if len(got) != 1 || got[0].Place != "vow:5809" {
+		t.Errorf("merged = %+v", got)
+	}
+}

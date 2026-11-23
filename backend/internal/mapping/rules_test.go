@@ -199,3 +199,19 @@ func TestPriceAmountRegex(t *testing.T) {
 		}
 	}
 }
+
+func TestPlaceRef(t *testing.T) {
+	// Arrange
+	m := &SourceMapping{PlaceRef: FieldRule{Template: "brotfabrik:{venue.id}"}}
+
+	// Act
+	ev := BuildEvent(item(t, `{"venue":{"id":42}}`), m, "brotfabrik", time.Now())
+
+	// Assert
+	if ev.Place != "brotfabrik:42" {
+		t.Errorf("place = %q", ev.Place)
+	}
+	if data, _ := json.Marshal(m); string(data) != `{"placeRef":{"template":"brotfabrik:{venue.id}"}}` {
+		t.Errorf("marshal = %s", data)
+	}
+}

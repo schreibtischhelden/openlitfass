@@ -75,6 +75,9 @@ func applyCommonFilters(events []model.Event, cfg config.SourceConfig) []model.E
 			continue // beyond the configured daysAhead window
 		}
 		markCancelledByTitle(&e)
+		if e.Place == "" {
+			e.Place = cfg.Place
+		}
 		if mapped, ok := categoryMap[strings.ToLower(strings.TrimSpace(e.Category))]; ok {
 			e.Category = mapped
 		}
