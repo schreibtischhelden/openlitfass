@@ -850,6 +850,32 @@ printf '#!/bin/sh\nexec scripts/check.sh fmt vet lint test\n' > .git/hooks/pre-p
 chmod +x .git/hooks/pre-push
 ```
 
+## Benchmarks
+
+Benchmarks cover the expensive paths: HTML extraction
+(`BenchmarkParseHTMLEvents`), iCalendar parsing of a real export and of 50
+weekly series over a year (`BenchmarkParseICalExport`,
+`BenchmarkParseICalRecurring`), and building a whole site with 500 events,
+static pages and sitemap (`BenchmarkBuildSite`).
+
+`scripts/check.sh bench` compares a base with the working tree:
+
+```sh
+scripts/check.sh bench                         # against origin/main
+BENCH_BASE=v0.3.0 scripts/check.sh bench       # against any ref
+BENCH_COUNT=20 BENCH_THRESHOLD=10 scripts/check.sh bench
+```
+
+It runs every benchmark `BENCH_COUNT` times (default 10) on both, prints the
+`benchstat` table (time, memory, allocations; `~` means no significant
+difference) and warns about time regressions above `BENCH_THRESHOLD`
+percent (default 15). It never fails. Results stay in `.bench/`
+(gitignored).
+
+Benchmarks are a tool, not a gate: timings on shared CI machines vary, so
+nothing depends on them. Write a benchmark next to the code
+(`bench_test.go`) when optimising a path, and compare before and after.
+
 ## Workflows (GitHub Actions)
 
 **Core: `.github/workflows/ci.yml`** runs on every push and pull request:
@@ -863,6 +889,12 @@ code, the image or workflows, every Monday and manually:
 on the weekly run, because new vulnerabilities appear without any change in
 the repository. On the weekly and manual runs the zizmor and Trivy results
 are uploaded to the repository's Security tab (code scanning).
+
+**Core: `.github/workflows/bench.yml`** is optional and never a required
+check. It runs only when a pull request has the label `benchmark` (again on
+every later push to it) or by hand with a base ref, and runs
+`scripts/check.sh bench` against the pull request's base. The table goes to
+the job summary; slowdowns above 15 % show as a warning.
 
 **Core: `.github/workflows/codeql.yml`** runs CodeQL (`security-extended`
 queries) on pushes to `main`, on pull requests that touch code or

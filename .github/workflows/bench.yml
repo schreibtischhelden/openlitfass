@@ -1,0 +1,53 @@
+name: Benchmarks
+
+# Optional performance comparison, never a required check: runs only when a
+# pull request carries the label "benchmark" (and on later pushes to it), or
+# by hand. Base and head run one after the other in the same job, on the
+# same machine, so the numbers are comparable; benchstat writes the table to
+# the job summary. A slowdown above 15 % only shows as a warning.
+#
+# Locally: scripts/check.sh bench
+on:
+  pull_request:
+    types: [labeled, synchronize]
+  workflow_dispatch:
+    inputs:
+      base:
+        description: Git ref to compare against
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'benchmark')
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Fetch the base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ inputs.base }}
+        run: |
+          if [ -n "$BASE_SHA" ]; then base=$BASE_SHA; else base=origin/$BASE_REF; fi
+          git fetch --no-tags --depth=1 origin "${BASE_SHA:-$BASE_REF:refs/remotes/origin/$BASE_REF}"
+          echo "BENCH_BASE=$base" >> "$GITHUB_ENV"
+
+      - name: Compare base and head
+        run: scripts/check.sh bench
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## Benchmarks: $BENCH_BASE → ${GITHUB_SHA::7}"
+            echo
+            echo '```'
+            cat .bench/benchstat.txt 2>/dev/null || echo "no results"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
