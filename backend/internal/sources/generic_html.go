@@ -138,7 +138,7 @@ func parseHTMLEvents(body string, cfg config.SourceConfig, now time.Time) ([]mod
 		for _, r := range rules {
 			values[r.name] = extractValue(it, r, base)
 		}
-		events = append(events, mapping.BuildEvent(values, m, cfg.Name, now))
+		events = append(events, mapping.BuildEvent(values, &m, cfg.Name, now))
 	}
 	return events, nil
 }

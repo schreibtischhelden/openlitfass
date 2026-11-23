@@ -82,11 +82,6 @@ func RegexValue(re *regexp.Regexp, s string) string {
 	return strings.Join(parts, " ")
 }
 
-func (r FieldRule) resolveTime(item interface{}) (time.Time, bool) {
-	t, _, ok := r.resolveTimeClock(item)
-	return t, ok
-}
-
 // resolveTimeClock parses the resolved string with Format. Format may list
 // several layouts separated by "|" (tried in order, e.g.
 // "2 Jan 2006 15:04|2 Jan 2006"); hasClock reports whether the layout that
@@ -335,7 +330,7 @@ type SourceMapping struct {
 // Text fields are run through CleanText/CleanMultiline (HTML tags and
 // entities, soft hyphens, whitespace) - feeds and CMS APIs routinely ship
 // HTML where the event model expects plain text.
-func BuildEvent(item interface{}, m SourceMapping, sourceName string, now time.Time) model.Event {
+func BuildEvent(item interface{}, m *SourceMapping, sourceName string, now time.Time) model.Event {
 	ev := model.Event{
 		Title:       CleanText(m.Title.resolveString(item)),
 		Description: CleanMultiline(m.Description.resolveString(item)),
@@ -380,7 +375,7 @@ func BuildEvent(item interface{}, m SourceMapping, sourceName string, now time.T
 // MarshalJSON omits rules that aren't set. config.RecordAttempt rewrites a
 // source file through SourceConfig after every fetch; without this, every
 // unused rule would show up as `"date": {}` etc. in the hand-written file.
-func (m SourceMapping) MarshalJSON() ([]byte, error) {
+func (m SourceMapping) MarshalJSON() ([]byte, error) { //nolint:gocritic // value receiver so json.Marshal also uses it for non-pointer values
 	fr := func(r FieldRule) *FieldRule {
 		if r == (FieldRule{}) {
 			return nil

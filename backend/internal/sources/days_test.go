@@ -1,6 +1,7 @@
 package sources
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -156,7 +157,7 @@ func TestInboxOpenEndedFileStays(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	evs, err := NewInboxSource(inbox, holidays).Fetch(nil)
+	evs, err := NewInboxSource(inbox, holidays).Fetch(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +171,7 @@ func TestInboxOpenEndedFileStays(t *testing.T) {
 	if err := os.WriteFile(holidays, []byte(`{"feiertage": ["weihnachten"]}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := NewInboxSource(inbox, holidays).Fetch(nil); err == nil {
+	if _, err := NewInboxSource(inbox, holidays).Fetch(context.Background()); err == nil {
 		t.Error("a broken holidays.json should fail the source")
 	}
 }

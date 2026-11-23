@@ -225,7 +225,7 @@ func renderTo(t *template.Template, name string, data any, dst string) error {
 		return err
 	}
 	if err := t.ExecuteTemplate(f, name, data); err != nil {
-		f.Close()
+		_ = f.Close() // the template error is the one to report
 		return err
 	}
 	return f.Close()

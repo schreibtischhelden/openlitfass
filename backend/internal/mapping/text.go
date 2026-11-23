@@ -88,13 +88,13 @@ func stripInvisible(s string) string {
 
 // truncateRunes cuts s to at most max runes, preferring the last word
 // boundary, and appends "…" if anything was cut.
-func truncateRunes(s string, max int) string {
-	if utf8.RuneCountInString(s) <= max {
+func truncateRunes(s string, limit int) string {
+	if utf8.RuneCountInString(s) <= limit {
 		return s
 	}
-	r := []rune(s)[:max]
+	r := []rune(s)[:limit]
 	cut := string(r)
-	if i := strings.LastIndexAny(cut, " \n"); i > max/2 {
+	if i := strings.LastIndexAny(cut, " \n"); i > limit/2 {
 		cut = cut[:i]
 	}
 	return strings.TrimRight(cut, " \n,;:.-–") + " …"

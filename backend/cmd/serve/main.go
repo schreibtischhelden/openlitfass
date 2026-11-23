@@ -44,13 +44,14 @@ func main() {
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	opts := app.SiteOptions{StaticPages: *staticPages, Sitemap: *sitemap}
 	s := &app.Server{Instance: inst, WebDir: *webDir, PublicDir: *publicDir, Interval: *interval, MetricsAddr: *metricsAddr, Options: opts}
 	log.Printf("openLitfass %s, instance %q (%s), fetch interval %s, static pages %t, sitemap %t",
 		app.Version, inst.Config.Name, inst.Dir, *interval, opts.StaticPages, opts.Sitemap)
-	if err := s.Run(ctx, *addr); err != nil {
+	err = s.Run(ctx, *addr)
+	stop()
+	if err != nil {
 		log.Fatal(err)
 	}
 }

@@ -59,7 +59,7 @@ func EnvBool(key string, def bool) bool {
 	}
 	b, err := strconv.ParseBool(v)
 	if err != nil {
-		log.Printf("ignoring invalid %s=%q (expected true or false)", key, v)
+		log.Printf("ignoring invalid %s=%q (expected true or false)", key, v) //nolint:gosec // %q escapes control characters
 		return def
 	}
 	return b
@@ -73,7 +73,7 @@ func EnvDuration(key string, def time.Duration) time.Duration {
 	}
 	d, err := time.ParseDuration(v)
 	if err != nil {
-		log.Printf("ignoring invalid %s=%q", key, v)
+		log.Printf("ignoring invalid %s=%q", key, v) //nolint:gosec // %q escapes control characters
 		return def
 	}
 	return d

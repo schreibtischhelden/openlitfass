@@ -23,7 +23,7 @@ func (s *ExampleSource) Name() string {
 	return "example-placeholder"
 }
 
-func (s *ExampleSource) Fetch(ctx context.Context) ([]model.Event, error) {
+func (s *ExampleSource) Fetch(_ context.Context) ([]model.Event, error) {
 	now := time.Now().UTC()
 	start := now.Add(48 * time.Hour).Truncate(time.Hour)
 	end := start.Add(2 * time.Hour)

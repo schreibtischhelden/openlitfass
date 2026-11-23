@@ -1,7 +1,9 @@
 name: CI
 
-# Compiles and checks the Go backend on every push and pull request.
-# What has been verified beyond CI: docs/backend.md "Teststand".
+# Checks the Go backend on every push and pull request. Every step calls
+# scripts/check.sh, which runs the tools in pinned Docker images - the same
+# command works locally, so a green local run means a green CI run.
+# What has been verified beyond CI: docs/backend.md "Test status".
 on:
   push:
     branches: [main]
@@ -13,32 +15,25 @@ permissions:
 jobs:
   go:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: backend/go.mod
-
+      # Cheapest checks first.
       - name: gofmt
-        run: |
-          unformatted=$(gofmt -l .)
-          if [ -n "$unformatted" ]; then
-            echo "Not gofmt-formatted:"; echo "$unformatted"; exit 1
-          fi
+        run: scripts/check.sh fmt
 
       - name: go vet
-        run: go vet ./...
+        run: scripts/check.sh vet
 
-      - name: go build
-        run: go build ./...
+      - name: golangci-lint
+        run: scripts/check.sh lint
 
-      - name: go test
-        run: go test ./...
+      - name: go test -race
+        run: scripts/check.sh test
 
-      # Smoke test: build the example instance site end to end.
+      # Build the example instance site end to end.
       - name: build-site (example-instance)
-        run: go run ./cmd/build-site -web ../web -out "$RUNNER_TEMP/site" ../example-instance && ls "$RUNNER_TEMP/site"
+        run: scripts/check.sh smoke
+
+      - name: govulncheck
+        run: scripts/check.sh vuln

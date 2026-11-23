@@ -1,6 +1,7 @@
 package sources
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -60,7 +61,7 @@ func TestInboxRepeatFile(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "alt.json"), []byte(old), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	evs, err := NewInboxSource(dir, "").Fetch(nil)
+	evs, err := NewInboxSource(dir, "").Fetch(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}

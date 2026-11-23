@@ -87,7 +87,9 @@ func (s *Server) Rebuild() error {
 	}
 	dir := filepath.Join(s.PublicDir, "build-"+time.Now().UTC().Format("20060102T150405.000000000"))
 	if err := BuildSite(s.Instance, s.WebDir, dir, s.Options); err != nil {
-		os.RemoveAll(dir)
+		if err := os.RemoveAll(dir); err != nil {
+			log.Printf("remove failed build %s: %v", dir, err)
+		}
 		s.mu.Lock()
 		s.metrics.init()
 		s.metrics.builds["failed"]++
@@ -120,7 +122,9 @@ func (s *Server) Rebuild() error {
 // removeBuild deletes a build directory, but only one BuildSite created.
 func removeBuild(dir string) {
 	if _, err := os.Stat(filepath.Join(dir, BuildMarker)); err == nil {
-		os.RemoveAll(dir)
+		if err := os.RemoveAll(dir); err != nil {
+			log.Printf("remove build %s: %v", dir, err)
+		}
 	}
 }
 
@@ -246,7 +250,7 @@ func (s *Server) Run(ctx context.Context, addr string) error {
 // Handler serves the live build plus /healthz.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		st := s.Status()
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
@@ -298,10 +302,10 @@ func (n noListing) Open(name string) (http.File, error) {
 	if st, err := f.Stat(); err == nil && st.IsDir() {
 		idx, err := n.fs.Open(strings.TrimSuffix(name, "/") + "/index.html")
 		if err != nil {
-			f.Close()
+			_ = f.Close() // opened read-only; nothing to flush
 			return nil, fs.ErrNotExist
 		}
-		idx.Close()
+		_ = idx.Close() // only opened to check it exists
 	}
 	return f, nil
 }

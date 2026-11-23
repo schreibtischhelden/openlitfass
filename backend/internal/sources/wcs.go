@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -74,7 +75,7 @@ func (s *WCSSource) Fetch(ctx context.Context) ([]model.Event, error) {
 	q.Set("start", today.Format("2006-01-02"))
 	q.Set("end", until.Format("2006-01-02"))
 	for _, id := range s.cfg.WCSTypeIDs {
-		q.Add("content[wcs_type][]", fmt.Sprintf("%d", id))
+		q.Add("content[wcs_type][]", strconv.Itoa(id))
 	}
 
 	reqURL := strings.TrimSuffix(s.cfg.URL, "/") + "/wp-admin/admin-ajax.php?" + q.Encode()

@@ -107,7 +107,7 @@ func labelString(kv []string) string {
 	}
 	parts := make([]string, 0, len(kv)/2)
 	for i := 0; i+1 < len(kv); i += 2 {
-		parts = append(parts, fmt.Sprintf(`%s="%s"`, kv[i], escapeLabel(kv[i+1])))
+		parts = append(parts, fmt.Sprintf(`%s="%s"`, kv[i], escapeLabel(kv[i+1]))) //nolint:gocritic // escapeLabel applies Prometheus escaping; %q would use Go escaping
 	}
 	return "{" + strings.Join(parts, ",") + "}"
 }
@@ -255,7 +255,7 @@ func (s *Server) WriteMetrics(w io.Writer) {
 
 // metricsHandler serves /metrics.
 func (s *Server) metricsHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 		s.WriteMetrics(w)

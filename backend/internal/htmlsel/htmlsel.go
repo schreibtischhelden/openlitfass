@@ -14,6 +14,7 @@
 package htmlsel
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -60,7 +61,7 @@ func Parse(src string) (Selector, error) {
 	sel := Selector{src: src}
 	s := strings.TrimSpace(src)
 	if s == "" {
-		return sel, fmt.Errorf("empty selector")
+		return sel, errors.New("empty selector")
 	}
 	child := false
 	for len(s) > 0 {
@@ -116,20 +117,20 @@ func parseCompound(s string) (compound, string, error) {
 			var name string
 			name, s = readIdent(s[1:])
 			if name == "" {
-				return c, s, fmt.Errorf("empty class name")
+				return c, s, errors.New("empty class name")
 			}
 			c.classes = append(c.classes, name)
 		case '#':
 			var name string
 			name, s = readIdent(s[1:])
 			if name == "" {
-				return c, s, fmt.Errorf("empty id")
+				return c, s, errors.New("empty id")
 			}
 			c.id = name
 		case '[':
 			end := strings.IndexByte(s, ']')
 			if end < 0 {
-				return c, s, fmt.Errorf("unclosed '['")
+				return c, s, errors.New("unclosed '['")
 			}
 			body := s[1:end]
 			s = s[end+1:]
@@ -146,7 +147,7 @@ func parseCompound(s string) (compound, string, error) {
 			cond.name = strings.ToLower(strings.TrimSpace(cond.name))
 			cond.value = strings.Trim(strings.TrimSpace(cond.value), `"'`)
 			if cond.name == "" {
-				return c, s, fmt.Errorf("empty attribute name")
+				return c, s, errors.New("empty attribute name")
 			}
 			c.attrs = append(c.attrs, cond)
 		case ':':
@@ -157,15 +158,15 @@ func parseCompound(s string) (compound, string, error) {
 				c.nthOfType = 1
 			case "nth-of-type":
 				if !strings.HasPrefix(s, "(") {
-					return c, s, fmt.Errorf(":nth-of-type needs (n)")
+					return c, s, errors.New(":nth-of-type needs (n)")
 				}
 				end := strings.IndexByte(s, ')')
 				if end < 0 {
-					return c, s, fmt.Errorf("unclosed :nth-of-type(")
+					return c, s, errors.New("unclosed :nth-of-type(")
 				}
 				n, err := strconv.Atoi(strings.TrimSpace(s[1:end]))
 				if err != nil || n < 1 {
-					return c, s, fmt.Errorf(":nth-of-type only supports a plain number")
+					return c, s, errors.New(":nth-of-type only supports a plain number")
 				}
 				c.nthOfType = n
 				s = s[end+1:]

@@ -3,6 +3,7 @@ package sources
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -58,7 +59,7 @@ func (s *InboxSource) Name() string { return "inbox" }
 // nothing is silently lost) rather than failing the whole run - the same
 // resilience pattern used throughout internal/config and internal/sources
 // for other kinds of bad input.
-func (s *InboxSource) Fetch(ctx context.Context) ([]model.Event, error) {
+func (s *InboxSource) Fetch(_ context.Context) ([]model.Event, error) {
 	entries, err := os.ReadDir(s.dir)
 	if os.IsNotExist(err) {
 		return nil, nil
@@ -163,7 +164,7 @@ type repeatRange struct {
 
 func parseRepeatRange(from, until string) (repeatRange, error) {
 	if from == "" {
-		return repeatRange{}, fmt.Errorf(`repeat: "weekdays" needs "from"`)
+		return repeatRange{}, errors.New(`repeat: "weekdays" needs "from"`)
 	}
 	if f, err := parseDayPattern(from); err == nil && f.kind == dayYearly {
 		u, err := parseDayPattern(until)
@@ -209,7 +210,7 @@ func (r inboxRepeat) occurrences(today string, lists dayLists) (dates []string, 
 		days[d] = true
 	}
 	if len(days) == 0 && len(r.Dates) == 0 {
-		return nil, "", fmt.Errorf(`repeat: needs "weekdays" (with "from") or "dates"`)
+		return nil, "", errors.New(`repeat: needs "weekdays" (with "from") or "dates"`)
 	}
 	extra, err := lists.expand(r.Dates)
 	if err != nil {
@@ -332,7 +333,7 @@ func parseInboxEvent(data []byte, path string, now time.Time, needDate bool) (mo
 	}
 
 	if strings.TrimSpace(ev.Title) == "" {
-		return model.Event{}, fmt.Errorf(`missing "title"`)
+		return model.Event{}, errors.New(`missing "title"`)
 	}
 	if needDate {
 		if _, err := time.Parse("2006-01-02", ev.Date); err != nil {
