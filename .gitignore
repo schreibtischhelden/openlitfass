@@ -1,3 +1,6 @@
 # Build-Ausgabe lokaler Vorschauen
 example-instance/public/
 example-instance/.openlitfass-serve/
+
+# Benchmark comparison (scripts/check.sh bench)
+.bench/
