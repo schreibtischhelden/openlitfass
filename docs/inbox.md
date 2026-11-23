@@ -22,6 +22,9 @@ ending in `.example.json` are not read; to activate one, copy it and remove
 - `organizer`, `url`
 - `ticketRequired`, `registrationRequired`, `familyFriendly`, `cancelled`
   (all optional, default `false`)
+- `place`: the place the event belongs to, by its `id` or one of its `refs`
+  in `places.json` (see [instance.md, "Places"](instance.md#places)); optional,
+  without it the place is found by its `match` terms
 
 Enter dates and times directly as Europe/Berlin wall-clock time. Unlike the
 automated sources, no time zone conversion takes place, because a person
