@@ -86,14 +86,20 @@ The *Release* workflow assembles the notes from four parts:
    list → *Milestone*); move open ones to the next milestone.
 2. Make sure `main` is green (*CI* workflow).
 3. Write the highlights into a file, first line the title, then a blank line
-   and the bullet points (no lines starting with `#`, git drops them):
+   and the bullet points:
 
    ```text
    openLitfass v0.2.0
 
    - Places show their opening hours.
+   - Inbox: day lists in `<instance>/holidays.json`.
    - Fixed: …
    ```
+
+   The bullets become Markdown on the release page. Put paths, file names
+   and placeholders in backticks: GitHub drops text in angle brackets such as
+   `<instance>` as an HTML tag. Do not start a line with `#`; git removes
+   such lines from the tag message.
 
 4. Tag and push:
 
