@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -38,11 +37,14 @@ import (
 // persist; date-based deletion is the earliest point where removing the
 // file has no visible effect.
 type InboxSource struct {
-	dir string
+	dir          string
+	holidaysPath string
 }
 
-func NewInboxSource(dir string) *InboxSource {
-	return &InboxSource{dir: dir}
+// NewInboxSource reads inbox files from dir; holidaysPath is the instance's
+// holidays.json with the named day lists for "repeat" (may be missing).
+func NewInboxSource(dir, holidaysPath string) *InboxSource {
+	return &InboxSource{dir: dir, holidaysPath: holidaysPath}
 }
 
 func (s *InboxSource) Name() string { return "inbox" }
@@ -64,6 +66,13 @@ func (s *InboxSource) Fetch(ctx context.Context) ([]model.Event, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", s.dir, err)
 	}
+	// A broken holidays.json fails the whole source, so the previous run's
+	// events are carried over instead of recurring events losing their
+	// exceptions.
+	lists, err := loadDayLists(s.holidaysPath)
+	if err != nil {
+		return nil, err
+	}
 
 	today, _ := model.LocalParts(time.Now())
 	now := time.Now().UTC()
@@ -79,7 +88,7 @@ func (s *InboxSource) Fetch(ctx context.Context) ([]model.Event, error) {
 		}
 		path := filepath.Join(s.dir, name)
 
-		evs, last, err := parseInboxFile(path, now, today)
+		evs, last, err := parseInboxFile(path, now, today, lists)
 		if err != nil {
 			log.Printf("inbox %s: %v (left in place, fix and re-commit)", path, err)
 			continue
@@ -107,15 +116,18 @@ func (s *InboxSource) Fetch(ctx context.Context) ([]model.Event, error) {
 //
 //	"repeat": {
 //	  "weekdays": ["mo", "di", "mi", "do", "fr"],
-//	  "from": "2026-10-01", "until": "2027-03-31",
-//	  "dates": ["2026-12-25"],        // additional single dates (holidays)
-//	  "except": ["2026-12-24"],       // dates to leave out
-//	  "daysAhead": 60                 // how far ahead to generate (default 60)
+//	  "from": "2026-10-01", "until": "2027-03-31",  // or a yearly season: "04-01" .. "09-30"
+//	  "dates": ["feiertage"],                        // additional days
+//	  "except": ["12-24", "easter-2"],               // days to leave out
+//	  "daysAhead": 60                                // how far ahead to generate (default 60)
 //	}
 //
-// "date" is not needed then. Each occurrence gets its own stable ID
-// (<file name>@<date>). The file is deleted once "until" (or the last of
-// "dates") has passed.
+// "dates" and "except" take day patterns (see dayPattern) and names of
+// lists from <instance>/holidays.json. "until" is optional; without it the
+// series is open-ended. "date" is not needed then. Each occurrence gets its
+// own stable ID (<file name>@<date>). The file is deleted once "until" (or
+// the last of "dates") has passed; open-ended, seasonal and pattern-based
+// files never expire.
 type inboxRepeat struct {
 	Weekdays  []string `json:"weekdays"`
 	From      string   `json:"from"`
@@ -127,6 +139,10 @@ type inboxRepeat struct {
 
 const defaultRepeatDaysAhead = 60
 
+// neverExpires is the "last" date of a file that is never deleted
+// automatically. It sorts after every real date.
+const neverExpires = "9999-12-31"
+
 var weekdayNames = map[string]time.Weekday{
 	"so": time.Sunday, "su": time.Sunday, "sun": time.Sunday,
 	"mo": time.Monday, "mon": time.Monday,
@@ -137,17 +153,53 @@ var weekdayNames = map[string]time.Weekday{
 	"sa": time.Saturday, "sat": time.Saturday,
 }
 
-// occurrences lists the dates of r between today and today+daysAhead (and
-// within from..until), plus r.Dates in that window, minus r.Except -
-// sorted, and the last date the file is relevant for.
-func (r inboxRepeat) occurrences(today string) (dates []string, last string, err error) {
-	parse := func(field, s string) (time.Time, error) {
-		t, err := time.Parse("2006-01-02", s)
-		if err != nil {
-			return t, fmt.Errorf(`repeat: invalid %q %q (want YYYY-MM-DD)`, field, s)
-		}
-		return t, nil
+// repeatRange is the period in which "weekdays" apply: either a fixed span
+// (until may be open) or a season that recurs every year.
+type repeatRange struct {
+	seasonal        bool
+	from, until     time.Time // fixed span; until is zero when open-ended
+	fromMD, untilMD int       // season as month*100+day
+}
+
+func parseRepeatRange(from, until string) (repeatRange, error) {
+	if from == "" {
+		return repeatRange{}, fmt.Errorf(`repeat: "weekdays" needs "from"`)
 	}
+	if f, err := parseDayPattern(from); err == nil && f.kind == dayYearly {
+		u, err := parseDayPattern(until)
+		if until == "" || err != nil || u.kind != dayYearly {
+			return repeatRange{}, fmt.Errorf(`repeat: seasonal "from" %q needs "until" as MM-DD too`, from)
+		}
+		return repeatRange{seasonal: true, fromMD: int(f.month)*100 + f.day, untilMD: int(u.month)*100 + u.day}, nil
+	}
+	var r repeatRange
+	var err error
+	if r.from, err = time.Parse("2006-01-02", from); err != nil {
+		return r, fmt.Errorf(`repeat: invalid "from" %q (want YYYY-MM-DD or MM-DD)`, from)
+	}
+	if until != "" {
+		if r.until, err = time.Parse("2006-01-02", until); err != nil {
+			return r, fmt.Errorf(`repeat: invalid "until" %q (want YYYY-MM-DD, or MM-DD together with "from")`, until)
+		}
+	}
+	return r, nil
+}
+
+func (r repeatRange) contains(d time.Time) bool {
+	if r.seasonal {
+		md := int(d.Month())*100 + d.Day()
+		if r.fromMD <= r.untilMD {
+			return md >= r.fromMD && md <= r.untilMD
+		}
+		return md >= r.fromMD || md <= r.untilMD // across the turn of the year
+	}
+	return !d.Before(r.from) && (r.until.IsZero() || !d.After(r.until))
+}
+
+// occurrences lists the dates of r between today and today+daysAhead, minus
+// r.Except - sorted, and the last date the file is relevant for
+// (neverExpires if it keeps producing dates).
+func (r inboxRepeat) occurrences(today string, lists dayLists) (dates []string, last string, err error) {
 	days := map[time.Weekday]bool{}
 	for _, w := range r.Weekdays {
 		d, ok := weekdayNames[strings.ToLower(strings.TrimSpace(w))]
@@ -156,18 +208,35 @@ func (r inboxRepeat) occurrences(today string) (dates []string, last string, err
 		}
 		days[d] = true
 	}
-	if len(days) > 0 && (r.From == "" || r.Until == "") {
-		return nil, "", fmt.Errorf(`repeat: "weekdays" needs "from" and "until"`)
-	}
 	if len(days) == 0 && len(r.Dates) == 0 {
-		return nil, "", fmt.Errorf(`repeat: needs "weekdays" (with "from"/"until") or "dates"`)
+		return nil, "", fmt.Errorf(`repeat: needs "weekdays" (with "from") or "dates"`)
 	}
-	except := map[string]bool{}
-	for _, d := range r.Except {
-		if _, err := parse("except", d); err != nil {
+	extra, err := lists.expand(r.Dates)
+	if err != nil {
+		return nil, "", fmt.Errorf(`repeat: "dates": %w`, err)
+	}
+	except, err := lists.expand(r.Except)
+	if err != nil {
+		return nil, "", fmt.Errorf(`repeat: "except": %w`, err)
+	}
+
+	var rng repeatRange
+	if len(days) > 0 {
+		if rng, err = parseRepeatRange(r.From, r.Until); err != nil {
 			return nil, "", err
 		}
-		except[d] = true
+		if rng.seasonal || r.Until == "" {
+			last = neverExpires
+		} else {
+			last = r.Until
+		}
+	}
+	for _, p := range extra {
+		if p.kind != dayOnce {
+			last = neverExpires
+		} else if s := fmt.Sprintf("%04d-%02d-%02d", p.year, p.month, p.day); s > last {
+			last = s
+		}
 	}
 
 	ahead := r.DaysAhead
@@ -176,48 +245,20 @@ func (r inboxRepeat) occurrences(today string) (dates []string, last string, err
 	}
 	start, _ := time.Parse("2006-01-02", today)
 	end := start.AddDate(0, 0, ahead)
-
-	set := map[string]bool{}
-	if len(days) > 0 {
-		from, err := parse("from", r.From)
-		if err != nil {
-			return nil, "", err
-		}
-		until, err := parse("until", r.Until)
-		if err != nil {
-			return nil, "", err
-		}
-		last = r.Until
-		if from.Before(start) {
-			from = start
-		}
-		if until.After(end) {
-			until = end
-		}
-		for d := from; !d.After(until); d = d.AddDate(0, 0, 1) {
-			if days[d.Weekday()] {
-				set[d.Format("2006-01-02")] = true
+	matchesAny := func(ps []dayPattern, d time.Time) bool {
+		for _, p := range ps {
+			if p.matches(d) {
+				return true
 			}
 		}
+		return false
 	}
-	for _, s := range r.Dates {
-		d, err := parse("dates", s)
-		if err != nil {
-			return nil, "", err
-		}
-		if s > last {
-			last = s
-		}
-		if !d.Before(start) && !d.After(end) {
-			set[s] = true
+	for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
+		in := (days[d.Weekday()] && rng.contains(d)) || matchesAny(extra, d)
+		if in && !matchesAny(except, d) {
+			dates = append(dates, d.Format("2006-01-02"))
 		}
 	}
-	for d := range set {
-		if !except[d] {
-			dates = append(dates, d)
-		}
-	}
-	sort.Strings(dates)
 	return dates, last, nil
 }
 
@@ -231,7 +272,7 @@ func (r inboxRepeat) occurrences(today string) (dates []string, last string, err
 //
 // With "repeat" (see inboxRepeat) the file yields one event per occurrence.
 // last is the date after which the file can be deleted.
-func parseInboxFile(path string, now time.Time, today string) (evs []model.Event, last string, err error) {
+func parseInboxFile(path string, now time.Time, today string, lists dayLists) (evs []model.Event, last string, err error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, "", fmt.Errorf("read: %w", err)
@@ -253,7 +294,7 @@ func parseInboxFile(path string, now time.Time, today string) (evs []model.Event
 	if err != nil {
 		return nil, "", err
 	}
-	dates, last, err := wrap.Repeat.occurrences(today)
+	dates, last, err := wrap.Repeat.occurrences(today, lists)
 	if err != nil {
 		return nil, "", err
 	}

@@ -67,7 +67,7 @@ func Fetch(ctx context.Context, inst instance.Instance) (res FetchResult, err er
 		return res, fmt.Errorf("load category registry: %w", err)
 	}
 
-	all := sources.All(inst.SourcesDir(), inst.InboxDir())
+	all := sources.All(inst.SourcesDir(), inst.InboxDir(), inst.HolidaysFile())
 	res.Sources = len(all)
 	if len(all) == 0 {
 		log.Printf("no sources configured; leaving %s untouched", outPath)

@@ -55,6 +55,7 @@ location-specific content:
 | Sources | `sources/*.json` |
 | Individual events | `inbox/*.json` |
 | Categories and icons | `categories.json` |
+| Named day lists for recurring events (holidays) | `holidays.json` (optional, see [inbox.md](inbox.md#day-lists-holidaysjson)) |
 | Colours, logo, fonts | `site/css/theme.css`, `site/logo.svg`, `site/…` |
 
 ## How does fetch know what to fetch?
@@ -838,12 +839,12 @@ build machine and cross-compiles for the target (`--platform=$BUILDPLATFORM`,
 
 **Instance: `.github/workflows/update-events.yml`** (template in
 `example-instance/`) runs every six hours via cron, manually, and on pushes
-to `sources/`, `inbox/`, `site/`, `instance.json` and `categories.json`. It
-starts the image with `docker run` (not as a job container, because GitHub's
-JavaScript actions such as `checkout` do not run in Alpine containers), runs
-`fetch` and `build-site`, and commits `data/`, `sources/` (status) and
-`inbox/` (deleted files) back. It works the same way on Forgejo or Gitea
-runners with Docker. The template does not publish `public/`; weissens.ee
+to `sources/`, `inbox/`, `site/`, `instance.json`, `categories.json` and
+`holidays.json`. It starts the image with `docker run` (not as a job
+container, because GitHub's JavaScript actions such as `checkout` do not run
+in Alpine containers), runs `fetch` and `build-site`, and commits `data/`,
+`sources/` (status) and `inbox/` (deleted files) back. It works the same way
+on Forgejo or Gitea runners with Docker. The template does not publish `public/`; weissens.ee
 shows how to publish to GitHub Pages (see [pages.md](pages.md)).
 
 **Before an instance's first run:** set `IMAGE` in `update-events.yml` to

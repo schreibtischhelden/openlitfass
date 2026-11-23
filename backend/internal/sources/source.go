@@ -51,8 +51,9 @@ type Source interface {
 // (see example.go for a template) and append the instance below.
 //
 // inboxDir (<instance>/inbox/) holds hand-authored single-event files, see
-// docs/inbox.md.
-func All(sourcesDir, inboxDir string) []Source {
+// docs/inbox.md; holidaysFile (<instance>/holidays.json) holds the named
+// day lists their recurring events refer to.
+func All(sourcesDir, inboxDir, holidaysFile string) []Source {
 	dir := sourcesDir
 
 	configs, err := config.Load(dir)
@@ -102,7 +103,7 @@ func All(sourcesDir, inboxDir string) []Source {
 	// gets withCommonFilters (with a bare config.SourceConfig, so no
 	// daysAhead/categories restriction - only the unconditional "drop past
 	// events" rule actually applies) and harden, like every other source.
-	all = append(all, harden(withCommonFilters(NewInboxSource(inboxDir), config.SourceConfig{Name: "inbox"})))
+	all = append(all, harden(withCommonFilters(NewInboxSource(inboxDir, holidaysFile), config.SourceConfig{Name: "inbox"})))
 
 	return all
 }
