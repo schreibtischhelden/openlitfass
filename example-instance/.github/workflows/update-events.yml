@@ -20,6 +20,7 @@ on:
     paths:
       - 'instance.json'
       - 'categories.json'
+      - 'holidays.json'
       - 'sources/**'
       - 'inbox/**'
       - 'site/**'
