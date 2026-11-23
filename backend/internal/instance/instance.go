@@ -108,6 +108,7 @@ func (i Instance) Path(elem ...string) string {
 func (i Instance) SourcesDir() string       { return i.Path("sources") }
 func (i Instance) InboxDir() string         { return i.Path("inbox") }
 func (i Instance) CategoryRegistry() string { return i.Path("categories.json") }
+func (i Instance) HolidaysFile() string     { return i.Path("holidays.json") }
 func (i Instance) SiteDir() string          { return i.Path("site") }
 func (i Instance) DataDir() string          { return i.Path("data") }
 func (i Instance) EventsOutput() string     { return i.Path("data", "events.json") }

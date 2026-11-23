@@ -18,7 +18,7 @@ func TestInboxRepeatOccurrences(t *testing.T) {
 		DaysAhead: 14,
 	}
 	// Today is Saturday 2026-11-21; window 21.11.-05.12.
-	got, last, err := r.occurrences("2026-11-21")
+	got, last, err := r.occurrences("2026-11-21", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestInboxRepeatErrors(t *testing.T) {
 		"unknown weekday":    {Weekdays: []string{"montag"}, From: "2026-01-01", Until: "2026-12-31"},
 		"bad except":         {Dates: []string{"2026-12-01"}, Except: []string{"1.12."}},
 	} {
-		if _, _, err := r.occurrences("2026-11-21"); err == nil {
+		if _, _, err := r.occurrences("2026-11-21", nil); err == nil {
 			t.Errorf("%s: expected an error", name)
 		}
 	}
@@ -60,7 +60,7 @@ func TestInboxRepeatFile(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "alt.json"), []byte(old), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	evs, err := NewInboxSource(dir).Fetch(nil)
+	evs, err := NewInboxSource(dir, "").Fetch(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
