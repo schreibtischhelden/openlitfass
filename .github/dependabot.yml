@@ -1,0 +1,48 @@
+# Dependency updates as pull requests, built into GitHub (no token, no
+# third-party app). CI runs on them like on any other pull request.
+#
+# Not covered, updated by hand: the Go release (the `go` line in
+# backend/go.mod) and the tool versions pinned in scripts/check.sh.
+#
+# cooldown: a new release is proposed only after 7 days, so a compromised
+# release is usually found and pulled before it reaches us. Security
+# updates (repository setting "Dependabot security updates") are not delayed.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /backend
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: chore
+      include: scope
+
+  # Base images in Containerfile (golang, alpine).
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: chore
+      include: scope
+
+  # Actions are pinned to commit SHAs; Dependabot updates the SHA and the
+  # version comment next to it. One pull request for all of them.
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /example-instance
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ['*']
+    commit-message:
+      prefix: chore
+      include: scope
