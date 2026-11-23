@@ -32,7 +32,7 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
 #
 # No tzdata package needed: internal/model embeds the IANA timezone database
 # at compile time (blank `time/tzdata` import).
-FROM alpine:3.20
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates git nodejs
 COPY --from=build /out/fetch /out/build-site /out/serve /usr/local/bin/
 COPY web/ /opt/openlitfass/web/
