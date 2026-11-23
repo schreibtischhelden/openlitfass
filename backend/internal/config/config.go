@@ -38,7 +38,7 @@ type SourceStatus struct {
 
 // SourceConfig declares one event source. See
 // <instance>/sources/*.example.json for fully worked RSS and JSON
-// examples, and docs/backend.md for the mapping syntax.
+// examples, and https://docs.openlitfass.org/?page=field-mapping for the mapping syntax.
 type SourceConfig struct {
 	// Name is a short, stable identifier (Event.Source.Name, stable id
 	// derivation, log lines). Optional: defaults to the filename (without
@@ -89,7 +89,7 @@ type SourceConfig struct {
 	SectionSelector string `json:"sectionSelector,omitempty"`
 	// Extract ("html" sources only) names the values pulled out of each
 	// item; the mapping block then refers to these names as paths. See
-	// ExtractRule and docs/backend.md "html-Quellen".
+	// ExtractRule and https://docs.openlitfass.org/?page=source-types#html.
 	Extract map[string]ExtractRule `json:"extract,omitempty"`
 	// Mapping declares how to translate one item into a model.Event. Only
 	// used by "rss"/"json" sources. Pointer + omitempty so "wcs" sources

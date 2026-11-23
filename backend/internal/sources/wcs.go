@@ -208,7 +208,7 @@ func wcsLocation(locationDefault, room string) model.Location {
 // because the platform (Meetup, Eventbrite, ...) stamps its own default
 // instead of the venue's - so "the digits are already local" is never a
 // safe default assumption, only something to confirm per source. See
-// docs/sources.md ("wcs-Quellen") for the long version.
+// https://docs.openlitfass.org/?page=source-types#weekly-class-schedule-wcs for the long version.
 func parseWCSLocal(s string) (time.Time, error) {
 	if len(s) < 19 {
 		return time.Time{}, fmt.Errorf("timestamp too short: %q", s)

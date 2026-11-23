@@ -3,7 +3,7 @@ name: Image
 # Builds the openLitfass runtime image (Containerfile: compiled fetch +
 # build-site binaries and the core frontend) and pushes it to the GitHub
 # Container Registry as ghcr.io/<owner>/<repo>. Instances never compile
-# anything - their workflow just runs this image (see docs/instance.md).
+# anything - their workflow just runs this image (see https://docs.openlitfass.org/?page=setup).
 #
 # Tags: latest (main), sha-<short> (every main build), and v1.2.3 / 1.2
 # for git tags like v1.2.3.

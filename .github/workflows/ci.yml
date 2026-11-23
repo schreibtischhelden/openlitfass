@@ -3,7 +3,7 @@ name: CI
 # Checks the Go backend on every push and pull request. Every step calls
 # scripts/check.sh, which runs the tools in pinned Docker images - the same
 # command works locally, so a green local run means a green CI run.
-# What has been verified beyond CI: docs/backend.md "Test status".
+# What has been verified beyond CI: https://docs.openlitfass.org/?page=development#verified-against-real-sources
 on:
   push:
     branches: [main]

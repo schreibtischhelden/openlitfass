@@ -1,5 +1,5 @@
 # Categories for GitHub's generated release notes (merged pull requests).
-# See docs/releases.md for the labels.
+# See https://docs.openlitfass.org/?page=releases#labels for the labels.
 changelog:
   exclude:
     labels:

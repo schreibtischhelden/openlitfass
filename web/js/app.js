@@ -2,7 +2,7 @@
    openLitfass – Frontend-Logik
    Vanilla JS, keine Abhängigkeiten, keine Build-Pipeline.
 
-   Daten (alle von fetch / build-site erzeugt, siehe docs/backend.md):
+   Daten (alle von fetch / build-site erzeugt, siehe https://docs.openlitfass.org/?page=data-formats):
      data/events.json      Termine
      data/categories.json  Kategorie -> Piktogramm (Reihenfolge = Menü)
      data/sources.json     Quellen für "Quelle: …" und die Über-Seite

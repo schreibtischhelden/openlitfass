@@ -21,7 +21,7 @@ concurrency:
 
 env:
   # Custom domain for GitHub Pages (written as CNAME). Empty = served at
-  # https://schreibtischhelden.github.io/openlitfass/ (DNS: docs/pages.md)
+  # https://schreibtischhelden.github.io/openlitfass/ (DNS: https://docs.openlitfass.org/?page=github-pages)
   PAGES_DOMAIN: openlitfass.org
 
 jobs:

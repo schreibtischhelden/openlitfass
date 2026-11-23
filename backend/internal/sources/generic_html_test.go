@@ -15,7 +15,7 @@ import (
 	"openlitfass/backend/internal/htmlsel"
 )
 
-// A source file as an instance would write it (see docs/backend.md).
+// A source file as an instance would write it (see https://docs.openlitfass.org/?page=source-types#html).
 const jeventsSource = `{
   "type": "html",
   "url": "https://test.example/veranstaltungen.html",

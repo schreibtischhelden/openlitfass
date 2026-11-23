@@ -115,8 +115,8 @@ type Event struct {
 	// in data/events.json's demo data from the start, but had no backing
 	// field here - a real fetch run would have silently omitted them.
 	// FamilyFriendly is new: it replaces "Familie & Kinder" as a category
-	// value (see internal/categories and docs/backend.md -> "Kategorie-
-	// Piktogramm-Schnittstelle") now that categories are audience-neutral
+	// value (see internal/categories and https://docs.openlitfass.org/?page=categories)
+	// now that categories are audience-neutral
 	// topic areas.
 	TicketRequired       bool `json:"ticketRequired"`
 	RegistrationRequired bool `json:"registrationRequired"`

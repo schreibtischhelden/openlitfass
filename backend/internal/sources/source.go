@@ -23,7 +23,7 @@ type Source interface {
 // All loads every *.json file in sourcesDir (<instance>/sources/) and
 // builds one Source per entry — adding an RSS or
 // JSON source is adding one file to that directory, no Go code needed. See
-// <instance>/sources/*.example.json and docs/backend.md.
+// <instance>/sources/*.example.json and https://docs.openlitfass.org/?page=sources.
 //
 // A missing/empty config directory yields zero sources, which cmd/fetch
 // treats as "nothing to do" rather than wiping data/events.json (see
@@ -51,7 +51,7 @@ type Source interface {
 // (see example.go for a template) and append the instance below.
 //
 // inboxDir (<instance>/inbox/) holds hand-authored single-event files, see
-// docs/inbox.md; holidaysFile (<instance>/holidays.json) holds the named
+// https://docs.openlitfass.org/?page=inbox; holidaysFile (<instance>/holidays.json) holds the named
 // day lists their recurring events refer to.
 func All(sourcesDir, inboxDir, holidaysFile string) []Source {
 	dir := sourcesDir
@@ -96,7 +96,7 @@ func All(sourcesDir, inboxDir, holidaysFile string) []Source {
 	// all = append(all, harden(withCommonFilters(NewSomeICalSource(...), someConfig)))
 
 	// The inbox: hand-authored single-event JSON files (see
-	// docs/inbox.md), the manual counterpart to the fetched
+	// https://docs.openlitfass.org/?page=inbox), the manual counterpart to the fetched
 	// sources above. No withStatusTracking - it's a local directory scan,
 	// not a network call, so it doesn't fail the way a remote source can;
 	// per-file errors are already logged by InboxSource.Fetch itself. Still
