@@ -1,0 +1,69 @@
+name: CodeQL
+
+# Static analysis (SAST) of the Go back end, the JavaScript front end and the
+# workflows themselves; findings go to the Security tab and show up as
+# annotations on pull requests. It overlaps with gosec (scripts/check.sh
+# lint) but follows data across functions, e.g. from a fetched page into a
+# file path or into the DOM.
+#
+# Not part of scripts/check.sh: CodeQL needs its own database per language
+# and only reports through code scanning.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'web/**'
+      - '.github/workflows/**'
+      - 'example-instance/.github/**'
+  schedule:
+    - cron: '37 5 * * 1' # Mondays, 05:37 UTC: new queries without code changes
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # upload results
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: go
+            build-mode: manual
+          - language: javascript-typescript
+            build-mode: none
+          - language: actions
+            build-mode: none
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - if: matrix.language == 'go'
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: backend/go.mod
+          cache: false
+
+      - uses: github/codeql-action/init@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended
+
+      # The Go module lives in backend/, not in the repository root.
+      - if: matrix.language == 'go'
+        name: go build
+        working-directory: backend
+        run: go build ./...
+
+      - uses: github/codeql-action/analyze@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
+        with:
+          category: /language:${{ matrix.language }}

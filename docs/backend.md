@@ -864,6 +864,24 @@ on the weekly run, because new vulnerabilities appear without any change in
 the repository. On the weekly and manual runs the zizmor and Trivy results
 are uploaded to the repository's Security tab (code scanning).
 
+**Core: `.github/workflows/codeql.yml`** runs CodeQL (`security-extended`
+queries) on pushes to `main`, on pull requests that touch code or
+workflows, and every Monday, for Go, JavaScript (`web/`) and the workflows
+themselves. Unlike gosec it follows data across functions, for example from
+a fetched page into a file path or into the DOM. Findings appear in the
+Security tab and as annotations on pull requests. It is not part of
+`scripts/check.sh`.
+
+**Core: `.github/workflows/scorecard.yml`** runs the
+[OpenSSF Scorecard](https://scorecard.dev) every Monday and when branch
+protection changes. It rates the repository's security practices; the
+results go to the Security tab and to the public Scorecard API, which
+serves the badge in the README. Publishing signs the results with the
+workflow's OIDC identity; no secret or app is involved.
+
+Every workflow grants the `GITHUB_TOKEN` only `contents: read`; write
+permissions are set on the single job that needs them.
+
 **Core: `.github/workflows/image.yml`** runs on pushes to `main` (only if
 `backend/`, `web/` or the `Containerfile` change), on `v*` tags, or manually.
 It first runs the Trivy gate (`scripts/check.sh image`); only if that
@@ -877,7 +895,7 @@ it to `ghcr.io/<owner>/<repo>`:
 | `1.2.3`, `1.2` | Git tag `v1.2.3` |
 
 The image is pushed with the built-in `GITHUB_TOKEN`
-(`permissions: packages: write`); no separate token is needed. So that
+(job permission `packages: write`); no separate token is needed. So that
 instances can pull the image without logging in, set the package to
 **public** once (GitHub → Packages → openlitfass → Package settings → Change
 visibility).

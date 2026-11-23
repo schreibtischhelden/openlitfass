@@ -1,0 +1,42 @@
+name: Scorecard
+
+# OpenSSF Scorecard: rates the repository's security practices (pinned
+# dependencies, branch protection, code review, token permissions, …).
+# Results go to the Security tab and are published to the public Scorecard
+# API for the README badge. Publishing signs the results with this
+# workflow's OIDC identity; no secret or app is involved.
+#
+# The publishing rules of scorecard-action limit this job to checkout,
+# the scorecard step and the SARIF upload.
+on:
+  branch_protection_rule:
+  schedule:
+    - cron: '27 6 * * 1' # Mondays, 06:27 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  analysis:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read # read workflow runs (CI-Tests, SAST checks)
+      security-events: write # upload results
+      id-token: write # sign the published results
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ossf/scorecard-action@23f22cd43608bae7a1f1fa2603d7314dee9538a5 # v2.6.0
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - uses: github/codeql-action/upload-sarif@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
+        with:
+          sarif_file: results.sarif
+          category: scorecard
