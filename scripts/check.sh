@@ -3,7 +3,7 @@
 # CI (.github/workflows/ci.yml) calls the same script, so a green local run
 # means a green CI run.
 #
-#   scripts/check.sh            all checks below, in this order
+#   scripts/check.sh            the back-end checks, in this order:
 #   scripts/check.sh fmt        gofmt
 #   scripts/check.sh vet        go vet
 #   scripts/check.sh lint       golangci-lint (.golangci.yml)
@@ -11,12 +11,25 @@
 #   scripts/check.sh smoke      build-site against example-instance/
 #   scripts/check.sh vuln       govulncheck
 #
-# Works from any directory, in Git Bash on Windows as well.
+#   scripts/check.sh workflows  actionlint and zizmor on the workflows
+#   scripts/check.sh image      build the image, scan it and the
+#                               Containerfile with Trivy
+#
+# Works from any directory, in Git Bash on Windows as well. Set GH_TOKEN to
+# let zizmor run its online audits too. With CHECK_SARIF_DIR set (CI),
+# workflows and image also write SARIF reports there for code scanning.
 set -eu
 
-# Tool versions. The Go version comes from backend/go.mod.
+# Tool versions. The Go version comes from backend/go.mod. Dependabot does
+# not see these; update them by hand.
 GOLANGCI_LINT_VERSION=v2.15.0
 GOVULNCHECK_VERSION=v1.10.0
+ACTIONLINT_VERSION=1.7.12
+ZIZMOR_VERSION=1.33.1
+TRIVY_VERSION=0.76.2
+
+# Image tag for the local scan; CI's image.yml scans its own build.
+CHECK_IMAGE=${CHECK_IMAGE:-openlitfass:check}
 
 # Keep Git Bash from rewriting container paths such as /src.
 export MSYS_NO_PATHCONV=1
@@ -68,6 +81,52 @@ check_vuln() {
 	go_run go run "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION" ./...
 }
 
+workflow_files() {
+	echo .github/workflows/*.yml example-instance/.github/workflows/*.yml
+}
+
+check_workflows() {
+	# shellcheck disable=SC2046 # word splitting of the file list is wanted
+	docker run --rm -v "$host_repo:/src" -w /src \
+		"rhysd/actionlint:$ACTIONLINT_VERSION" -color $(cd "$repo" && workflow_files)
+	# Without a token zizmor skips the audits that query GitHub.
+	if [ -n "${GH_TOKEN:-}" ]; then
+		set -- -e GH_TOKEN "ghcr.io/zizmorcore/zizmor:$ZIZMOR_VERSION"
+	else
+		set -- "ghcr.io/zizmorcore/zizmor:$ZIZMOR_VERSION" --offline
+	fi
+	if [ -n "${CHECK_SARIF_DIR:-}" ]; then
+		docker run --rm -v "$host_repo:/src" -w /src "$@" \
+			--min-severity low --format sarif .github example-instance/.github \
+			>"$CHECK_SARIF_DIR/zizmor.sarif" || true
+	fi
+	docker run --rm -v "$host_repo:/src" -w /src "$@" \
+		--min-severity low .github example-instance/.github
+}
+
+trivy() {
+	if [ -n "${CHECK_SARIF_DIR:-}" ]; then
+		set -- -v "$CHECK_SARIF_DIR:/out" "aquasec/trivy:$TRIVY_VERSION" "$@"
+	else
+		set -- "aquasec/trivy:$TRIVY_VERSION" "$@"
+	fi
+	docker run --rm \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		-v "$host_repo:/src:ro" \
+		-v ol-trivycache:/root/.cache/trivy \
+		"$@"
+}
+
+check_image() {
+	docker build -q -t "$CHECK_IMAGE" -f "$host_repo/Containerfile" "$host_repo" >/dev/null
+	if [ -n "${CHECK_SARIF_DIR:-}" ]; then
+		trivy image --scanners vuln --ignore-unfixed --format sarif --output /out/trivy-image.sarif "$CHECK_IMAGE"
+	fi
+	# Only what can be fixed by an update; unfixed CVEs would block forever.
+	trivy image --scanners vuln --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 "$CHECK_IMAGE"
+	trivy config --severity CRITICAL,HIGH --exit-code 1 /src/Containerfile
+}
+
 run() {
 	echo "==> $1"
 	"check_$1"
@@ -79,9 +138,9 @@ fi
 
 for step in "$@"; do
 	case $step in
-	fmt | vet | lint | test | smoke | vuln) run "$step" ;;
+	fmt | vet | lint | test | smoke | vuln | workflows | image) run "$step" ;;
 	*)
-		echo "unknown check: $step (fmt, vet, lint, test, smoke, vuln)" >&2
+		echo "unknown check: $step (fmt, vet, lint, test, smoke, vuln, workflows, image)" >&2
 		exit 2
 		;;
 	esac

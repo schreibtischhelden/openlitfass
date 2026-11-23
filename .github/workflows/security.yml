@@ -1,0 +1,82 @@
+name: Security
+
+# Scans the workflows (actionlint, zizmor) and the container image (Trivy),
+# and runs govulncheck once a week: new vulnerabilities appear in images
+# and Go releases without any change here. image.yml repeats the Trivy scan
+# as a gate before every push to the registry.
+#
+# Locally: scripts/check.sh workflows image vuln
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'web/**'
+      - 'Containerfile'
+      - '.github/**'
+      - 'example-instance/.github/**'
+      - 'scripts/check.sh'
+  schedule:
+    - cron: '17 5 * * 1' # Mondays, 05:17 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  workflows:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # SARIF upload
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: actionlint and zizmor
+        env:
+          # Read-only; lets zizmor check actions against GitHub (online audits).
+          GH_TOKEN: ${{ github.token }}
+          CHECK_SARIF_DIR: ${{ runner.temp }}
+        run: scripts/check.sh workflows
+
+      # The Security tab shows the default branch; pull requests show the
+      # findings in the log above.
+      - if: always() && github.event_name != 'pull_request'
+        uses: github/codeql-action/upload-sarif@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
+        with:
+          sarif_file: ${{ runner.temp }}/zizmor.sarif
+          category: zizmor
+
+  image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # SARIF upload
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Trivy (image and Containerfile)
+        env:
+          CHECK_SARIF_DIR: ${{ runner.temp }}
+        run: scripts/check.sh image
+
+      - if: always() && github.event_name != 'pull_request'
+        uses: github/codeql-action/upload-sarif@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
+        with:
+          sarif_file: ${{ runner.temp }}/trivy-image.sarif
+          category: trivy-image
+
+  govulncheck:
+    # ci.yml runs it on every push and pull request.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: govulncheck
+        run: scripts/check.sh vuln
