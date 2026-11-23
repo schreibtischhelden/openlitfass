@@ -168,7 +168,8 @@ without a date. Format:
     "lat": 52.5519, "lon": 13.4312,
     "url": "https://theater-im-delphi.de",
     "openingHours": "…", "season": "…",
-    "match": ["Delphi"]
+    "match": ["Delphi"],
+    "refs": ["osm:way/123456"]
   } ]
 }
 ```
@@ -181,11 +182,29 @@ without a date. Format:
   `lat`/`lon` if given), the map snippet (with `lat`/`lon`), opening hours,
   season, website, a "Teilen" (share) button and the **upcoming events held
   there**.
-- An event belongs to a place when one of the `match` terms (default: the
-  name) occurs in the event's location name or address, ignoring case and
-  accents (ß = ss). Choose terms that are specific enough: `"Antonplatz"`
-  would also catch every event at "Antonplatz 1". Event details link to
-  their place ("Mehr über diesen Ort").
+- **Which place an event belongs to** is decided by `build-site`, which
+  writes it as `placeId` into the built `data/events.json`. Event details
+  link to that place ("Mehr über diesen Ort"), and the place lists the event.
+  In this order:
+  1. **Explicit reference** from the source: the event's own reference
+     (mapping rule `placeRef`, or `"place"` in an inbox file), otherwise
+     `"place"` in the source file. The reference is a place's `id` or one of
+     its `refs`.
+  2. **Match terms:** the first place (in file order) one of whose `match`
+     terms (default: the name) occurs in the event's location name or
+     address, ignoring case and accents (ß = ss). Choose terms that are
+     specific enough: `"Antonplatz"` would also catch every event at
+     "Antonplatz 1".
+  3. Otherwise the event has no place.
+- `refs` are further identifiers of a place, for example its entry in
+  another directory: `vow:5809` (offene-werkstaetten.org), `osm:way/20130679`
+  (OpenStreetMap), `geoportal:…`. The prefix is a convention, the core does
+  not interpret it. Refs are compared exactly and must be unique: a ref used
+  by two places or equal to a place `id` is an error. Explicit references
+  keep places at the same address apart (a workshop inside a community
+  centre) and give an import a stable key against duplicates.
+- A reference that no place has is logged as a warning by `build-site`; the
+  event then falls back to the match terms.
 - With `OL_STATIC_PAGES`, `build-site` also writes `orte/index.html` and
   `orte/<id>.html` (schema.org `Place`, upcoming events) and adds them to
   the sitemap.

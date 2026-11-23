@@ -67,3 +67,79 @@ func TestMatches(t *testing.T) {
 		t.Errorf("Fold = %q", got)
 	}
 }
+
+func TestLoadValidatesRefs(t *testing.T) {
+	types := `"types":[{"name":"Park","icon":["M0 0"]}]`
+	for name, places := range map[string]string{
+		"empty ref":      `[{"id":"a","name":"x","type":"Park","refs":[""]}]`,
+		"padded ref":     `[{"id":"a","name":"x","type":"Park","refs":[" vow:1"]}]`,
+		"ref is an id":   `[{"id":"a","name":"x","type":"Park"},{"id":"b","name":"y","type":"Park","refs":["a"]}]`,
+		"ref used twice": `[{"id":"a","name":"x","type":"Park","refs":["vow:1"]},{"id":"b","name":"y","type":"Park","refs":["vow:1"]}]`,
+	} {
+		if _, err := Load(write(t, `{`+types+`,"places":`+places+`}`)); err == nil {
+			t.Errorf("%s: expected an error", name)
+		}
+	}
+}
+
+func TestPlaceForResolutionOrder(t *testing.T) {
+	// Arrange
+	f, err := Load(write(t, `{"types":[{"name":"Treff","icon":["M0 0"]}],"places":[
+	  {"id":"kubiz","name":"KuBiZ","type":"Treff","match":["Bernkasteler Str. 78"]},
+	  {"id":"bike-kitchen","name":"Bike Kitchen","type":"Treff","refs":["vow:5809"]}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := func(place, name string) model.Event {
+		return model.Event{Place: place, Location: model.Location{Name: name}}
+	}
+	tests := []struct {
+		name      string
+		ev        model.Event
+		wantID    string
+		wantKnown bool
+	}{
+		{"ref beats match terms", at("vow:5809", "Bernkasteler Str. 78"), "bike-kitchen", true},
+		{"place id works as reference", at("kubiz", "Woanders"), "kubiz", true},
+		{"unknown ref falls back to match terms", at("vow:1", "Bernkasteler Str. 78"), "kubiz", false},
+		{"no ref uses match terms", at("", "Bernkasteler Str. 78"), "kubiz", true},
+		{"nothing fits", at("", "Woanders"), "", true},
+	}
+	for _, tt := range tests {
+		// Act
+		p, known := f.PlaceFor(tt.ev)
+
+		// Assert
+		got := ""
+		if p != nil {
+			got = p.ID
+		}
+		if got != tt.wantID || known != tt.wantKnown {
+			t.Errorf("%s: got %q, known %t; want %q, %t", tt.name, got, known, tt.wantID, tt.wantKnown)
+		}
+	}
+}
+
+func TestAssignSetsPlaceIDAndReportsUnknownRefsOnce(t *testing.T) {
+	// Arrange
+	f := &File{Places: []Place{{ID: "hof", Name: "Hof", Refs: []string{"osm:1"}}}}
+	events := []model.Event{
+		{Place: "osm:1"},
+		{Place: "vow:9", Location: model.Location{Name: "Am Hof"}},
+		{Place: "vow:9"},
+		{Place: "vow:2", PlaceID: "stale"},
+	}
+
+	// Act
+	unknown := f.Assign(events)
+
+	// Assert
+	for i, want := range []string{"hof", "hof", "", ""} {
+		if events[i].PlaceID != want {
+			t.Errorf("event %d: placeId %q, want %q", i, events[i].PlaceID, want)
+		}
+	}
+	if strings.Join(unknown, ",") != "vow:2,vow:9" {
+		t.Errorf("unknown refs = %v", unknown)
+	}
+}

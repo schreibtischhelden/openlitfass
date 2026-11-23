@@ -303,6 +303,10 @@ type SourceMapping struct {
 	URL             FieldRule `json:"url"`
 	LocationName    FieldRule `json:"locationName"`
 	LocationAddress FieldRule `json:"locationAddress"`
+	// PlaceRef resolves the event's place reference (see model.Event.Place),
+	// for sources with several venues, e.g. {"template": "brotfabrik:{venue.id}"}
+	// matched against the refs in places.json.
+	PlaceRef FieldRule `json:"placeRef"`
 
 	Start FieldRule `json:"start"`
 	End   FieldRule `json:"end"`
@@ -341,6 +345,7 @@ func BuildEvent(item interface{}, m *SourceMapping, sourceName string, now time.
 			Name:    CleanText(m.LocationName.resolveString(item)),
 			Address: CleanText(m.LocationAddress.resolveString(item)),
 		},
+		Place:                strings.TrimSpace(m.PlaceRef.resolveString(item)),
 		Price:                m.Price.resolve(item),
 		TicketRequired:       m.TicketRequired.resolve(item),
 		RegistrationRequired: m.RegistrationRequired.resolve(item),
@@ -401,6 +406,7 @@ func (m SourceMapping) MarshalJSON() ([]byte, error) { //nolint:gocritic // valu
 		URL                  *FieldRule `json:"url,omitempty"`
 		LocationName         *FieldRule `json:"locationName,omitempty"`
 		LocationAddress      *FieldRule `json:"locationAddress,omitempty"`
+		PlaceRef             *FieldRule `json:"placeRef,omitempty"`
 		Start                *FieldRule `json:"start,omitempty"`
 		End                  *FieldRule `json:"end,omitempty"`
 		Date                 *FieldRule `json:"date,omitempty"`
@@ -413,7 +419,7 @@ func (m SourceMapping) MarshalJSON() ([]byte, error) { //nolint:gocritic // valu
 		Cancelled            *BoolRule  `json:"cancelled,omitempty"`
 	}{
 		fr(m.SourceID), fr(m.Title), fr(m.Description), fr(m.Category), fr(m.Organizer), fr(m.URL),
-		fr(m.LocationName), fr(m.LocationAddress), fr(m.Start), fr(m.End),
+		fr(m.LocationName), fr(m.LocationAddress), fr(m.PlaceRef), fr(m.Start), fr(m.End),
 		fr(m.Date), fr(m.StartTime), fr(m.EndTime), price,
 		br(m.TicketRequired), br(m.RegistrationRequired), br(m.FamilyFriendly), br(m.Cancelled),
 	})

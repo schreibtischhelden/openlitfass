@@ -235,3 +235,54 @@ func TestBuildSitePlaces(t *testing.T) {
 		t.Error("sitemap lacks the place page")
 	}
 }
+
+// Place references: an event that names a place (id or ref) belongs to that
+// place only, even if another place's match terms fit; data/events.json in
+// the built site carries the resolved placeId for the app.
+func TestBuildSitePlaceReferences(t *testing.T) {
+	// Arrange
+	webDir, _ := filepath.Abs(filepath.Join("..", "..", "..", "web"))
+	root := t.TempDir()
+	instDir := filepath.Join(root, "inst")
+	tomorrow := time.Now().In(model.Local).AddDate(0, 0, 1).Format("2006-01-02")
+	writeFile(t, filepath.Join(instDir, "instance.json"), `{"name":"Testkiez"}`)
+	writeFile(t, filepath.Join(instDir, "data", "events.json"), `{"events":[
+	  {"id":"rad-1","title":"Radreparatur","date":"`+tomorrow+`","location":{"name":"Haus, Weg 78"},"place":"vow:5809","price":{"free":true,"amount":null}},
+	  {"id":"fest-1","title":"Hoffest","date":"`+tomorrow+`","location":{"name":"Haus, Weg 78"},"price":{"free":true,"amount":null}}]}`)
+	writeFile(t, filepath.Join(instDir, "places.json"), `{
+	  "types":[{"name":"Treff","icon":["M0 0"]}],
+	  "places":[
+	    {"id":"haus","name":"Haus","type":"Treff","match":["Weg 78"]},
+	    {"id":"werkstatt","name":"Werkstatt","type":"Treff","refs":["vow:5809"],"lat":52.55,"lon":13.47}]}`)
+	inst, err := instance.Load(instDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(root, "out")
+
+	// Act
+	err = BuildSite(inst, webDir, out, SiteOptions{StaticPages: true})
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	ej := readFile(t, filepath.Join(out, "data", "events.json"))
+	for _, want := range []string{`"placeId": "werkstatt"`, `"placeId": "haus"`} {
+		if !strings.Contains(ej, want) {
+			t.Errorf("data/events.json lacks %s:\n%s", want, ej)
+		}
+	}
+	if src := readFile(t, filepath.Join(instDir, "data", "events.json")); strings.Contains(src, "placeId") {
+		t.Error("build-site changed the instance's data/events.json")
+	}
+	if page := readFile(t, filepath.Join(out, PlacesDir, "haus.html")); strings.Contains(page, "Radreparatur") || !strings.Contains(page, "Hoffest") {
+		t.Error("haus.html should list only the event without a reference")
+	}
+	if page := readFile(t, filepath.Join(out, PlacesDir, "werkstatt.html")); !strings.Contains(page, "Radreparatur") || strings.Contains(page, "Hoffest") {
+		t.Error("werkstatt.html should list only the referenced event")
+	}
+	if ev := readFile(t, filepath.Join(out, StaticDir, "rad-1.html")); !strings.Contains(ev, `data-lat="52.55" data-lon="13.47"`) {
+		t.Error("referenced event lacks its place's map snippet")
+	}
+}

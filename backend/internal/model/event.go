@@ -130,6 +130,17 @@ type Event struct {
 	// ("Abgesagt: …").
 	Cancelled bool `json:"cancelled"`
 
+	// Place refers to the place the event belongs to: a place id or one of
+	// a place's refs in <instance>/places.json (e.g. "vow:5809"). Set by the
+	// source ("place" in the source file or the inbox file, "placeRef" in
+	// the mapping); empty means "find the place by its match terms".
+	Place string `json:"place,omitempty"`
+	// PlaceID is the id of the place the event belongs to, resolved by
+	// build-site from Place or the match terms (places.File.Assign). Empty
+	// in data/events.json written by fetch; the front end reads it from the
+	// built site.
+	PlaceID string `json:"placeId,omitempty"`
+
 	Source   SourceRef `json:"-"`
 	LastSeen time.Time `json:"-"`
 }

@@ -157,6 +157,10 @@ result requires at least `title`):
 - `sourceId`: stable ID within the source (for example the RSS `guid`).
 - `title`, `description`, `category`, `organizer`, `url`
 - `locationName`, `locationAddress`
+- `placeRef`: the event's place reference for sources with several venues,
+  matched against the `id` and `refs` in `places.json`, for example
+  `{"template": "brotfabrik:{venue.id}"}` (see
+  [instance.md, "Places"](instance.md#places)).
 - **Times**, in one of two ways:
   - `start` (and optionally `end`) with `format` (recommended): parses a
     timestamp and automatically derives `date`, `startTime` and `endTime`,
@@ -196,7 +200,8 @@ enforced by `withCommonFilters` in `internal/sources/filter.go`, which
   "categoryMap": { "Kino": "Kultur" },   // optional: source category -> instance category
   "categories": ["Kultur", "Markt"],     // optional: category allowlist
   "include": [{ "field": "location", "regex": "(?i)weißensee|1308[68]" }],  // optional
-  "exclude": [{ "field": "title", "regex": "(?i)geschlossene gesellschaft" }]  // optional
+  "exclude": [{ "field": "title", "regex": "(?i)geschlossene gesellschaft" }],  // optional
+  "place": "brotfabrik"                  // optional: place id or ref in places.json
 }
 ```
 
@@ -216,6 +221,10 @@ enforced by `withCommonFilters` in `internal/sources/filter.go`, which
   `location` (name and address), `organizer`, `category`, `description`.
   The example above keeps, from a university calendar, only what takes place
   in the neighbourhood. Invalid rules are logged and skipped.
+- `place`: links every event of the source to one place of `places.json`,
+  by its `id` or one of its `refs` (see [instance.md, "Places"](instance.md#places)).
+  Meant for sources with a single venue. Events that already carry their own
+  reference (mapping rule `placeRef`) keep it.
 - **Past events are always discarded**, regardless of these fields. This is
   not a feature flag but fixed behaviour for an events calendar.
 
@@ -583,11 +592,16 @@ expects:
       "ticketRequired": false,
       "registrationRequired": false,
       "familyFriendly": false,
-      "cancelled": false                          // see "Cancelled events"
+      "cancelled": false,                         // see "Cancelled events"
+      "place": "vow:5809"                         // optional: place reference from the source, see instance.md "Places"
     }
   ]
 }
 ```
+
+`build-site` adds `"placeId"` (the resolved place, see
+[instance.md, "Places"](instance.md#places)) to the copy of this file in the
+built site; the file in the instance does not contain it.
 
 Events are sorted chronologically (date, then start time). Repeated runs with
 unchanged data produce a byte-identical file (a clean Git diff in the
@@ -654,7 +668,7 @@ calendar), it is merged into **one** event (`internal/writer/merge.go`):
 - **Which source wins:** the one with the highest `priority` (a field in the
   source file, default 0; for example `10` for the venue itself, `0` or
   negative for an aggregator). Empty fields (description, link, address, price,
-  end time, category "Unkategorisiert") are filled in from the other sources;
+  end time, category "Unkategorisiert", place reference) are filled in from the other sources;
   if any source reports a cancellation, the event counts as cancelled.
 - **`sources`** in the event lists all contributing sources (winner first);
   the front end shows "Quellen: A, B".

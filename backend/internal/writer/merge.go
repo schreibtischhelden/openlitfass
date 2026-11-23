@@ -177,6 +177,9 @@ func mergeCluster(cluster []model.Event) model.Event {
 		if m.Location.Name == "" {
 			m.Location.Name = e.Location.Name
 		}
+		if m.Place == "" {
+			m.Place = e.Place
+		}
 		if m.Category == "" || m.Category == "Unkategorisiert" {
 			if e.Category != "" {
 				m.Category = e.Category

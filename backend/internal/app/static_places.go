@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -15,6 +16,7 @@ import (
 	"openlitfass/backend/internal/instance"
 	"openlitfass/backend/internal/model"
 	"openlitfass/backend/internal/places"
+	"openlitfass/backend/internal/writer"
 )
 
 // PlacesDir is the output subdirectory of the static place pages.
@@ -86,7 +88,7 @@ func buildPlacePages(inst instance.Instance, webDir, out string, logo template.H
 	for _, p := range pl.Places {
 		sp := staticPlace{Place: p, Page: p.ID + ".html", TypeName: p.Type, MapURL: placeMapURL(p)}
 		for _, e := range events {
-			if p.Matches(e.Event) {
+			if e.PlaceID == p.ID {
 				if len(sp.Events) < maxPlaceEvents {
 					sp.Events = append(sp.Events, e)
 				} else {
@@ -171,8 +173,8 @@ func placeJSONLD(p staticPlace, canonical string) map[string]any {
 	return ld
 }
 
-// withPlaceGeo gives events without coordinates those of the first place
-// they match, so their static page can show the map snippet too (the app
+// withPlaceGeo gives events without coordinates those of their place (see
+// assignPlaces), so their static page can show the map snippet too (the app
 // does the same with placeForEvent).
 func withPlaceGeo(events []staticEvent, pl *places.File) {
 	if pl == nil {
@@ -183,12 +185,47 @@ func withPlaceGeo(events []staticEvent, pl *places.File) {
 		if e.Lat != nil && e.Lon != nil {
 			continue
 		}
-		for _, p := range pl.Places {
-			if (p.Lat != 0 || p.Lon != 0) && p.Matches(e.Event) {
-				lat, lon := p.Lat, p.Lon
-				e.Lat, e.Lon = &lat, &lon
-				break
-			}
+		if e.PlaceID == "" {
+			continue
+		}
+		if p, ok := pl.Lookup(e.PlaceID); ok && (p.Lat != 0 || p.Lon != 0) {
+			lat, lon := p.Lat, p.Lon
+			e.Lat, e.Lon = &lat, &lon
 		}
 	}
+}
+
+// assignPlaces resolves the place of every event (places.File.Assign): in
+// the built data/events.json, which the app reads, and in events, the
+// upcoming events for the static pages. References that no place has are
+// logged once each; those events fall back to the match terms.
+func assignPlaces(out string, pl *places.File, events []staticEvent) error {
+	if pl == nil {
+		return nil
+	}
+	path := filepath.Join(out, "data", "events.json")
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var o writer.Output
+	if err := json.Unmarshal(data, &o); err != nil {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	for _, ref := range pl.Assign(o.Events) {
+		log.Printf("warning: place reference %q matches no place in %s, using the match terms", ref, places.FileName)
+	}
+	if err := writeJSON(path, o); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	for i := range events {
+		events[i].PlaceID = ""
+		if p, _ := pl.PlaceFor(events[i].Event); p != nil {
+			events[i].PlaceID = p.ID
+		}
+	}
+	return nil
 }

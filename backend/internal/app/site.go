@@ -95,6 +95,9 @@ func BuildSite(inst instance.Instance, webDir, out string, opts SiteOptions) err
 	if err != nil {
 		return fmt.Errorf("places: %w", err)
 	}
+	if err := assignPlaces(out, pl, events); err != nil {
+		return fmt.Errorf("places: %w", err)
+	}
 	withPlaceGeo(events, pl)
 	var placeIDs []string
 	if opts.StaticPages {
