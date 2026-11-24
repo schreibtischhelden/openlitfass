@@ -244,8 +244,8 @@
     <p class="intro">The core lives in one repository; each calendar is an <em>instance</em> in a repository of its own that holds only configuration, sources and styling.</p>
     <ol class="steps">
       <li>Copy <code>example-instance/</code> into a new, empty repository.</li>
-      <li>Fill in <code>instance.json</code> and adapt the legal notice and privacy policy.</li>
-      <li>Add sources: copy a template in <code>sources/</code> and adjust URL and field mapping.</li>
+      <li>Fill in <code>instance.json</code> – by hand or with the <a href="https://config.openlitfass.org/?page=instance">config UI</a> – and adapt the legal notice and privacy policy.</li>
+      <li>Add sources: copy a template in <code>sources/</code> or build one with the <a href="https://config.openlitfass.org/?page=source">source form</a>, then adjust URL and field mapping.</li>
       <li>Style it: override the design tokens in <code>site/css/theme.css</code>, add your logo.</li>
       <li>Start the container – it serves the site and keeps it up to date.</li>
     </ol>
@@ -254,6 +254,15 @@ docker run -d --restart unless-stopped \
   -v ./my-instance:/instance -p 8080:8080 \
   ghcr.io/schreibtischhelden/openlitfass</code></pre>
     <p>Images for amd64 and arm64. A health endpoint and Prometheus metrics are built in; GitHub Actions and GitHub Pages work too.</p>
+    <div class="card instance" style="margin:24px 0 14px">
+      <div>
+        <h3>Config UI</h3>
+        <p>Browser forms for <code>instance.json</code>, categories, places, inbox events and sources. Import an existing file or start from scratch, then download or copy the JSON. Nothing leaves your browser.</p>
+      </div>
+      <div class="btns" style="margin:0">
+        <a class="btn btn--accent" href="https://config.openlitfass.org">Open config UI</a>
+      </div>
+    </div>
     <div class="grid">
       <a class="card" style="text-decoration:none" href="https://docs.openlitfass.org/?page=setup"><h3>Setting up an instance →</h3><p>Create an instance and run it with Docker or GitHub Actions.</p></a>
       <a class="card" style="text-decoration:none" href="https://docs.openlitfass.org/?page=sources"><h3>Configuring sources →</h3><p>Source types, field mapping, filters, fault tolerance.</p></a>
@@ -294,6 +303,7 @@ docker run -d --restart unless-stopped \
   <nav aria-label="Footer">
     <a href="https://github.com/schreibtischhelden/openlitfass">GitHub</a>
     <a href="https://docs.openlitfass.org">Documentation</a>
+    <a href="https://config.openlitfass.org">Config UI</a>
     <a href="https://github.com/schreibtischhelden/openlitfass/blob/main/LICENSE">Licence</a>
   </nav>
 </div></footer>
