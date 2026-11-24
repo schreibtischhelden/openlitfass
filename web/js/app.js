@@ -330,10 +330,28 @@
     return `<ul class="long-strip" aria-label="${STR.longRunning}">` + evs.map((ev) => {
       const time = !ev.startTime ? STR.allDay
         : ev.endTime ? `${escapeHtml(ev.startTime)}–${escapeHtml(ev.endTime)}` : escapeHtml(ev.startTime);
-      return `<li><a class="long-strip__item" href="#${encodeURIComponent(ev.id)}">` +
+      const href = `#${encodeURIComponent(ev.id)}`;
+      return `<li hidden data-card="${href}"><a class="long-strip__item" href="${href}">` +
         `<span class="long-strip__time">${time}</span>` +
         `<span class="long-strip__title">${escapeHtml(ev.title)}</span></a></li>`;
     }).join("") + `</ul>`;
+  }
+
+  // Ein Eintrag der Leiste erscheint erst, wenn seine Karte unter seinen
+  // Platz in der Leiste gescrollt ist (#50). Die Karten liegen in derselben
+  // Reihenfolge wie die Einträge, sichtbar ist also immer ein Anfangsstück -
+  // deshalb gilt der Platz bei ganz ausgeklappter Leiste.
+  function updateLongStrip() {
+    el.groups.querySelectorAll(".day-sticky").forEach((sticky) => {
+      const group = sticky.closest(".day-group");
+      const items = [...sticky.querySelectorAll(".long-strip li")];
+      items.forEach((li) => { li.hidden = false; });
+      const slots = items.map((li) => li.getBoundingClientRect().bottom);
+      items.forEach((li, i) => {
+        const card = group.querySelector(`.event-card[href="${li.dataset.card}"]`);
+        li.hidden = !card || card.getBoundingClientRect().bottom > slots[i];
+      });
+    });
   }
 
   function dayHeading(dateStr) {
@@ -978,7 +996,12 @@
 
     window.addEventListener("hashchange", route);
     let t = null;
-    window.addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => { updateColumns(); measureSticky(); }, 120); });
+    window.addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => { updateColumns(); measureSticky(); updateLongStrip(); }, 120); });
+    let stripFrame = 0;
+    window.addEventListener("scroll", () => {
+      if (stripFrame) return;
+      stripFrame = requestAnimationFrame(() => { stripFrame = 0; updateLongStrip(); });
+    }, { passive: true });
   }
 
   function toggleIn(set, v) { if (set.has(v)) set.delete(v); else set.add(v); }
@@ -1096,8 +1119,19 @@
     const stuck = el.header.offsetHeight + (el.toolbar.hidden ? 0 : el.toolbar.offsetHeight);
     const heading = group.querySelector(".day-sticky") || group.querySelector(".day-heading");
     const anchor = firstInGroup ? group : li;
-    const offset = stuck + (firstInGroup ? 0 : heading.offsetHeight) + 8;
+    // Platz für die Einträge, deren Karten nach dem Scrollen oberhalb liegen.
+    let strip = 0;
+    const stripList = firstInGroup ? null : group.querySelector(".long-strip");
+    if (stripList) {
+      stripList.querySelectorAll("li").forEach((item) => {
+        const card = group.querySelector(`.event-card[href="${item.dataset.card}"]`);
+        item.hidden = !card || !(card.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING);
+      });
+      strip = stripList.offsetHeight;
+    }
+    const offset = stuck + (firstInGroup ? 0 : heading.offsetHeight + strip) + 8;
     window.scrollTo({ top: Math.max(0, anchor.getBoundingClientRect().top + window.scrollY - offset) });
+    updateLongStrip();
   }
 
   // Zeitstatus der Karten jede Minute auffrischen (ohne zu scrollen).
@@ -1171,6 +1205,7 @@
         `<ul class="event-list">${evs.map(cardHtml).join("")}</ul></section>`;
     }).join("");
     updateColumns(groups.size || 1);
+    updateLongStrip();
 
     // "Zurück zu heute", wenn ein anderer Zeitraum gewählt ist.
     if (!savedView && !state.search && currentRange()[0] > todayISO()) {

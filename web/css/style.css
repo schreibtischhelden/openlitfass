@@ -834,23 +834,30 @@ button { font: inherit; }
 .is-columns .event-card__title { clear: both; margin-top: 2px; font-size: 0.95rem; }
 .is-columns .event-card__meta { font-size: 0.78rem; }
 
-/* Lange Termine von heute (#42): Überschrift und Leiste kleben gemeinsam,
-   die Karte bleibt zusätzlich in der Liste. */
+/* Lange Termine von heute (#42, #50): Überschrift und Leiste kleben
+   gemeinsam. Die Leiste schwebt durchsichtig über der Liste, nur die
+   Einträge haben einen Hintergrund; sie erscheinen erst, wenn ihre Karte
+   unter die Überschrift gescrollt ist. */
 .day-sticky {
   position: sticky;
   top: calc(var(--hdr, calc(var(--header-h) + var(--safe-top))) + var(--tb, 53px));
   z-index: 5;
   margin: 0 calc(-1 * var(--space-4)) var(--space-2);
-  background: var(--color-bg);
 }
 .day-sticky > .day-heading { position: static; margin: 0; }
 .long-strip {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
   list-style: none;
   margin: 0;
-  padding: 0 var(--space-4) var(--space-2);
+  padding: 4px var(--space-4) 0;
   display: grid;
   gap: 4px;
+  pointer-events: none;
 }
+.long-strip li { pointer-events: auto; }
 .long-strip__item {
   display: flex;
   gap: 8px;
@@ -858,7 +865,7 @@ button { font: inherit; }
   padding: 4px 10px;
   border-radius: var(--radius-s);
   background: color-mix(in srgb, var(--color-erfolg-500) 12%, var(--color-surface));
-  box-shadow: inset 3px 0 0 var(--color-erfolg-500);
+  box-shadow: inset 3px 0 0 var(--color-erfolg-500), 0 2px 6px rgb(0 0 0 / 0.18);
   color: var(--color-text);
   font-size: 0.85rem;
   text-decoration: none;
@@ -872,7 +879,7 @@ button { font: inherit; }
 .long-strip__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .is-columns .day-sticky { margin: 0 0 var(--space-2); }
 .is-columns .day-sticky > .day-heading { margin: 0; }
-.is-columns .long-strip { padding: 0 2px var(--space-2); }
+.is-columns .long-strip { padding: 4px 2px 0; }
 .is-columns .card-star { top: 2px; right: 2px; width: 36px; height: 36px; }
 
 /* ---------- Orte (data/places.json) ----------
