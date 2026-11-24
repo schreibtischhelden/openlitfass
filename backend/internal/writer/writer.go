@@ -197,7 +197,7 @@ func Write(path string, events []model.Event, baseURL string, priority map[strin
 // path (see internal/categories.Config.Build). This is the backend's half
 // of a one-way interface: the frontend only ever reads this file to render
 // the category filter menu and event-card icons, never the other way
-// around - see docs/backend.md -> "Kategorie-Piktogramm-Schnittstelle".
+// around - see https://docs.openlitfass.org/?page=categories.
 //
 // cfg is the loaded <instance>/categories.json (see categories.Load,
 // called once in cmd/fetch/main.go) - the hand-edited registry this

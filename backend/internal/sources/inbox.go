@@ -16,7 +16,7 @@ import (
 
 // InboxSource turns hand-authored JSON files in the instance's inbox/
 // directory into events (commit a file, it shows up in data/events.json on
-// the next run; see docs/inbox.md for the file format) - the
+// the next run; see https://docs.openlitfass.org/?page=inbox for the file format) - the
 // manual counterpart to the automated rss/json/wcs sources, for one-off
 // events that don't come from any feed (a flyer, a phone call, a personal
 // tip).

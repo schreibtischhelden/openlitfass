@@ -1,7 +1,7 @@
 name: Release
 
 # Turns a version tag (v1.2.3) into a GitHub release and ties it to the
-# roadmap (docs/releases.md). The release notes are put together from:
+# roadmap (https://docs.openlitfass.org/?page=releases). The release notes are put together from:
 #   1. Highlights: the message of the annotated tag (hand-written bullets,
 #      `git tag -a v1.2.3 -F notes.md`);
 #   2. Roadmap items: the closed issues of the milestone named like the tag;

@@ -4,7 +4,7 @@
 //
 // The core repository (this one) contains no instance-specific content at
 // all - everything that makes a calendar "about Weißensee" lives in the
-// instance directory. See docs/instance.md for the full layout.
+// instance directory. See https://docs.openlitfass.org/?page=configuration for the full layout.
 //
 //	<instance>/
 //	  instance.json      Config below

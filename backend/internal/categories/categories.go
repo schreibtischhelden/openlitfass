@@ -15,8 +15,8 @@
 // internal/writer writes the built result to data/categories.json on every
 // run, and web/js/app.js only ever reads that file to render the category
 // filter menu and event-card icons - it must not hardcode or invent icons
-// of its own again. See docs/backend.md -> "Kategorie-Piktogramm-
-// Schnittstelle" for the full contract, including how this differs from
+// of its own again. See https://docs.openlitfass.org/?page=categories for the full
+// contract, including how this differs from
 // <instance>/categories.json (the hand-edited input) below.
 package categories
 

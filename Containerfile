@@ -1,7 +1,7 @@
 # openLitfass runtime image: the compiled tools (fetch, build-site, serve)
 # plus the core frontend, nothing else. An instance's workflow runs this
 # image against its own checked-out instance directory - see
-# docs/instance.md.
+# https://docs.openlitfass.org/?page=setup.
 #
 # Build context is the repository root:
 #   docker build -t openlitfass -f Containerfile .
@@ -48,7 +48,7 @@ WORKDIR /instance
 ENV OL_FETCH_INTERVAL=6h
 EXPOSE 8080
 # Optional: OL_METRICS_ADDR=:9090 serves /metrics on its own port (not public).
-# Optional SEO extras, off by default (see docs/instance.md):
+# Optional SEO extras, off by default (see https://docs.openlitfass.org/?page=seo):
 # OL_STATIC_PAGES=true (termine/, pre-rendered start page),
 # OL_SITEMAP_GENERATOR=true (sitemap.xml, robots.txt).
 ENV OL_STATIC_PAGES=false OL_SITEMAP_GENERATOR=false

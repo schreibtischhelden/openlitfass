@@ -30,17 +30,19 @@ openlitfass (this repository)                   instance repository (e.g. weisse
 
 ## Documentation
 
-- [Setting up an instance](docs/instance.md): directory layout,
-  `instance.json`, front end, operation, metrics
-- [Backend](docs/backend.md): source types, field mapping, filters, fault
-  tolerance, event schema, running locally, workflows
-- [Event inbox](docs/inbox.md): adding individual events by hand
-- [Finding sources](docs/source-discovery.md): a playbook for discovering new
-  event sources
-- [GitHub Pages](docs/pages.md): publishing via GitHub Pages and DNS for a
-  custom domain
-- [Roadmap and releases](docs/releases.md): GitHub Project, milestones,
-  versions and how to release
+The documentation is at **<https://docs.openlitfass.org>**; its source is in
+[schreibtischhelden/openlitfass-docs](https://github.com/schreibtischhelden/openlitfass-docs).
+
+- [Setup](https://docs.openlitfass.org/?page=setup): create an instance, run
+  it with Docker or GitHub Actions
+- [Sources](https://docs.openlitfass.org/?page=sources),
+  [source types](https://docs.openlitfass.org/?page=source-types) and
+  [field mapping](https://docs.openlitfass.org/?page=field-mapping)
+- [Configuration reference](https://docs.openlitfass.org/?page=configuration):
+  `instance.json`, source files, `OL_` variables, commands
+- [Troubleshooting](https://docs.openlitfass.org/?page=troubleshooting)
+- [Development](https://docs.openlitfass.org/?page=development): checks,
+  tests, CI, contributing; [Releases](https://docs.openlitfass.org/?page=releases)
 
 ## Quick start (Docker)
 
@@ -53,7 +55,7 @@ Then open <http://localhost:8080>.
 
 `OL_FETCH_INTERVAL=0` disables fetching, because the example sources are
 templates only. Omit it for a real instance; sources are then fetched every
-six hours (see [Operation](docs/instance.md#operation-one-instance-per-container)).
+six hours (see [Run as a container](https://docs.openlitfass.org/?page=setup#run-as-a-container)).
 
 Prebuilt images for amd64 and arm64 are published as
 `ghcr.io/schreibtischhelden/openlitfass` by

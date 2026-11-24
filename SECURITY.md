@@ -29,4 +29,4 @@ is published and you are credited, unless you prefer otherwise.
 Every change runs through static analysis (golangci-lint with gosec,
 CodeQL), the race detector, `govulncheck`, a Trivy scan of the container
 image and an audit of the workflows (actionlint, zizmor). The scans repeat
-weekly. Details: [docs/backend.md](docs/backend.md#checks-before-pushing).
+weekly. Details: [Checks before pushing](https://docs.openlitfass.org/?page=development#checks-before-pushing).

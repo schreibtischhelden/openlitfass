@@ -12,7 +12,7 @@ import (
 )
 
 // Benchmarks for the parsers of fetched content. Compare branches with
-// scripts/check.sh bench (docs/backend.md, "Benchmarks").
+// scripts/check.sh bench (https://docs.openlitfass.org/?page=development#benchmarks).
 
 func BenchmarkParseHTMLEvents(b *testing.B) {
 	var cfg config.SourceConfig
