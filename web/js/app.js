@@ -46,6 +46,7 @@
     emptyRange: ["Keine Termine in diesem Zeitraum.", ""],
     allDay: "ganztägig",
     running: "Läuft",
+    longRunning: "Läuft noch",
     ended: "Beendet",
     free: "Kostenlos",
     ticket: "Ticket nötig",
@@ -300,6 +301,39 @@
     if (cur >= end) return "ended";
     if (cur >= start) return "running";
     return "";
+  }
+
+  function endMinutes(ev) {
+    const start = minutes(ev.startTime);
+    const end = minutes(ev.endTime);
+    if (start === null) return 24 * 60;
+    if (end === null) return start + DEFAULT_DURATION;
+    return end <= start ? 24 * 60 : end;
+  }
+
+  // Lange Termine (#42): laufen gerade und enden später als der nächste
+  // Termin, der nach ihnen beginnt. Beim Scrollen zur aktuellen Uhrzeit
+  // lägen sie oberhalb, obwohl sie noch laufen - deshalb schweben sie mit
+  // der Tagesüberschrift mit.
+  function longRunning(evs, now = instanceNow()) {
+    const startOf = (ev) => minutes(ev.startTime) ?? -1;
+    return evs.filter((ev) => {
+      if (ev.cancelled || timeState(ev, now) !== "running") return false;
+      const next = evs
+        .filter((n) => !n.cancelled && startOf(n) > startOf(ev))
+        .reduce((a, n) => (!a || startOf(n) < startOf(a) ? n : a), null);
+      return next !== null && endMinutes(ev) > endMinutes(next);
+    });
+  }
+
+  function longStripHtml(evs) {
+    return `<ul class="long-strip" aria-label="${STR.longRunning}">` + evs.map((ev) => {
+      const time = !ev.startTime ? STR.allDay
+        : ev.endTime ? `${escapeHtml(ev.startTime)}–${escapeHtml(ev.endTime)}` : escapeHtml(ev.startTime);
+      return `<li><a class="long-strip__item" href="#${encodeURIComponent(ev.id)}">` +
+        `<span class="long-strip__time">${time}</span>` +
+        `<span class="long-strip__title">${escapeHtml(ev.title)}</span></a></li>`;
+    }).join("") + `</ul>`;
   }
 
   function dayHeading(dateStr) {
@@ -1060,7 +1094,7 @@
     const group = target.closest(".day-group");
     const firstInGroup = group.querySelector("li") === li;
     const stuck = el.header.offsetHeight + (el.toolbar.hidden ? 0 : el.toolbar.offsetHeight);
-    const heading = group.querySelector(".day-heading");
+    const heading = group.querySelector(".day-sticky") || group.querySelector(".day-heading");
     const anchor = firstInGroup ? group : li;
     const offset = stuck + (firstInGroup ? 0 : heading.offsetHeight) + 8;
     window.scrollTo({ top: Math.max(0, anchor.getBoundingClientRect().top + window.scrollY - offset) });
@@ -1128,11 +1162,14 @@
       if (!groups.has(ev.date)) groups.set(ev.date, []);
       groups.get(ev.date).push(ev);
     });
-    el.groups.innerHTML = [...groups].map(([date, evs]) =>
-      `<section class="day-group" aria-label="${escapeHtml(longDate(date))}">` +
-      `<h2 class="day-heading">${escapeHtml(dayHeading(date))}</h2>` +
-      `<ul class="event-list">${evs.map(cardHtml).join("")}</ul></section>`
-    ).join("");
+    const today = todayISO();
+    el.groups.innerHTML = [...groups].map(([date, evs]) => {
+      const heading = `<h2 class="day-heading">${escapeHtml(dayHeading(date))}</h2>`;
+      const long = date === today ? longRunning(evs) : [];
+      return `<section class="day-group" aria-label="${escapeHtml(longDate(date))}">` +
+        (long.length ? `<div class="day-sticky">${heading}${longStripHtml(long)}</div>` : heading) +
+        `<ul class="event-list">${evs.map(cardHtml).join("")}</ul></section>`;
+    }).join("");
     updateColumns(groups.size || 1);
 
     // "Zurück zu heute", wenn ein anderer Zeitraum gewählt ist.
