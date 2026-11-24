@@ -854,6 +854,7 @@ button { font: inherit; }
   margin: 0;
   padding: 4px var(--space-4) 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
   pointer-events: none;
 }
@@ -879,7 +880,7 @@ button { font: inherit; }
 .long-strip__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .is-columns .day-sticky { margin: 0 0 var(--space-2); }
 .is-columns .day-sticky > .day-heading { margin: 0; }
-.is-columns .long-strip { padding: 4px 2px 0; }
+.is-columns .long-strip { padding: 4px 0 0; }
 .is-columns .card-star { top: 2px; right: 2px; width: 36px; height: 36px; }
 
 /* ---------- Orte (data/places.json) ----------
