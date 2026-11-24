@@ -64,5 +64,7 @@ Prebuilt images for amd64 and arm64 are published as
 ## Licence
 
 Released under the [MIT Licence](LICENSE). The category and filter icons are
-taken from [Tabler Icons](https://tabler.io/icons), also under the MIT
-Licence.
+taken from [Tabler Icons](https://github.com/tabler/tabler-icons), also under
+the MIT Licence; its notice is in
+[`web/THIRD-PARTY-NOTICES.txt`](web/THIRD-PARTY-NOTICES.txt), which is
+published with every site.
