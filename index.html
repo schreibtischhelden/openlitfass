@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>openLitfass – your own digital advertising pillar</title>
+<meta name="description" content="openLitfass collects events from the feeds, calendars and websites you choose and shows them in your own lightweight calendar, which you can share publicly. Static, no tracking, open source (MIT).">
+<meta property="og:title" content="openLitfass – your own digital advertising pillar">
+<meta property="og:description" content="Events from feeds, calendars and websites in one place. Static, no tracking, open source.">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="en_GB">
+<meta property="og:url" content="https://openlitfass.org/">
+<meta property="og:image" content="https://openlitfass.org/img/weissensee-weekend.png">
+<link rel="canonical" href="https://openlitfass.org/">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#2F3E4E">
+<style>
+  :root {
+    --bg: #f6f5f1; --surface: #fff; --surface-2: #efede7; --text: #1c1c1b; --muted: #5d6266;
+    --primary: #2F3E4E; --primary-soft: #e4e8ec; --accent: #B4532A; --border: #e2e0da;
+    --shadow: 0 1px 2px rgb(0 0 0 / .04), 0 8px 24px rgb(0 0 0 / .06);
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14181c; --surface: #1d2329; --surface-2: #192026; --text: #eceae4; --muted: #a3a9ae;
+      --primary-soft: #26313b; --accent: #d9774c; --border: #2f363d;
+      --shadow: 0 1px 2px rgb(0 0 0 / .3), 0 8px 24px rgb(0 0 0 / .3);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  a { color: inherit; }
+  img { max-width: 100%; height: auto; display: block; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+
+  /* Header */
+  header { background: var(--primary); color: #fff; position: sticky; top: 0; z-index: 10; }
+  header .wrap { display: flex; align-items: center; gap: 10px; height: 60px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.15rem; text-decoration: none; }
+  .brand svg { width: 28px; height: 28px; color: #fff; }
+  .logo-mark__accent { fill: #B4532A; }
+  header nav { margin-left: auto; display: flex; gap: 20px; font-size: .95rem; }
+  header nav a { text-decoration: none; opacity: .85; }
+  header nav a:hover { opacity: 1; text-decoration: underline; }
+  @media (max-width: 640px) { header nav .opt { display: none; } }
+
+  /* Hero */
+  .hero { background: var(--primary); color: #fff; padding: 40px 0 0; overflow: hidden; }
+  .hero h1 { font-size: clamp(1.9rem, 5.5vw, 3rem); line-height: 1.1; margin: 0 0 14px; max-width: 18ch; letter-spacing: -.01em; }
+  .hero h1 em { font-style: normal; color: #f0a37e; }
+  .lead { font-size: 1.15rem; margin: 0 0 24px; max-width: 60ch; opacity: .9; }
+  .btns { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 36px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 20px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); text-decoration: none; font-weight: 600; }
+  .btn svg { width: 18px; height: 18px; }
+  .btn--accent { background: #B4532A; border-color: #B4532A; color: #fff; }
+  .btn--ghost { background: transparent; border-color: rgb(255 255 255 / .4); color: #fff; }
+  .btn:hover { filter: brightness(1.08); }
+  .shot { width: 100%; aspect-ratio: 1424 / 860; object-fit: cover; object-position: left top; border-radius: 12px 12px 0 0; box-shadow: 0 -4px 40px rgb(0 0 0 / .35); border: 1px solid rgb(255 255 255 / .15); border-bottom: 0; }
+  .facts { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 0 0 28px; padding: 0; list-style: none; font-size: .95rem; opacity: .9; }
+  .facts li { display: flex; align-items: center; gap: 6px; }
+  .facts svg { width: 18px; height: 18px; color: #f0a37e; }
+
+  /* Sections */
+  section { padding: 56px 0 8px; }
+  [id] { scroll-margin-top: 60px; }
+  .eyebrow { color: var(--accent); font-weight: 700; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 6px; }
+  h2 { font-size: clamp(1.4rem, 3.5vw, 1.9rem); line-height: 1.2; margin: 0 0 10px; }
+  .intro { color: var(--muted); max-width: 62ch; margin: 0 0 24px; }
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; box-shadow: var(--shadow); }
+  .card h3 { margin: 10px 0 6px; font-size: 1.02rem; }
+  .card p { margin: 0; color: var(--muted); font-size: .95rem; }
+  .ico { width: 40px; height: 40px; border-radius: 10px; background: var(--primary-soft); color: var(--primary); display: grid; place-items: center; }
+  @media (prefers-color-scheme: dark) { .ico { color: #c8d3dd; } }
+  .ico svg { width: 22px; height: 22px; }
+
+  /* Pipeline */
+  .flow { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); counter-reset: step; }
+  .flow .card { position: relative; padding-top: 20px; }
+  .flow .card::before { counter-increment: step; content: counter(step); position: absolute; top: -12px; left: 18px; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700; font-size: .85rem; display: grid; place-items: center; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip { font-size: .8rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); }
+
+  /* Split */
+  .split { display: grid; gap: 28px; align-items: center; grid-template-columns: 1fr; }
+  @media (min-width: 820px) { .split { grid-template-columns: 1fr 1.15fr; } }
+  @media (min-width: 820px) { .split--rev { grid-template-columns: 1.1fr 1fr; } }
+  .sched { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; box-shadow: var(--shadow); display: grid; gap: 8px; }
+  .sched__head { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: .85rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .sched__head .chip { text-transform: none; letter-spacing: 0; }
+  .slot { display: grid; grid-template-columns: 52px 1fr auto; gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); font-weight: 600; }
+  .slot b { font-variant-numeric: tabular-nums; }
+  .slot small { display: block; font-weight: 400; color: var(--muted); font-size: .85rem; }
+  .slot__cat { display: block; color: var(--accent); font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+  .slot--now { border-color: #3f8f5a; background: color-mix(in srgb, #3f8f5a 10%, var(--bg)); }
+  .now { font-size: .72rem; font-weight: 700; color: #fff; background: #3f8f5a; border-radius: 999px; padding: 2px 8px; }
+  .star { color: #d9a53c; font-size: 1.1rem; line-height: 1; }
+  .split img { width: 100%; max-width: 440px; justify-self: center; aspect-ratio: 1170 / 1440; object-fit: cover; object-position: left top; border-radius: 12px; border: 1px solid var(--border); box-shadow: var(--shadow); }
+  .ticks { list-style: none; padding: 0; margin: 0; }
+  .ticks li { position: relative; padding-left: 28px; margin: 10px 0; }
+  .ticks li::before { content: ""; position: absolute; left: 0; top: .35em; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a10 10 0 1 0 0 20a10 10 0 0 0 0-20zm-1.5 14.2l-4-4l1.4-1.4l2.6 2.6l5.6-5.6l1.4 1.4z'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a10 10 0 1 0 0 20a10 10 0 0 0 0-20zm-1.5 14.2l-4-4l1.4-1.4l2.6 2.6l5.6-5.6l1.4 1.4z'/%3E%3C/svg%3E") center/contain no-repeat; }
+  .ticks strong { display: block; }
+  .ticks span { color: var(--muted); font-size: .95rem; }
+
+  /* Steps + code */
+  .steps { margin: 0; padding-left: 1.3em; }
+  .steps li { margin: 8px 0; padding-left: 4px; }
+  code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: .88em; }
+  pre { background: #1d2329; color: #eceae4; border-radius: 12px; padding: 16px 18px; overflow-x: auto; font-size: .88rem; line-height: 1.5; margin: 18px 0; }
+  pre code { background: none; border: 0; padding: 0; color: inherit; }
+  pre .c { color: #8b949e; }
+
+  /* Instance + CTA */
+  .instance { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; justify-content: space-between; }
+  .instance h3 { margin: 0 0 4px; font-size: 1.15rem; }
+  .cta { background: var(--primary); color: #fff; border-radius: 18px; padding: 32px 24px; margin-top: 8px; }
+  .cta h2 { color: #fff; }
+  .cta p { opacity: .9; max-width: 60ch; margin: 0 0 20px; }
+  .note { font-size: .9rem; color: var(--muted); }
+
+  footer { margin-top: 64px; padding: 28px 0 40px; border-top: 1px solid var(--border); color: var(--muted); font-size: .9rem; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: space-between; }
+  footer nav { display: flex; flex-wrap: wrap; gap: 16px; }
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <a class="brand" href="#top" aria-label="openLitfass home">
+    <svg class="logo-mark" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 1v1.5M7 6.5c0-2.4 2.2-4 5-4s5 1.6 5 4M5.5 6.5h13M7 6.5v13.5M17 6.5v13.5M5.5 22h13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="9.5" y="9.5" width="5" height="7" rx="1" class="logo-mark__accent"/>
+    </svg>
+    openLitfass
+  </a>
+  <nav aria-label="Main">
+    <a class="opt" href="#features">Features</a>
+    <a class="opt" href="#how">How it works</a>
+    <a href="#run">Run your own</a>
+    <a href="https://docs.openlitfass.org">Docs</a>
+    <a href="https://github.com/schreibtischhelden/openlitfass">GitHub</a>
+  </nav>
+</div></header>
+
+<div class="hero" id="top"><div class="wrap">
+  <h1>Build <em>your own</em> events calendar</h1>
+  <p class="lead">openLitfass is a digital advertising pillar you put together for yourself. Pick the sources you care about – venues, clubs, feeds, your own events – and it collects them in one calendar: lightweight, fast, without accounts and without tracking. Keep it for yourself or share it publicly.</p>
+  <ul class="facts">
+    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5l10 -10"/></svg>Open source, MIT licence</li>
+    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5l10 -10"/></svg>Static site, no database</li>
+    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5l10 -10"/></svg>One container per instance</li>
+  </ul>
+  <div class="btns">
+    <a class="btn btn--accent" href="https://weissens.ee">See it live: weissens.ee</a>
+    <a class="btn btn--ghost" href="https://github.com/schreibtischhelden/openlitfass">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37c-.52-1.33-1.28-1.69-1.28-1.69c-1.04-.71.08-.7.08-.7c1.16.08 1.77 1.19 1.77 1.19c1.03 1.76 2.7 1.25 3.36.96c.1-.75.4-1.25.73-1.54c-2.55-.29-5.24-1.28-5.24-5.69c0-1.26.45-2.28 1.19-3.09c-.12-.29-.52-1.46.11-3.05c0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18c.63 1.59.23 2.76.11 3.05c.74.81 1.19 1.83 1.19 3.09c0 4.42-2.7 5.39-5.26 5.68c.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg>
+      Source code on GitHub</a>
+  </div>
+  <img class="shot" src="img/weissensee-weekend.png" width="1440" height="860" alt="The weissens.ee instance showing a weekend in two columns: event cards with time, category, title and venue, one of them marked as cancelled.">
+</div></div>
+
+<main class="wrap">
+  <section id="features">
+    <p class="eyebrow">Features</p>
+    <h2>Everything that's on, in one list</h2>
+    <p class="intro">Organisers keep publishing where they always have. openLitfass picks their events up automatically and turns them into a calendar you actually want to use.</p>
+    <div class="grid">
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M4 4a16 16 0 0 1 16 16"/><path d="M4 11a9 9 0 0 1 9 9"/></svg></div>
+        <h3>Many kinds of source</h3><p>RSS, iCalendar, JSON APIs, WordPress calendar plugins and plain web pages without a feed – configured in JSON, no custom code.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 8l-4 4l4 4"/><path d="M17 8l4 4l-4 4"/><path d="M14 4l-4 16"/></svg></div>
+        <h3>Duplicates merged</h3><p>The same event announced by several sources appears once. Cancelled events stay visible, clearly marked.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v2.172a2 2 0 0 1 -.586 1.414l-4.414 4.414v7l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227z"/></svg></div>
+        <h3>Filters that make sense</h3><p>Day, weekend or week; categories and groups such as culture; attributes like free, family-friendly or ticket required.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"/><path d="M21 21l-6 -6"/></svg></div>
+        <h3>Search with suggestions</h3><p>Finds venues, categories and events across all dates, tolerant of accents and ß/ss.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"/><path d="M17.657 16.657l-4.243 4.243a2 2 0 0 1 -2.827 0l-4.244 -4.243a8 8 0 1 1 11.314 0z"/></svg></div>
+        <h3>Places and maps</h3><p>A directory of venues with their upcoming events, map links to OpenStreetMap and calendar export as .ics.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17.75l-6.172 3.245l1.179 -6.873l-5 -4.867l6.9 -1l3.086 -6.253l3.086 6.253l6.9 1l-5 4.867l1.179 6.873z"/></svg></div>
+        <h3>Saved events</h3><p>Star events straight from the list. Kept in the browser only – no sign-up, no account.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 5a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2v-14z"/><path d="M11 4h2"/><path d="M12 17v.01"/></svg></div>
+        <h3>Installable web app</h3><p>Works on phones, tablets and wide screens; installable as a PWA and usable offline with the last loaded events.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/><path d="M3.6 9h16.8"/><path d="M3.6 15h16.8"/><path d="M11.5 3a17 17 0 0 0 0 18"/><path d="M12.5 3a17 17 0 0 1 0 18"/></svg></div>
+        <h3>Easy to find</h3><p>Optional static event pages with schema.org data, a sitemap and today's events already in the HTML.</p></div>
+    </div>
+  </section>
+
+  <section id="how">
+    <p class="eyebrow">How it works</p>
+    <h2>From scattered announcements to one calendar</h2>
+    <p class="intro">No database, no API server. A small Go program fetches, cleans and builds; what comes out is a set of static files any web server can serve.</p>
+    <div class="flow">
+      <div class="card"><h3>Collect</h3><p><code>fetch</code> reads every configured source on a schedule (every six hours by default) and maps its fields to a common event format.</p>
+        <div class="chips"><span class="chip">RSS</span><span class="chip">iCal</span><span class="chip">JSON</span><span class="chip">HTML</span><span class="chip">WordPress</span><span class="chip">Inbox</span></div></div>
+      <div class="card"><h3>Clean up</h3><p>Filters drop what doesn't belong, duplicates are merged and categories assigned. A failing source never wipes out the rest – the last good data is kept.</p></div>
+      <div class="card"><h3>Publish</h3><p><code>build-site</code> writes the web app, event data and optional SEO pages. <code>serve</code> switches a new build live only once it is complete.</p></div>
+    </div>
+  </section>
+
+  <section id="slots">
+    <div class="split split--rev">
+      <div>
+        <p class="eyebrow">Event days</p>
+        <h2>Talks, workshops, many slots</h2>
+        <p class="intro">Not only for ongoing events: openLitfass also works for your own event days – a hackerspace's open day, a club congress, a barcamp, a festival or any occasion where talks are given.</p>
+        <ul class="ticks">
+          <li><strong>Bring the schedule as it is</strong><span>Import an iCalendar export from your planning tool, or add single talks by hand through the inbox.</span></li>
+          <li><strong>Rooms and tracks</strong><span>Rooms become places, tracks become categories – filterable, searchable, each with its own icon.</span></li>
+          <li><strong>Several days side by side</strong><span>Weekend and week views show the days in columns; talks in progress are highlighted.</span></li>
+          <li><strong>A personal timetable</strong><span>Visitors star the talks they want to see and add them to their own calendar.</span></li>
+        </ul>
+      </div>
+      <div class="sched" aria-hidden="true">
+        <div class="sched__head"><span>Day 1 · Saturday</span><span class="chip">3 rooms</span></div>
+        <div class="slot"><b>10:00</b><div><span class="slot__cat">Opening</span>Welcome and orientation<small>Hall A</small></div></div>
+        <div class="slot slot--now"><b>11:00</b><div><span class="slot__cat">Security</span>Hardening your home router<small>Hall A</small></div><span class="now">Now</span></div>
+        <div class="slot slot--now"><b>11:00</b><div><span class="slot__cat">Workshop</span>Soldering for beginners<small>Workshop room</small></div><span class="now">Now</span></div>
+        <div class="slot"><b>12:30</b><div><span class="slot__cat">Society</span>Open data in local government<small>Hall B</small></div><span class="star">★</span></div>
+        <div class="slot"><b>14:00</b><div><span class="slot__cat">Lightning talks</span>Five minutes each, sign up on site<small>Hall A</small></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="split">
+      <div>
+        <p class="eyebrow">Made for visitors</p>
+        <h2>Respectful by design</h2>
+        <ul class="ticks">
+          <li><strong>No tracking, no cookies, no accounts</strong><span>Preferences and saved events live in the visitor's own browser.</span></li>
+          <li><strong>Light and dark mode</strong><span>Follows the system setting or the visitor's choice.</span></li>
+          <li><strong>Today at a glance</strong><span>Events in progress are highlighted, finished ones fade out.</span></li>
+          <li><strong>Your look</strong><span>Each instance brings its own colours, logo and texts through a small theme file.</span></li>
+        </ul>
+      </div>
+      <img src="img/weissensee-dark.png" width="1200" height="1440" loading="lazy" alt="weissens.ee in dark mode: a single day with event cards for a children's farm, a picture-book cinema, toddler groups and an exhibition.">
+    </div>
+  </section>
+
+  <section id="run">
+    <p class="eyebrow">Run your own</p>
+    <h2>Your own calendar in five steps</h2>
+    <p class="intro">The core lives in one repository; each calendar is an <em>instance</em> in a repository of its own that holds only configuration, sources and styling.</p>
+    <ol class="steps">
+      <li>Copy <code>example-instance/</code> into a new, empty repository.</li>
+      <li>Fill in <code>instance.json</code> – by hand or with the <a href="https://config.openlitfass.org/?page=instance">config UI</a> – and adapt the legal notice and privacy policy.</li>
+      <li>Add sources: copy a template in <code>sources/</code> or build one with the <a href="https://config.openlitfass.org/?page=source">source form</a>, then adjust URL and field mapping.</li>
+      <li>Style it: override the design tokens in <code>site/css/theme.css</code>, add your logo.</li>
+      <li>Start the container – it serves the site and keeps it up to date.</li>
+    </ol>
+<pre><code><span class="c"># one instance per container: serves on :8080, fetches every 6 hours</span>
+docker run -d --restart unless-stopped \
+  -v ./my-instance:/instance -p 8080:8080 \
+  ghcr.io/schreibtischhelden/openlitfass</code></pre>
+    <p>Images for amd64 and arm64. A health endpoint and Prometheus metrics are built in; GitHub Actions and GitHub Pages work too.</p>
+    <div class="card instance" style="margin:24px 0 14px">
+      <div>
+        <h3>Config UI</h3>
+        <p>Browser forms for <code>instance.json</code>, categories, places, inbox events and sources. Import an existing file or start from scratch, then download or copy the JSON. Nothing leaves your browser.</p>
+      </div>
+      <div class="btns" style="margin:0">
+        <a class="btn btn--accent" href="https://config.openlitfass.org">Open config UI</a>
+      </div>
+    </div>
+    <div class="grid">
+      <a class="card" style="text-decoration:none" href="https://docs.openlitfass.org/?page=setup"><h3>Setting up an instance →</h3><p>Create an instance and run it with Docker or GitHub Actions.</p></a>
+      <a class="card" style="text-decoration:none" href="https://docs.openlitfass.org/?page=sources"><h3>Configuring sources →</h3><p>Source types, field mapping, filters, fault tolerance.</p></a>
+      <a class="card" style="text-decoration:none" href="https://docs.openlitfass.org/?page=source-discovery"><h3>Finding sources →</h3><p>A playbook for discovering event sources in your area.</p></a>
+    </div>
+    <p class="note">The user interface is currently available in German only.</p>
+  </section>
+
+  <section id="instances">
+    <p class="eyebrow">In use</p>
+    <h2>Instances</h2>
+    <div class="card instance">
+      <div>
+        <h3>weissens.ee</h3>
+        <p>Berlin-Weißensee: libraries, cinemas, galleries, a children's farm, sports clubs and more.</p>
+      </div>
+      <div class="btns" style="margin:0">
+        <a class="btn" href="https://weissens.ee">Open calendar</a>
+        <a class="btn" href="https://github.com/weissensee/weissens.ee">Instance repository</a>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="cta">
+      <h2>Get involved</h2>
+      <p>openLitfass is free software. Report a bug, suggest an idea or a source type, or start a calendar of your own.</p>
+      <div class="btns" style="margin:0">
+        <a class="btn btn--accent" href="https://github.com/schreibtischhelden/openlitfass/issues">Issues and ideas</a>
+        <a class="btn btn--ghost" href="https://github.com/schreibtischhelden/openlitfass">Repository</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer><div class="wrap">
+  <span>openLitfass is free software under the MIT Licence.</span>
+  <nav aria-label="Footer">
+    <a href="https://github.com/schreibtischhelden/openlitfass">GitHub</a>
+    <a href="https://docs.openlitfass.org">Documentation</a>
+    <a href="https://config.openlitfass.org">Config UI</a>
+    <a href="https://github.com/schreibtischhelden/openlitfass/blob/main/LICENSE">Licence</a>
+  </nav>
+</div></footer>
+</body>
+</html>
