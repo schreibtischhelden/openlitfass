@@ -14,6 +14,19 @@ import (
 // (see cmd/fetch/main.go) and starve every source queued after it.
 const defaultSourceTimeout = 20 * time.Second
 
+// maxSourceTimeout caps SourceConfig.TimeoutSeconds, leaving the other
+// sources room within the run's FetchTimeout (internal/app).
+const maxSourceTimeout = 180 * time.Second
+
+// sourceTimeout is the time limit for one source: TimeoutSeconds if set
+// (capped at maxSourceTimeout), else defaultSourceTimeout.
+func sourceTimeout(seconds int) time.Duration {
+	if seconds <= 0 {
+		return defaultSourceTimeout
+	}
+	return min(time.Duration(seconds)*time.Second, maxSourceTimeout)
+}
+
 // withTimeout gives inner its own bounded sub-context, derived from
 // whatever context Fetch is called with.
 func withTimeout(inner Source, d time.Duration) Source {

@@ -78,6 +78,21 @@ type SourceConfig struct {
 	// MaxPages caps pagination (default 10) so a misbehaving API can't
 	// make a run loop forever.
 	MaxPages int `json:"maxPages,omitempty"`
+	// Steps run before the main request and collect variables from other
+	// pages (see Step), e.g. the event ids a widget page lists before its
+	// entries are loaded from a second endpoint. Works for every type that
+	// fetches URL; see https://docs.openlitfass.org/?page=source-types#steps.
+	Steps []Step `json:"steps,omitempty"`
+	// ForEach repeats the main request for the values of a collected
+	// variable (see ForEach). The events of all requests are combined.
+	ForEach *ForEach `json:"forEach,omitempty"`
+	// MaxRequests caps the main requests ForEach makes in one run
+	// (default 20); the remaining values are skipped with a log line.
+	MaxRequests int `json:"maxRequests,omitempty"`
+	// TimeoutSeconds overrides the per-source time limit of 20 seconds,
+	// for endpoints that render slowly (at most 180; the whole run has
+	// five minutes).
+	TimeoutSeconds int `json:"timeoutSeconds,omitempty"`
 	// ItemSelector ("html" sources only) is the CSS selector of one event
 	// container on the page, e.g. "#jevents_body .schatten".
 	ItemSelector string `json:"itemSelector,omitempty"`

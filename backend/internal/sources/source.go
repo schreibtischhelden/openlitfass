@@ -5,6 +5,7 @@ package sources
 import (
 	"context"
 	"log"
+	"time"
 
 	"openlitfass/backend/internal/config"
 	"openlitfass/backend/internal/model"
@@ -69,23 +70,15 @@ func All(sourcesDir, inboxDir, holidaysFile string) []Source {
 			continue
 		}
 
-		var src Source
-		switch c.Type {
-		case "rss":
-			src = NewRSSSource(c)
-		case "json":
-			src = NewJSONSource(c)
-		case "html":
-			src = NewHTMLSource(c)
-		case "ical":
-			src = NewICalSource(c)
-		case "wcs":
-			src = NewWCSSource(c)
-		default:
+		src := newTypedSource(c)
+		if src == nil {
 			log.Printf("source %q: unknown type %q, skipping", c.Name, c.Type)
 			continue
 		}
-		wrapped := harden(withCommonFilters(src, c))
+		if usesSteps(&c) {
+			src = newStepSource(c, newTypedSource)
+		}
+		wrapped := hardenWithin(withCommonFilters(src, c), sourceTimeout(c.TimeoutSeconds))
 		if c.Path != "" {
 			wrapped = withStatusTracking(wrapped, c.Path)
 		}
@@ -108,8 +101,31 @@ func All(sourcesDir, inboxDir, holidaysFile string) []Source {
 	return all
 }
 
+// newTypedSource builds the fetcher for c.Type, or returns nil for an
+// unknown type.
+func newTypedSource(c config.SourceConfig) Source {
+	switch c.Type {
+	case "rss":
+		return NewRSSSource(c)
+	case "json":
+		return NewJSONSource(c)
+	case "html":
+		return NewHTMLSource(c)
+	case "ical":
+		return NewICalSource(c)
+	case "wcs":
+		return NewWCSSource(c)
+	}
+	return nil
+}
+
 // harden applies the two resilience wrappers every source gets, regardless
 // of type - see the All() doc comment above.
 func harden(src Source) Source {
-	return withPanicRecovery(withTimeout(src, defaultSourceTimeout))
+	return hardenWithin(src, defaultSourceTimeout)
+}
+
+// hardenWithin is harden with a source-specific time limit.
+func hardenWithin(src Source, timeout time.Duration) Source {
+	return withPanicRecovery(withTimeout(src, timeout))
 }
