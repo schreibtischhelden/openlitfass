@@ -39,6 +39,8 @@
     allDates: "Alle Termine",
     backToToday: "zurück zu heute",
     nextEvent: "Nächster Termin:",
+    prevEventNav: "Vorheriger Termin",
+    nextEventNav: "Nächster Termin",
     filters: "Filter",
     activeFilters: "Gesetzte Filter",
     remove: "entfernen",
@@ -180,7 +182,10 @@
     period: "tag",   // tag | wochenende | woche
     anchor: "",      // erster Tag des gewählten Zeitraums (YYYY-MM-DD); "" = heute
     view: "list",
-    cameFromList: false
+    cameFromList: false,
+    placeId: "",          // zuletzt geöffnete Ortsseite
+    detailId: "",         // Termin in der Detailansicht
+    detailFrom: "list"    // Ansicht, aus der die Detailansicht geöffnet wurde
   };
 
   const $ = (id) => document.getElementById(id);
@@ -959,7 +964,14 @@
     });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && !$("filterPanel").hidden) toggleFilterPanel(false);
+      if (state.view === "detail" && (e.key === "ArrowLeft" || e.key === "ArrowRight") &&
+          !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey &&
+          !(e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable]"))) {
+        e.preventDefault();
+        showNeighbour(e.key === "ArrowRight" ? 1 : -1);
+      }
     });
+    bindSwipe();
 
     // Klick auf eine Karte merkt sich, dass "Zurück" in die Liste führt
     // (dann history.back() statt Hash-Sprung, damit die Scrollposition bleibt).
@@ -1039,6 +1051,10 @@
 
     const fromView = state.view;
     state.view = view;
+    if (view === "place") state.placeId = hash.slice(4);
+    // Wischen in der Detailansicht blättert durch die Termine der Ansicht,
+    // aus der der Termin geöffnet wurde (siehe detailSequence).
+    if (view === "detail" && fromView !== "detail") state.detailFrom = fromView;
     el.viewList.hidden = !(view === "list" || view === "saved");
     el.viewDetail.hidden = view !== "detail";
     el.viewAbout.hidden = view !== "about";
@@ -1434,12 +1450,20 @@
       state.generatedAt ? `${STR.updated} ${relativeTime(state.generatedAt)}` : ""].filter(Boolean).join(" · ");
 
     const isSaved = saved.has(ev.id);
+    state.detailId = ev.id;
+    const { prev, next } = detailNeighbours(ev);
+    const navBtn = (id, icon, label, target) =>
+      `<button type="button" class="icon-btn detail__nav" id="${id}"${target ? "" : " disabled"} ` +
+      `aria-label="${escapeHtml(target ? `${label}: ${target.title}` : label)}" title="${label}">${svg(icon)}</button>`;
     el.viewDetail.innerHTML =
       `<div class="detail__bar">` +
       `<button type="button" class="detail__back" id="detailBack">${svg(ICON.back)} ${STR.back}</button>` +
+      `<div class="detail__actions">` +
+      navBtn("detailPrev", ICON.back, STR.prevEventNav, prev) +
+      navBtn("detailNext", ICON.forward, STR.nextEventNav, next) +
       `<button type="button" class="icon-btn star-btn${isSaved ? " is-active" : ""}" id="detailStar" aria-pressed="${isSaved}" ` +
       `aria-label="${isSaved ? STR.unsave : STR.save}" title="${isSaved ? STR.unsave : STR.save}">${svg(ICON.star)}</button>` +
-      `</div>` +
+      `</div></div>` +
       (ev.cancelled
         ? `<div class="cancelled-notice" role="status"><strong>${STR.cancelled}</strong> ${STR.cancelledNotice}</div>`
         : "") +
@@ -1463,10 +1487,126 @@
       toggleSaved(ev.id);
       renderDetail(ev);
     });
+    $("detailPrev").addEventListener("click", () => showNeighbour(-1));
+    $("detailNext").addEventListener("click", () => showNeighbour(1));
     $("detailIcs").addEventListener("click", () => downloadIcs(ev));
     $("detailShare").addEventListener("click", () => shareEvent(ev));
     mountMaps(el.viewDetail);
     el.main.focus({ preventScroll: true });
+  }
+
+  // ---- Blättern in der Detailansicht ----
+  // Reihenfolge wie in der Ansicht, aus der der Termin geöffnet wurde: Liste
+  // mit den gesetzten Filtern (über den Zeitraum hinaus), "Gemerkt" oder die
+  // Ortsseite. Ist der Termin dort nicht enthalten (direkt aufgerufener
+  // Link), alle kommenden Termine.
+  function detailSequence(ev) {
+    const today = todayISO();
+    const place = state.detailFrom === "place" && state.placeById.get(state.placeId);
+    let seq = state.detailFrom === "saved"
+      ? state.events.filter((e) => e.date >= today && saved.has(e.id))
+      : place ? upcomingAt(place) : filteredEvents(true);
+    if (!seq.includes(ev)) seq = state.events.filter((e) => e.date >= today);
+    return seq;
+  }
+  function detailNeighbours(ev) {
+    const seq = detailSequence(ev);
+    const i = seq.indexOf(ev);
+    if (i < 0) return { prev: null, next: null };
+    return { prev: seq[i - 1] || null, next: seq[i + 1] || null };
+  }
+
+  const SLIDE_MS = 180;
+  function motionOk() {
+    return !(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }
+  function resetSlide() {
+    const v = el.viewDetail;
+    v.style.transition = "";
+    v.style.transform = "";
+    v.style.opacity = "";
+  }
+  function snapBack() {
+    const v = el.viewDetail;
+    v.style.transition = `transform ${SLIDE_MS}ms ease-out`;
+    v.style.transform = "";
+    setTimeout(resetSlide, SLIDE_MS + 20);
+  }
+  // dir: 1 = nächster, -1 = vorheriger Termin. replaceState statt neuem
+  // Verlaufseintrag: "Zurück" führt weiter direkt in die Liste.
+  let sliding = false;
+  function showNeighbour(dir) {
+    const cur = state.byId.get(state.detailId);
+    if (!cur || sliding) return;
+    const target = detailNeighbours(cur)[dir > 0 ? "next" : "prev"];
+    if (!target) { snapBack(); return; }
+    const go = () => {
+      history.replaceState(null, "", `#${encodeURIComponent(target.id)}`);
+      route();
+    };
+    if (!motionOk()) { resetSlide(); go(); return; }
+    const v = el.viewDetail;
+    const shift = Math.round(v.offsetWidth * 0.35);
+    sliding = true;
+    v.style.transition = `transform ${SLIDE_MS}ms ease-in, opacity ${SLIDE_MS}ms ease-in`;
+    v.style.transform = `translateX(${-dir * shift}px)`;
+    v.style.opacity = "0";
+    setTimeout(() => {
+      go();
+      v.style.transition = "none";
+      v.style.transform = `translateX(${dir * shift}px)`;
+      void v.offsetWidth;
+      v.style.transition = `transform ${SLIDE_MS}ms ease-out, opacity ${SLIDE_MS}ms ease-out`;
+      v.style.transform = "";
+      v.style.opacity = "";
+      setTimeout(() => { resetSlide(); sliding = false; }, SLIDE_MS + 20);
+    }, SLIDE_MS);
+  }
+
+  // Wischen: nur bei überwiegend waagerechter Bewegung (senkrecht scrollt
+  // die Seite wie gewohnt, touch-action: pan-y im CSS). Berührungen am
+  // Bildschirmrand bleiben der Zurück-Geste des Systems.
+  function bindSwipe() {
+    const v = el.viewDetail;
+    const EDGE = 24, LOCK = 10;
+    let sw = null;
+    v.addEventListener("touchstart", (e) => {
+      sw = null;
+      if (state.view !== "detail" || sliding || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      if (t.clientX < EDGE || t.clientX > window.innerWidth - EDGE) return;
+      const cur = state.byId.get(state.detailId);
+      if (!cur) return;
+      sw = { x: t.clientX, y: t.clientY, dx: 0, lock: "", time: Date.now(), n: detailNeighbours(cur) };
+    }, { passive: true });
+    v.addEventListener("touchmove", (e) => {
+      if (!sw) return;
+      if (e.touches.length !== 1) { sw = null; snapBack(); return; }
+      const t = e.touches[0];
+      const dx = t.clientX - sw.x, dy = t.clientY - sw.y;
+      if (!sw.lock) {
+        if (Math.abs(dx) < LOCK && Math.abs(dy) < LOCK) return;
+        sw.lock = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+      }
+      if (sw.lock !== "x") return;
+      sw.dx = dx;
+      if (!motionOk()) return;
+      // Ohne Nachbarn in dieser Richtung nur ein gebremstes Nachgeben.
+      const has = dx < 0 ? sw.n.next : sw.n.prev;
+      v.style.transition = "none";
+      v.style.transform = `translateX(${has ? dx : dx / 4}px)`;
+    }, { passive: true });
+    v.addEventListener("touchend", () => {
+      if (!sw || sw.lock !== "x") { sw = null; return; }
+      const { dx, time, n } = sw;
+      sw = null;
+      const far = Math.abs(dx) > Math.min(80, v.offsetWidth * 0.25);
+      const flick = Math.abs(dx) > 30 && Date.now() - time < 250;
+      const dir = dx < 0 ? 1 : -1;
+      if ((far || flick) && (dir > 0 ? n.next : n.prev)) showNeighbour(dir);
+      else snapBack();
+    });
+    v.addEventListener("touchcancel", () => { if (sw) { sw = null; snapBack(); } });
   }
 
   function fact(icon, html) {
