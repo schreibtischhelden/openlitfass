@@ -171,7 +171,7 @@ func sourceInfos(inst instance.Instance) []writer.SourceInfo {
 	if err != nil {
 		log.Printf("warning: reload sources for sources.json: %v", err)
 	}
-	infos := make([]writer.SourceInfo, 0, len(configs)+1)
+	infos := make([]writer.SourceInfo, 0, len(configs))
 	for _, c := range configs {
 		if c.Disabled {
 			continue
