@@ -11,8 +11,8 @@
     "title": "h2",
     "category": "a.category",
     "link": { "selector": "h2 a", "attr": "href" },
-    "start": { "selector": "p.time", "regex": "(\d{1,2}:\d{2})" },
-    "end": { "selector": "p.time", "regex": "-\s*(\d{1,2}:\d{2})" },
+    "start": { "selector": "p.time", "regex": "(\\d{1,2}:\\d{2})" },
+    "end": { "selector": "p.time", "regex": "-\\s*(\\d{1,2}:\\d{2})" },
     "place": "p.place",
     "description": { "selector": "p", "all": true, "skip": 2, "html": true }
   },
