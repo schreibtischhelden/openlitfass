@@ -1,0 +1,14 @@
+{
+  "label": "Beispiel-Stadt (infomax-Widget)",
+  "preset": "infomax",
+  "params": {
+    "host": "tmvwhl.infomaxnet.de",
+    "permalink": "beispiel-stadt-de",
+    "widgetToken": "ABCdef123gh."
+  },
+  "daysAhead": 14,
+  "categoryMap": {
+    "Ausstellung": "Kultur",
+    "Konzert": "Musik"
+  }
+}

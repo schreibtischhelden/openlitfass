@@ -55,13 +55,18 @@ type SourceConfig struct {
 	// the same event arrives from several sources (higher wins, default 0).
 	// Give a venue's own source a higher value than an aggregator calendar.
 	Priority int `json:"priority,omitempty"`
+	// Preset names a source preset shipped with the core (see Presets):
+	// its config is the base, every field of this file overrides it.
+	// Params fills the preset's {name} placeholders.
+	Preset string            `json:"preset,omitempty"`
+	Params map[string]string `json:"params,omitempty"`
 	// Type selects the fetcher: "rss", "json", "ical" (see
 	// internal/sources/ical.go) or "wcs" (WordPress "Weekly
 	// Class Schedule" plugin by CurlyThemes — see internal/sources/wcs.go).
-	Type string `json:"type"`
+	Type string `json:"type,omitempty"`
 	// URL is the feed/API endpoint to fetch. For "wcs" this is the site's
 	// base URL (e.g. "https://example.org"), not the ajax endpoint itself.
-	URL string `json:"url"`
+	URL string `json:"url,omitempty"`
 	// Disabled skips this source entirely (no fetch attempt, no status
 	// update) without deleting or renaming the file - useful when a source
 	// is temporarily broken or a venue is on hiatus.
@@ -233,9 +238,9 @@ func Load(dir string) ([]SourceConfig, error) {
 			log.Printf("skipping %s: %v", path, err)
 			continue
 		}
-		var c SourceConfig
-		if err := json.Unmarshal(data, &c); err != nil {
-			log.Printf("skipping %s: invalid json: %v", path, err)
+		c, err := parseSource(data)
+		if err != nil {
+			log.Printf("skipping %s: %v", path, err)
 			continue
 		}
 		if c.Name == "" {
