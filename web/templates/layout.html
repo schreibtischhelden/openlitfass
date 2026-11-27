@@ -30,6 +30,7 @@
 <link rel="stylesheet" href="{{.Root}}css/theme.css">
 <link rel="stylesheet" href="{{.Root}}css/style.css">
 {{if .JSONLD}}<script type="application/ld+json">{{.JSONLD}}</script>{{end}}
+{{if .CustomScript}}<script src="{{.Root}}custom-script.js" defer></script>{{end}}
 </head>
 <body>
 <div class="app static-page">

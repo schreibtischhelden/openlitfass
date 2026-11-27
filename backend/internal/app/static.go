@@ -69,21 +69,22 @@ type staticDay struct {
 
 type staticPage struct {
 	instance.Config
-	Logo        template.HTML
-	SiteURL     string // BaseURL without trailing slash, "" if unset
-	Root        string // relative path from the page to the site root
-	Canonical   string // absolute URL of this page, "" without BaseURL
-	PageTitle   string
-	MetaDesc    string
-	Event       *staticEvent
-	JSONLD      map[string]any
-	Days        []staticDay
-	Count       int
-	Place       *staticPlace       // place page
-	PlaceGroups []staticPlaceGroup // places list page
-	Imprint     string             // ImprintURL / PrivacyURL relative to this page
-	Privacy     string
-	Generated   string
+	Logo         template.HTML
+	SiteURL      string // BaseURL without trailing slash, "" if unset
+	Root         string // relative path from the page to the site root
+	CustomScript bool   // site/custom-script.js exists
+	Canonical    string // absolute URL of this page, "" without BaseURL
+	PageTitle    string
+	MetaDesc     string
+	Event        *staticEvent
+	JSONLD       map[string]any
+	Days         []staticDay
+	Count        int
+	Place        *staticPlace       // place page
+	PlaceGroups  []staticPlaceGroup // places list page
+	Imprint      string             // ImprintURL / PrivacyURL relative to this page
+	Privacy      string
+	Generated    string
 }
 
 // buildStatic writes the static pages (termine/) into out.
@@ -107,7 +108,8 @@ func buildStatic(inst instance.Instance, webDir, out string, logo template.HTML,
 		return siteURL + "/" + rel
 	}
 	base := staticPage{Config: inst.Config, Logo: logo, SiteURL: siteURL, Root: "../",
-		Generated: time.Now().In(model.Local).Format("02.01.2006, 15:04")}
+		CustomScript: fileExists(filepath.Join(out, CustomScriptFile)),
+		Generated:    time.Now().In(model.Local).Format("02.01.2006, 15:04")}
 	if base.Title == "" {
 		base.Title = base.Name
 	}

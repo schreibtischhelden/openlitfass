@@ -22,14 +22,19 @@ const BuildMarker = ".openlitfass-build"
 
 const marker = BuildMarker
 
+// CustomScriptFile is the optional instance script (<instance>/site/), loaded
+// with defer in the head of every generated page, e.g. for visitor statistics.
+const CustomScriptFile = "custom-script.js"
+
 // page is what web/index.html gets rendered with.
 type page struct {
 	instance.Config
-	Logo        template.HTML
-	SiteURL     string // BaseURL without trailing slash
-	StaticDir   string // static event pages, see static.go
-	StaticPages bool   // OL_STATIC_PAGES: termine/ exists
-	TouchIcon   bool   // site/icon-192.png exists (apple-touch-icon)
+	Logo         template.HTML
+	SiteURL      string // BaseURL without trailing slash
+	StaticDir    string // static event pages, see static.go
+	StaticPages  bool   // OL_STATIC_PAGES: termine/ exists
+	TouchIcon    bool   // site/icon-192.png exists (apple-touch-icon)
+	CustomScript bool   // site/custom-script.js exists
 	// Start is pre-rendered into the list (today's events, else the next
 	// day with events) for crawlers and visitors without JavaScript; the
 	// app replaces it once it has loaded the data. nil = no events.
@@ -245,7 +250,8 @@ func renderIndex(webDir string, inst instance.Instance, logo template.HTML, star
 		return err
 	}
 	if err := tmpl.Execute(f, page{Config: inst.Config, Logo: logo, SiteURL: strings.TrimRight(inst.Config.BaseURL, "/"), StaticDir: StaticDir, StaticPages: opts.StaticPages, Start: start,
-		TouchIcon: fileExists(filepath.Join(filepath.Dir(dst), "icon-192.png"))}); err != nil {
+		TouchIcon:    fileExists(filepath.Join(filepath.Dir(dst), "icon-192.png")),
+		CustomScript: fileExists(filepath.Join(filepath.Dir(dst), CustomScriptFile))}); err != nil {
 		_ = f.Close() // the template error is the one to report
 		return err
 	}
