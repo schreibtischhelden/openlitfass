@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The *.example.json templates are never loaded by fetch, so a syntax error
@@ -47,5 +48,17 @@ func TestExampleInstanceJSONIsValid(t *testing.T) {
 				t.Errorf("%s is not valid JSON: %v", path, err)
 			}
 		})
+	}
+}
+
+func TestConfigFetchTimeout(t *testing.T) {
+	for minutes, want := range map[int]time.Duration{
+		0:  DefaultFetchTimeout,
+		-1: DefaultFetchTimeout,
+		15: 15 * time.Minute,
+	} {
+		if got := (Config{FetchTimeoutMinutes: minutes}).FetchTimeout(); got != want {
+			t.Errorf("FetchTimeout() with %d minutes = %s, want %s", minutes, got, want)
+		}
 	}
 }

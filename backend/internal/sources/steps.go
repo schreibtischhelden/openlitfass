@@ -41,18 +41,58 @@ func usesSteps(cfg *config.SourceConfig) bool {
 type stepSource struct {
 	cfg   config.SourceConfig
 	build func(config.SourceConfig) Source
+	// delay and requestTimeout pace the requests (cfg.RequestDelaySeconds);
+	// both zero means no pacing and no per-request limit.
+	delay          time.Duration
+	requestTimeout time.Duration
 }
 
 func newStepSource(cfg config.SourceConfig, build func(config.SourceConfig) Source) *stepSource {
-	return &stepSource{cfg: cfg, build: build}
+	s := &stepSource{cfg: cfg, build: build}
+	if cfg.RequestDelaySeconds > 0 {
+		s.delay = time.Duration(cfg.RequestDelaySeconds) * time.Second
+		s.requestTimeout = sourceTimeout(cfg.TimeoutSeconds)
+	}
+	return s
 }
 
 func (s *stepSource) Name() string { return s.cfg.Name }
 
+// pacer spaces the requests of one Fetch at least delay apart (start to
+// start) and gives each its own time limit.
+type pacer struct {
+	delay     time.Duration
+	timeout   time.Duration
+	lastStart time.Time
+}
+
+func (p *pacer) do(ctx context.Context, request func(context.Context) error) error {
+	if p.delay > 0 && !p.lastStart.IsZero() {
+		if wait := time.Until(p.lastStart.Add(p.delay)); wait > 0 {
+			t := time.NewTimer(wait)
+			select {
+			case <-ctx.Done():
+				t.Stop()
+				return ctx.Err()
+			case <-t.C:
+			}
+		}
+	}
+	p.lastStart = time.Now()
+	if p.timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, p.timeout)
+		defer cancel()
+	}
+	return request(ctx)
+}
+
 func (s *stepSource) Fetch(ctx context.Context) ([]model.Event, error) {
+	p := &pacer{delay: s.delay, timeout: s.requestTimeout}
 	vars := baseVars(s.cfg.DaysAhead, time.Now())
 	for i, st := range s.cfg.Steps {
-		if err := runStep(ctx, st, vars); err != nil {
+		err := p.do(ctx, func(ctx context.Context) error { return runStep(ctx, st, vars) })
+		if err != nil {
 			return nil, fmt.Errorf("step %d: %w", i+1, err)
 		}
 	}
@@ -73,6 +113,22 @@ func (s *stepSource) Fetch(ctx context.Context) ([]model.Event, error) {
 	var events []model.Event
 	var firstErr error
 	for i, u := range urls {
+		c := s.cfg
+		c.URL = u
+		c.Steps, c.ForEach = nil, nil
+		var evs []model.Event
+		err := ctx.Err()
+		if err == nil {
+			err = p.do(ctx, func(ctx context.Context) error {
+				var err error
+				evs, err = s.build(c).Fetch(ctx)
+				return err
+			})
+		}
+		if err == nil {
+			events = append(events, evs...)
+			continue
+		}
 		if ctx.Err() != nil {
 			// Out of time: keep what the earlier requests returned.
 			log.Printf("source %q: time limit reached after %d of %d requests", s.cfg.Name, i, len(urls))
@@ -81,20 +137,13 @@ func (s *stepSource) Fetch(ctx context.Context) ([]model.Event, error) {
 			}
 			break
 		}
-		c := s.cfg
-		c.URL = u
-		c.Steps, c.ForEach = nil, nil
-		evs, err := s.build(c).Fetch(ctx)
-		if err != nil {
-			// One failing batch shouldn't throw away the others (same rule
-			// as later pages of a json source).
-			if firstErr == nil {
-				firstErr = err
-			}
-			log.Printf("source %q: request failed: %v", s.cfg.Name, err)
-			continue
+		// One failing batch shouldn't throw away the others (same rule as
+		// later pages of a json source), also when it ran into its own
+		// per-request time limit.
+		if firstErr == nil {
+			firstErr = err
 		}
-		events = append(events, evs...)
+		log.Printf("source %q: request failed: %v", s.cfg.Name, err)
 	}
 	if len(events) == 0 && firstErr != nil {
 		return nil, firstErr

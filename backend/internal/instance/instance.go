@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // Config is the content of <instance>/instance.json.
@@ -63,6 +64,23 @@ type Config struct {
 	// page next to the openLitfass tracker. For a GitHub tracker the page
 	// links straight to the bug.yml / feature.yml issue forms. Optional.
 	IssuesURL string `json:"issuesUrl,omitempty"`
+	// FetchTimeoutMinutes limits one whole fetch run, in which the sources
+	// are fetched one after another. Defaults to 5; raise it for instances
+	// with many sources or sources that pace their requests
+	// (requestDelaySeconds).
+	FetchTimeoutMinutes int `json:"fetchTimeoutMinutes,omitempty"`
+}
+
+// DefaultFetchTimeout is the time limit of a fetch run when instance.json
+// sets no fetchTimeoutMinutes.
+const DefaultFetchTimeout = 5 * time.Minute
+
+// FetchTimeout is the time limit of one fetch run.
+func (c Config) FetchTimeout() time.Duration {
+	if c.FetchTimeoutMinutes <= 0 {
+		return DefaultFetchTimeout
+	}
+	return time.Duration(c.FetchTimeoutMinutes) * time.Minute
 }
 
 // Instance is a loaded instance directory.

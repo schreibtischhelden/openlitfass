@@ -96,8 +96,16 @@ type SourceConfig struct {
 	MaxRequests int `json:"maxRequests,omitempty"`
 	// TimeoutSeconds overrides the per-source time limit of 20 seconds,
 	// for endpoints that render slowly (at most 180; the whole run has
-	// five minutes).
+	// instance.json fetchTimeoutMinutes). With RequestDelaySeconds set on a
+	// source with steps or forEach it limits each request instead of the
+	// whole source.
 	TimeoutSeconds int `json:"timeoutSeconds,omitempty"`
+	// RequestDelaySeconds is the minimum time between the starts of two
+	// requests of a source with steps or forEach, e.g. to honour a
+	// robots.txt Crawl-delay; a request that took longer is followed
+	// without extra wait. Such a source is fetched after all others and
+	// may use what is left of the run's time limit.
+	RequestDelaySeconds int `json:"requestDelaySeconds,omitempty"`
 	// ItemSelector ("html" sources only) is the CSS selector of one event
 	// container on the page, e.g. "#jevents_body .schatten".
 	ItemSelector string `json:"itemSelector,omitempty"`

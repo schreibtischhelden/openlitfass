@@ -37,11 +37,6 @@ type SourceRun struct {
 	Err      error
 }
 
-// FetchTimeout is a generous backstop for a whole run - each source already
-// gets its own bounded timeout (see sources.harden), so one slow source
-// can't eat this budget.
-const FetchTimeout = 5 * time.Minute
-
 // Fetch runs every source of the instance and writes
 // <instance>/data/events.json, categories.json and sources.json.
 //
@@ -74,7 +69,11 @@ func Fetch(ctx context.Context, inst instance.Instance) (res FetchResult, err er
 		return res, nil
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, FetchTimeout)
+	// A backstop for the whole run (instance.json fetchTimeoutMinutes):
+	// each source already has its own time limit (see sources.harden), and
+	// sources that pace their requests run last (see sources.All), so a
+	// slow source can't eat the budget of the others.
+	ctx, cancel := context.WithTimeout(ctx, inst.Config.FetchTimeout())
 	defer cancel()
 
 	started := time.Now()

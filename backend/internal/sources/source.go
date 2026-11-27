@@ -40,7 +40,10 @@ type Source interface {
 //   - withCommonFilters: daysAhead/categories, always drops past events
 //     (filter.go)
 //   - withTimeout: a bounded per-source deadline so one slow endpoint can't
-//     starve the others of the run's shared time budget (safety.go)
+//     starve the others of the run's shared time budget (safety.go).
+//     Sources that pace their requests (requestDelaySeconds) get a limit
+//     per request instead and are returned last, after the inbox, so they
+//     only use time the other sources didn't need.
 //   - withPanicRecovery: a panic inside one source becomes a logged error
 //     for that source instead of crashing the process and losing every
 //     other source's already-fetched results (safety.go)
@@ -63,7 +66,7 @@ func All(sourcesDir, inboxDir, holidaysFile string) []Source {
 		configs = nil
 	}
 
-	var all []Source
+	var all, paced []Source
 	for _, c := range configs {
 		if c.Disabled {
 			log.Printf("source %q: disabled, skipping", c.Name)
@@ -75,14 +78,26 @@ func All(sourcesDir, inboxDir, holidaysFile string) []Source {
 			log.Printf("source %q: unknown type %q, skipping", c.Name, c.Type)
 			continue
 		}
+		timeout := sourceTimeout(c.TimeoutSeconds)
+		isPaced := false
 		if usesSteps(&c) {
 			src = newStepSource(c, newTypedSource)
+			// The step source limits each request itself; the run's
+			// context bounds the whole source.
+			isPaced = c.RequestDelaySeconds > 0
+			if isPaced {
+				timeout = 0
+			}
 		}
-		wrapped := hardenWithin(withCommonFilters(src, c), sourceTimeout(c.TimeoutSeconds))
+		wrapped := hardenWithin(withCommonFilters(src, c), timeout)
 		if c.Path != "" {
 			wrapped = withStatusTracking(wrapped, c.Path)
 		}
-		all = append(all, wrapped)
+		if isPaced {
+			paced = append(paced, wrapped)
+		} else {
+			all = append(all, wrapped)
+		}
 	}
 
 	// Add hand-written sources here, e.g.:
@@ -100,7 +115,7 @@ func All(sourcesDir, inboxDir, holidaysFile string) []Source {
 	// editors, who decide about the image themselves.
 	all = append(all, harden(withCommonFilters(NewInboxSource(inboxDir, holidaysFile), config.SourceConfig{Name: "inbox", Images: true})))
 
-	return all
+	return append(all, paced...)
 }
 
 // newTypedSource builds the fetcher for c.Type, or returns nil for an
@@ -127,7 +142,11 @@ func harden(src Source) Source {
 	return hardenWithin(src, defaultSourceTimeout)
 }
 
-// hardenWithin is harden with a source-specific time limit.
+// hardenWithin is harden with a source-specific time limit; 0 leaves the
+// source bounded only by the context it is fetched with.
 func hardenWithin(src Source, timeout time.Duration) Source {
+	if timeout <= 0 {
+		return withPanicRecovery(src)
+	}
 	return withPanicRecovery(withTimeout(src, timeout))
 }
