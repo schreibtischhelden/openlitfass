@@ -186,6 +186,7 @@ func mergeCluster(cluster []model.Event) model.Event {
 		if m.Category == "" || m.Category == "Unkategorisiert" {
 			if e.Category != "" {
 				m.Category = e.Category
+				m.Categories = e.Categories
 			}
 		}
 		if !m.Price.Free && m.Price.Amount == nil {

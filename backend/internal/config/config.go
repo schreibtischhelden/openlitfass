@@ -137,16 +137,31 @@ type SourceConfig struct {
 	// an efficient request window (defaulting to 30 there if unset) rather
 	// than fetching everything and filtering client-side.
 	DaysAhead int `json:"daysAhead,omitempty"`
-	// Categories, if set, keeps only events whose resolved Category (after
-	// any source-specific mapping/CategoryMap) is in this list. Unset/empty
-	// = no category filter.
+	// Categories, if set, keeps only events whose main Category (after
+	// CategoryMap) is in this list. Unset/empty = no category allowlist.
+	//
+	// Deprecated: use CategoryFilter; logged when set.
 	Categories []string `json:"categories,omitempty"`
+	// CategorySeparator splits the source's category value into several
+	// categories, e.g. ", " for "Ausstellung, Führungen & Touren". Empty =
+	// one category per event.
+	CategorySeparator string `json:"categorySeparator,omitempty"`
+	// CategoryFilter decides by the source's own category names whether an
+	// event is taken and which of its categories it keeps (see
+	// CategoryFilter).
+	CategoryFilter *CategoryFilter `json:"categoryFilter,omitempty"`
+	// CategoryAttributes sets event attributes from the source's own
+	// category names, e.g. {"Kinder": {"familyFriendly": true}}. Matched
+	// case-insensitively, before CategoryFilter.Include/Exclude; adds to the
+	// attributes of the instance categories in categories.json.
+	CategoryAttributes map[string]CategoryAttributes `json:"categoryAttributes,omitempty"`
 	// Include keeps only events where at least one rule matches, Exclude
 	// drops events where any rule matches - e.g. to take from a source
 	// only what happens in the neighbourhood:
 	// "include": [{"field": "location", "regex": "(?i)weißensee|1308[68]"}].
-	// Fields: title, location (name and address), organizer, category,
-	// description. Applied after category mapping.
+	// Fields: title, location (name and address), organizer, description
+	// and (deprecated, use CategoryFilter) category, the main category.
+	// Applied after category mapping.
 	Include []MatchRule `json:"include,omitempty"`
 	Exclude []MatchRule `json:"exclude,omitempty"`
 
@@ -183,8 +198,9 @@ type SourceConfig struct {
 	// instance's vocabulary (see <instance>/categories.json), e.g.
 	// {"Kino": "Kultur", "Kurs": "Kultur"}, so events get an icon instead
 	// of showing up as an unknown category. Works for every source type
-	// (applied in withCommonFilters, keys matched case-insensitively,
-	// before the Categories allowlist). For "wcs" sources the keys can also
+	// (applied in withCommonFilters to each category, keys matched
+	// case-insensitively, after CategoryFilter and before the Categories
+	// allowlist). For "wcs" sources the keys can also
 	// be wcs_type slugs (matched against the slug first, see wcs.go).
 	// Unmapped values are kept as-is.
 	CategoryMap map[string]string `json:"categoryMap,omitempty"`
@@ -330,4 +346,29 @@ func RecordAttempt(path string, fetchErr error) error {
 type MatchRule struct {
 	Field string `json:"field"`
 	Regex string `json:"regex"`
+}
+
+// CategoryFilter works on the source's own category names (after
+// CategorySeparator, before CategoryMap), compared case-insensitively.
+// Deny and Allow run first and decide whether the event is taken at all; a
+// dropped event is not processed further. Include and Exclude then decide
+// which categories the event gets.
+type CategoryFilter struct {
+	// Deny drops events with any of these categories. "" stands for an
+	// event without categories.
+	Deny []string `json:"deny,omitempty"`
+	// Allow keeps an event that Deny would drop if it has any of these
+	// categories. On its own it filters nothing.
+	Allow []string `json:"allow,omitempty"`
+	// Include keeps only these categories on the event.
+	Include []string `json:"include,omitempty"`
+	// Exclude removes these categories from the event; the event stays,
+	// also when no category is left.
+	Exclude []string `json:"exclude,omitempty"`
+}
+
+// CategoryAttributes are set on every event that has the category. They
+// only ever switch an attribute on, never off.
+type CategoryAttributes struct {
+	FamilyFriendly bool `json:"familyFriendly,omitempty"`
 }

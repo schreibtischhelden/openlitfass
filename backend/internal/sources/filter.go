@@ -48,16 +48,11 @@ func applyCommonFilters(events []model.Event, cfg config.SourceConfig) []model.E
 		}
 	}
 
-	var categoryMap map[string]string
-	if len(cfg.CategoryMap) > 0 {
-		categoryMap = make(map[string]string, len(cfg.CategoryMap))
-		for k, v := range cfg.CategoryMap {
-			categoryMap[strings.ToLower(strings.TrimSpace(k))] = v
-		}
-	}
+	cats := newSourceCategories(cfg)
 
 	var allowedCategories map[string]bool
 	if len(cfg.Categories) > 0 {
+		log.Printf(`source %q: "categories" is deprecated, use "categoryFilter"`, cfg.Name)
 		allowedCategories = make(map[string]bool, len(cfg.Categories))
 		for _, c := range cfg.Categories {
 			allowedCategories[c] = true
@@ -80,8 +75,8 @@ func applyCommonFilters(events []model.Event, cfg config.SourceConfig) []model.E
 		if e.Place == "" {
 			e.Place = cfg.Place
 		}
-		if mapped, ok := categoryMap[strings.ToLower(strings.TrimSpace(e.Category))]; ok {
-			e.Category = mapped
+		if !cats.apply(&e) {
+			continue
 		}
 		if allowedCategories != nil && !allowedCategories[e.Category] {
 			continue
@@ -95,6 +90,136 @@ func applyCommonFilters(events []model.Event, cfg config.SourceConfig) []model.E
 		kept = append(kept, e)
 	}
 	return kept
+}
+
+// sourceCategories is the compiled category handling of one source: split
+// by categorySeparator, categoryFilter.deny/allow, categoryAttributes,
+// categoryFilter.include/exclude, categoryMap. All names are compared by
+// categoryKey.
+type sourceCategories struct {
+	separator   string
+	categoryMap map[string]string
+	deny, allow map[string]bool
+	include     map[string]bool
+	exclude     map[string]bool
+	attributes  map[string]config.CategoryAttributes
+}
+
+func categoryKey(name string) string { return strings.ToLower(strings.TrimSpace(name)) }
+
+func categoryKeySet(names []string) map[string]bool {
+	if len(names) == 0 {
+		return nil
+	}
+	set := make(map[string]bool, len(names))
+	for _, n := range names {
+		set[categoryKey(n)] = true
+	}
+	return set
+}
+
+func newSourceCategories(cfg config.SourceConfig) sourceCategories {
+	sc := sourceCategories{separator: cfg.CategorySeparator}
+	if len(cfg.CategoryMap) > 0 {
+		sc.categoryMap = make(map[string]string, len(cfg.CategoryMap))
+		for k, v := range cfg.CategoryMap {
+			sc.categoryMap[categoryKey(k)] = v
+		}
+	}
+	if f := cfg.CategoryFilter; f != nil {
+		sc.deny = categoryKeySet(f.Deny)
+		sc.allow = categoryKeySet(f.Allow)
+		sc.include = categoryKeySet(f.Include)
+		sc.exclude = categoryKeySet(f.Exclude)
+	}
+	if len(cfg.CategoryAttributes) > 0 {
+		sc.attributes = make(map[string]config.CategoryAttributes, len(cfg.CategoryAttributes))
+		for k, v := range cfg.CategoryAttributes {
+			sc.attributes[categoryKey(k)] = v
+		}
+	}
+	return sc
+}
+
+// split returns the source's own categories of e: e.Categories if the
+// source set them, else e.Category split by the separator. Trimmed, empty
+// ones dropped, duplicates removed.
+func (sc sourceCategories) split(e model.Event) []string {
+	raw := e.Categories
+	if len(raw) == 0 && e.Category != "" {
+		raw = []string{e.Category}
+		if sc.separator != "" {
+			raw = strings.Split(e.Category, sc.separator)
+		}
+	}
+	return uniqueCategories(raw)
+}
+
+func uniqueCategories(names []string) []string {
+	seen := make(map[string]bool, len(names))
+	out := make([]string, 0, len(names))
+	for _, n := range names {
+		n = strings.TrimSpace(n)
+		if n == "" || seen[categoryKey(n)] {
+			continue
+		}
+		seen[categoryKey(n)] = true
+		out = append(out, n)
+	}
+	return out
+}
+
+// anyIn reports whether one of names is in set; no names counts as "".
+func anyIn(set map[string]bool, names []string) bool {
+	if len(names) == 0 {
+		return set[""]
+	}
+	for _, n := range names {
+		if set[categoryKey(n)] {
+			return true
+		}
+	}
+	return false
+}
+
+// apply sets e.Category, e.Categories and the category attributes of e. It
+// returns false if categoryFilter.deny drops the event.
+func (sc sourceCategories) apply(e *model.Event) bool {
+	names := sc.split(*e)
+	if anyIn(sc.deny, names) && !anyIn(sc.allow, names) {
+		return false
+	}
+	for _, n := range names {
+		if sc.attributes[categoryKey(n)].FamilyFriendly {
+			e.FamilyFriendly = true
+		}
+	}
+
+	kept := make([]string, 0, len(names))
+	main := ""
+	for _, n := range names {
+		k := categoryKey(n)
+		if (sc.include != nil && !sc.include[k]) || sc.exclude[k] {
+			continue
+		}
+		if mapped, ok := sc.categoryMap[k]; ok {
+			n = mapped
+			if main == "" {
+				main = mapped
+			}
+		}
+		kept = append(kept, n)
+	}
+	kept = uniqueCategories(kept)
+	if main == "" && len(kept) > 0 {
+		main = kept[0]
+	}
+	e.Category = main
+	e.Categories = nil
+	if len(kept) > 0 {
+		e.Categories = kept
+	}
+	return true
 }
 
 // Title markers for events that don't take place on this date, as
@@ -154,7 +279,9 @@ func compileMatchRules(source, kind string, rules []config.MatchRule) []matchRul
 	var out []matchRule
 	for _, r := range rules {
 		switch r.Field {
-		case "title", "location", "organizer", "category", "description":
+		case "title", "location", "organizer", "description":
+		case "category":
+			log.Printf(`source %q: %s: field "category" is deprecated, use "categoryFilter"`, source, kind)
 		default:
 			log.Printf("source %q: %s: unknown field %q (title, location, organizer, category, description)", source, kind, r.Field)
 			continue

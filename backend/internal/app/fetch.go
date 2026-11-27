@@ -127,6 +127,7 @@ func Fetch(ctx context.Context, inst instance.Instance) (res FetchResult, err er
 		return res, nil
 	}
 
+	categoryConfig.ApplyAttributes(events)
 	final, err := writer.Write(outPath, events, inst.Config.BaseURL, sourcePriorities(inst))
 	if err != nil {
 		return res, fmt.Errorf("write output: %w", err)

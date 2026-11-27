@@ -38,9 +38,11 @@ type Entry struct {
 	Icon []string `json:"icon"`
 	// Group, if set, names another category this one belongs to, e.g. Kino
 	// and Theater in group Kultur: the frontend lists them under it, and
-	// choosing the group filters for all of its members. Events keep exactly
-	// one category.
+	// choosing the group filters for all of its members.
 	Group string `json:"group,omitempty"`
+	// FamilyFriendly marks every event that has this category (as main
+	// category or in its list) as family-friendly; see ApplyAttributes.
+	FamilyFriendly bool `json:"familyFriendly,omitempty"`
 }
 
 // Config is the loaded, ready-to-use form of <instance>/categories.json:
@@ -54,6 +56,29 @@ type Config struct {
 	Groups   map[string]string // member -> group
 	Order    []string
 	Fallback string
+	// FamilyFriendly holds the categories whose events are family-friendly.
+	FamilyFriendly map[string]bool
+}
+
+// ApplyAttributes switches on the attributes of the categories each event
+// has (Category and Categories). It never switches one off.
+func (c Config) ApplyAttributes(events []model.Event) {
+	if len(c.FamilyFriendly) == 0 {
+		return
+	}
+	for i := range events {
+		e := &events[i]
+		if c.FamilyFriendly[e.Category] {
+			e.FamilyFriendly = true
+			continue
+		}
+		for _, name := range e.Categories {
+			if c.FamilyFriendly[name] {
+				e.FamilyFriendly = true
+				break
+			}
+		}
+	}
 }
 
 // rawFile is the on-disk shape of <instance>/categories.json - kept
@@ -94,6 +119,7 @@ func Load(path string) (Config, error) {
 
 	registry := make(map[string][]string, len(raw.Categories))
 	groups := map[string]string{}
+	familyFriendly := map[string]bool{}
 	order := make([]string, 0, len(raw.Categories))
 	for _, c := range raw.Categories {
 		if c.Name == "" {
@@ -108,6 +134,9 @@ func Load(path string) (Config, error) {
 		registry[c.Name] = c.Icon
 		if c.Group != "" {
 			groups[c.Name] = c.Group
+		}
+		if c.FamilyFriendly {
+			familyFriendly[c.Name] = true
 		}
 		order = append(order, c.Name)
 	}
@@ -124,7 +153,7 @@ func Load(path string) (Config, error) {
 		}
 	}
 
-	return Config{Registry: registry, Groups: groups, Order: order, Fallback: raw.Fallback}, nil
+	return Config{Registry: registry, Groups: groups, Order: order, Fallback: raw.Fallback, FamilyFriendly: familyFriendly}, nil
 }
 
 // Build returns the full category menu for a set of events: every category
