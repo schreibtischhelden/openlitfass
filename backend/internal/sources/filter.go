@@ -3,6 +3,7 @@ package sources
 import (
 	"context"
 	"log"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -75,6 +76,7 @@ func applyCommonFilters(events []model.Event, cfg config.SourceConfig) []model.E
 			continue // beyond the configured daysAhead window
 		}
 		markCancelledByTitle(&e)
+		e.Image = keptImage(e.Image, cfg.Images)
 		if e.Place == "" {
 			e.Place = cfg.Place
 		}
@@ -123,6 +125,21 @@ func markCancelledByTitle(e *model.Event) {
 			return
 		}
 	}
+}
+
+// keptImage returns raw if the source allows images and raw is an absolute
+// https URL with a host, "" otherwise. Plain http would be blocked or
+// rewritten as mixed content on an https site, and anything else (data:,
+// javascript:, relative paths) has no business in og:image or an <img>.
+func keptImage(raw string, allowed bool) string {
+	if !allowed || raw == "" {
+		return ""
+	}
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil {
+		return ""
+	}
+	return u.String()
 }
 
 type matchRule struct {

@@ -20,6 +20,23 @@ Kartenbilder von OpenStreetMap (tile.openstreetmap.org, OpenStreetMap
 Foundation) erst, wenn Besucher auf „Karte anzeigen“ klicken. Dabei werden
 IP-Adresse und Adresse dieser Website übertragen; Cookies werden nicht
 gesetzt oder mitgesendet. Das gehört in die Datenschutzerklärung.</p>
+<p>Weitere Punkte für die Datenschutzerklärung:</p>
+<ul>
+<li><strong>Einstellungen und Merkliste</strong> liegen nur im Browser der
+Besucher (localStorage, Schlüssel <code>openlitfass:settings</code> und
+<code>openlitfass:saved:…</code>), zusätzlich eine Offline-Kopie der Seite
+(Service Worker). Es gibt keine Cookies; nichts davon wird an den Server
+geschickt. Unter „Einstellungen“ lässt sich alles einsehen und löschen.</li>
+<li><strong>Bilder zu Terminen</strong> (nur bei Quellen mit
+<code>"images": true</code>) werden nicht kopiert, sondern direkt vom Server
+der Quelle geladen – standardmäßig erst nach einem Klick, je nach
+Einstellung auch automatisch oder nie. Dabei sieht dieser Server die
+IP-Adresse, aber nicht, von welcher Seite der Abruf kommt.</li>
+<li><strong>Link-Vorschauen:</strong> Terminseiten nennen dieses Bild in
+<code>og:image</code>. Einige Messenger (z. B. WhatsApp, iMessage) erzeugen
+die Vorschau auf dem Gerät der Person, die den Link teilt; dieses Gerät ruft
+das Bild dann beim Server der Quelle ab.</li>
+</ul>
 </main>
 </body>
 </html>

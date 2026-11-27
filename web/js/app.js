@@ -23,6 +23,19 @@
   const CORE_HOMEPAGE = "https://openlitfass.org";
   const CORE_ISSUES_URL = "https://github.com/schreibtischhelden/openlitfass/issues";
 
+  // Einstellungen auf dem Gerät (js/settings.js). Fehlt das Skript (alte
+  // Kopie im Cache), gelten die Standardwerte und nichts wird gespeichert.
+  const SETTINGS = window.openLitfassSettings || {
+    get: (name) => (name === "theme" ? "system" : "click"),
+    set: () => {},
+    all: () => ({ theme: "system", maps: "click", images: "click" }),
+    readOnly: () => false,
+    entries: () => [],
+    remove: () => {},
+    clearAll: () => Promise.resolve(),
+    onChange: () => {}
+  };
+
   // ---- Texte ----
   // Alle sichtbaren Texte an einer Stelle, damit Mehrsprachigkeit später
   // ohne Umbau ergänzt werden kann.
@@ -110,7 +123,38 @@
     feedbackBug: "Fehler melden",
     feedbackFeature: "Idee vorschlagen",
     feedbackAll: "Alle Meldungen",
-    inbox: "Von Hand eingetragen"
+    inbox: "Von Hand eingetragen",
+    settings: "Einstellungen",
+    settingsIntro: "Diese Einstellungen gelten nur für diesen Browser auf diesem Gerät. Sie werden nicht an uns oder andere geschickt, Cookies setzt diese Seite nicht.",
+    settingsReadOnly: "Die Einstellungen stammen von einer neueren Version dieser Seite. Sie werden hier angezeigt, aber nicht verändert.",
+    settingsAppearance: "Darstellung",
+    settingsTheme: "Farbschema",
+    themeSystem: "Wie das Gerät",
+    themeLightShort: "Hell",
+    themeDarkShort: "Dunkel",
+    settingsExternal: "Inhalte von anderen Seiten",
+    settingsExternalIntro: "Karten und Bilder kommen von fremden Servern. Beim Laden sieht der jeweilige Server deine IP-Adresse.",
+    settingsMaps: "Karten",
+    settingsMapsHost: "Kartenbilder von openstreetmap.org, ohne Cookies",
+    settingsImages: "Bilder zu Terminen",
+    settingsImagesHost: "direkt von den Servern der Veranstalter, ohne Angabe dieser Seite (Cookies je nach Browser)",
+    externalClick: "Nach Klick laden",
+    externalAuto: "Immer laden",
+    externalOff: "Nie anzeigen",
+    settingsLocal: "Gespeichert auf diesem Gerät",
+    settingsLocalNone: "Zurzeit ist nichts gespeichert.",
+    settingsLocalOffline: "Außerdem hält der Browser eine Offline-Kopie der Seite, damit sie ohne Netz startet.",
+    localSettings: "Einstellungen",
+    localSaved: (n) => `Merkliste (${n === 1 ? "1 Termin" : `${n} Termine`})`,
+    localLegacyTheme: "Farbschema (ältere Version)",
+    localOther: "Sonstiger Eintrag",
+    localDelete: "Löschen",
+    clearAll: "Alle Daten auf diesem Gerät löschen",
+    clearAllConfirm: "Alle Einstellungen, die Merkliste und die Offline-Kopie dieser Seite löschen?",
+    clearedAll: "Alles gelöscht",
+    deleted: "Gelöscht",
+    settingSaved: "Gespeichert",
+    imageAlt: (title) => `Bild zu „${title}“`
   };
 
   const WEEKDAYS = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
@@ -202,6 +246,7 @@
     viewList: $("viewList"),
     viewDetail: $("viewDetail"),
     viewAbout: $("viewAbout"),
+    viewSettings: $("viewSettings"),
     viewPlaces: $("viewPlaces"),
     viewPlace: $("viewPlace"),
     navPlaces: $("navPlaces"),
@@ -700,15 +745,15 @@
     if (s.imprintUrl) links.push(siteLink(s.imprintUrl, STR.imprint));
     if (s.privacyUrl) links.push(siteLink(s.privacyUrl, STR.privacy));
     links.push(`<a href="#ueber">${STR.about}</a>`);
+    links.push(`<a href="#einstellungen">${STR.settings}</a>`);
     el.footer.innerHTML = links.join("");
   }
 
   // ---- Farbschema ----
-  // Ohne eigene Wahl folgt die Seite dem System. Der Schalter setzt
-  // data-theme auf <html> (das Inline-Skript im <head> stellt es beim
-  // Laden wieder her); entspricht die Wahl dem System, wird sie gelöscht,
-  // damit die Seite wieder automatisch mitwechselt.
-  const THEME_KEY = "openlitfass:theme";
+  // Ohne eigene Wahl folgt die Seite dem System. Der Schalter ist eine
+  // Abkürzung für die Einstellung "Farbschema" (settings.js setzt
+  // data-theme auf <html>); entspricht die Wahl dem System, wird "system"
+  // gespeichert, damit die Seite wieder automatisch mitwechselt.
   const darkQuery = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
   function isDark() {
     const t = document.documentElement.getAttribute("data-theme");
@@ -725,12 +770,7 @@
   function toggleTheme() {
     const next = isDark() ? "light" : "dark";
     const system = darkQuery && darkQuery.matches ? "dark" : "light";
-    try {
-      if (next === system) localStorage.removeItem(THEME_KEY);
-      else localStorage.setItem(THEME_KEY, next);
-    } catch (_) { /* nur für diese Sitzung */ }
-    if (next === system) document.documentElement.removeAttribute("data-theme");
-    else document.documentElement.setAttribute("data-theme", next);
+    SETTINGS.set("theme", next === system ? "system" : next);
     syncThemeToggle();
   }
 
@@ -897,6 +937,7 @@
     if (themeBtn) themeBtn.addEventListener("click", toggleTheme);
     if (darkQuery && darkQuery.addEventListener) darkQuery.addEventListener("change", syncThemeToggle);
     syncThemeToggle();
+    bindSettings();
 
     el.searchToggle.addEventListener("click", () => {
       const open = el.searchBar.hidden;
@@ -1057,6 +1098,7 @@
     if (rangeMatch || hash === "") view = "list";
     else if (hash === "gemerkt") view = "saved";
     else if (hash === "ueber") view = "about";
+    else if (hash === "einstellungen") view = "settings";
     else if (hash === "orte" && state.places.length) view = "places";
     else if (hash.startsWith("ort/") && state.placeById.has(hash.slice(4))) view = "place";
     else if (hash && state.byId.has(hash)) view = "detail";
@@ -1070,13 +1112,14 @@
     el.viewList.hidden = !(view === "list" || view === "saved");
     el.viewDetail.hidden = view !== "detail";
     el.viewAbout.hidden = view !== "about";
+    el.viewSettings.hidden = view !== "settings";
     el.viewPlaces.hidden = view !== "places";
     el.viewPlace.hidden = view !== "place";
     const filtersVisible = view === "list";
     el.toolbar.hidden = !filtersVisible;
     if (!filtersVisible) toggleFilterPanel(false);
     syncDateNav();
-    const navView = view === "detail" ? "list" : view === "place" ? "places" : view;
+    const navView = view === "detail" ? "list" : view === "place" ? "places" : view === "settings" ? "about" : view;
     el.navItems.forEach((a) => a.classList.toggle("is-active", a.dataset.view === navView));
 
     if (view === "list" || view === "saved") {
@@ -1090,6 +1133,9 @@
       if (fromView !== "place") window.scrollTo({ top: 0 });
     } else if (view === "place") {
       renderPlace(state.placeById.get(hash.slice(4)));
+      window.scrollTo({ top: 0 });
+    } else if (view === "settings") {
+      renderSettings();
       window.scrollTo({ top: 0 });
     } else {
       renderAbout();
@@ -1343,6 +1389,12 @@
   }
   function mountMaps(root) {
     if (window.openLitfassMap) window.openLitfassMap.mountAll(root);
+    if (window.openLitfassImage) window.openLitfassImage.mountAll(root);
+  }
+  // Bild von der Quelle (js/image.js lädt es je nach Einstellung).
+  function imageHtml(ev) {
+    if (!ev.image || !/^https:\/\//i.test(ev.image)) return "";
+    return `<figure class="event-image" data-src="${escapeHtml(ev.image)}" data-alt="${escapeHtml(STR.imageAlt(ev.title))}" hidden></figure>`;
   }
   function placeTypeLabel(type) {
     return `<span class="category-label">${svg(state.placeTypeIcons.get(type) || ICON.pin)}${escapeHtml(type)}</span>`;
@@ -1481,6 +1533,7 @@
         : "") +
       categoryLabelHtml(ev.category) +
       `<h1 class="detail__title${ev.cancelled ? " is-cancelled" : ""}">${escapeHtml(ev.title)}</h1>` +
+      imageHtml(ev) +
       `<ul class="facts">${facts.join("")}</ul>` +
       map +
       (ev.description ?`<p class="detail__desc">${linkify(ev.description)}</p>` : "") +
@@ -1782,6 +1835,101 @@
         ]
       : [extLink(base, STR.feedbackAll)];
     return `<div class="feedback"><h3>${escapeHtml(title)}</h3><p>${links.join("")}</p></div>`;
+  }
+
+  // ---- Einstellungen ----
+  // Alles nur auf diesem Gerät (settings.js). Jede Wahl wird sofort
+  // gespeichert; die Liste unten zeigt, was openLitfass abgelegt hat.
+  const SETTING_CHOICES = {
+    theme: [["system", "themeSystem"], ["light", "themeLightShort"], ["dark", "themeDarkShort"]],
+    maps: [["click", "externalClick"], ["auto", "externalAuto"], ["off", "externalOff"]],
+    images: [["click", "externalClick"], ["auto", "externalAuto"], ["off", "externalOff"]]
+  };
+
+  function settingGroup(name, label, hint) {
+    const current = SETTINGS.get(name);
+    const disabled = SETTINGS.readOnly() ? " disabled" : "";
+    const chips = SETTING_CHOICES[name].map(([value, key]) =>
+      `<label class="chip${value === current ? " is-active" : ""}">` +
+      `<input type="radio" class="sr-only" name="setting-${name}" value="${value}"${value === current ? " checked" : ""}${disabled}>` +
+      `${STR[key]}</label>`).join("");
+    return `<fieldset class="setting" data-setting="${name}"><legend>${label}</legend>` +
+      (hint ? `<p class="setting__hint">${hint}</p>` : "") +
+      `<div class="fp-chips">${chips}</div></fieldset>`;
+  }
+
+  function localEntryLabel(key, value) {
+    if (key === "openlitfass:settings") return STR.localSettings;
+    if (key === "openlitfass:theme") return STR.localLegacyTheme;
+    if (key.startsWith("openlitfass:saved:")) {
+      let n = 0;
+      try { const v = JSON.parse(value); if (Array.isArray(v)) n = v.length; } catch (_) { /* leer */ }
+      return STR.localSaved(n);
+    }
+    return STR.localOther;
+  }
+
+  function formatBytes(n) {
+    return n < 1024 ? `${n} Byte` : `${(n / 1024).toFixed(1).replace(".", ",")} KB`;
+  }
+
+  function renderSettings() {
+    const entries = SETTINGS.entries();
+    const rows = entries.map((e) => {
+      const size = new Blob([e.key + e.value]).size;
+      return `<li><span>${escapeHtml(localEntryLabel(e.key, e.value))}<br><small><code>${escapeHtml(e.key)}</code> · ${formatBytes(size)}</small></span>` +
+        `<button type="button" class="btn btn--small" data-remove="${escapeHtml(e.key)}">${STR.localDelete}</button></li>`;
+    }).join("");
+
+    el.viewSettings.innerHTML =
+      `<h1>${STR.settings}</h1><p>${STR.settingsIntro}</p>` +
+      (SETTINGS.readOnly() ? `<p class="setting__warn" role="status">${STR.settingsReadOnly}</p>` : "") +
+      `<h2>${STR.settingsAppearance}</h2>` +
+      settingGroup("theme", STR.settingsTheme) +
+      `<h2>${STR.settingsExternal}</h2><p>${STR.settingsExternalIntro}</p>` +
+      settingGroup("maps", STR.settingsMaps, STR.settingsMapsHost) +
+      settingGroup("images", STR.settingsImages, STR.settingsImagesHost) +
+      `<h2>${STR.settingsLocal}</h2>` +
+      (rows ? `<ul class="source-list local-data">${rows}</ul>` : `<p>${STR.settingsLocalNone}</p>`) +
+      `<p><small>${STR.settingsLocalOffline}</small></p>` +
+      `<p><button type="button" class="btn" id="clearAllData">${STR.clearAll}</button></p>`;
+  }
+
+  function bindSettings() {
+    el.viewSettings.addEventListener("change", (e) => {
+      const input = e.target.closest("input[type=radio]");
+      const group = input && input.closest("[data-setting]");
+      if (!group) return;
+      SETTINGS.set(group.dataset.setting, input.value);
+      syncThemeToggle();
+      renderSettings();
+      toast(STR.settingSaved);
+    });
+    el.viewSettings.addEventListener("click", (e) => {
+      const remove = e.target.closest("[data-remove]");
+      if (remove) {
+        const key = remove.dataset.remove;
+        SETTINGS.remove(key);
+        if (key === SAVED_KEY) {
+          saved.clear();
+          updateSavedCount();
+        }
+        syncThemeToggle();
+        renderSettings();
+        toast(STR.deleted);
+        return;
+      }
+      if (e.target.closest("#clearAllData")) {
+        if (!window.confirm(STR.clearAllConfirm)) return;
+        SETTINGS.clearAll().then(() => {
+          saved.clear();
+          updateSavedCount();
+          syncThemeToggle();
+          renderSettings();
+          toast(STR.clearedAll);
+        });
+      }
+    });
   }
 
   // ---- Hilfen ----

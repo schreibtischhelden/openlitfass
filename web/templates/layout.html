@@ -15,9 +15,17 @@
 <meta property="og:title" content="{{if .Event}}{{.Event.Title}}{{else}}{{.PageTitle}}{{end}}">
 {{if .MetaDesc}}<meta property="og:description" content="{{.MetaDesc}}">{{end}}
 <meta property="og:locale" content="de_DE">
-<meta name="twitter:card" content="summary">
+{{/* Das Bild bleibt bei der Quelle: nur die URL wird genannt, der
+     Messenger lädt es dort (#66). */}}
+{{if and .Event .Event.Image}}<meta property="og:image" content="{{.Event.Image}}">
+<meta name="twitter:image" content="{{.Event.Image}}">
+<meta name="twitter:card" content="summary_large_image">
+{{else}}<meta name="twitter:card" content="summary">{{end}}
 <link rel="icon" href="{{.Root}}favicon.svg" type="image/svg+xml">
-<script>try{var t=localStorage.getItem("openlitfass:theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+{{/* Farbschema vor dem ersten Zeichnen (wie index.html); settings.js
+     zieht alte Einträge um und bindet die Karten an die Einstellung. */}}
+<script>try{var s=JSON.parse(localStorage.getItem("openlitfass:settings")||"{}"),t=s&&s.theme||localStorage.getItem("openlitfass:theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+<script src="{{.Root}}js/settings.js" defer></script>
 <link rel="stylesheet" href="{{.Root}}css/tokens.css">
 <link rel="stylesheet" href="{{.Root}}css/theme.css">
 <link rel="stylesheet" href="{{.Root}}css/style.css">
@@ -39,6 +47,7 @@
       <a href="{{.Root}}termine/">Alle Termine</a>
       {{if .Imprint}}<a href="{{.Imprint}}">Impressum</a>{{end}}
       {{if .Privacy}}<a href="{{.Privacy}}">Datenschutz</a>{{end}}
+      <a href="{{.Root}}#einstellungen">Einstellungen</a>
     </footer>
   </main>
 </div>

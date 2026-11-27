@@ -96,7 +96,9 @@ func All(sourcesDir, inboxDir, holidaysFile string) []Source {
 	// gets withCommonFilters (with a bare config.SourceConfig, so no
 	// daysAhead/categories restriction - only the unconditional "drop past
 	// events" rule actually applies) and harden, like every other source.
-	all = append(all, harden(withCommonFilters(NewInboxSource(inboxDir, holidaysFile), config.SourceConfig{Name: "inbox"})))
+	// Images: true because an inbox file is written by the instance's own
+	// editors, who decide about the image themselves.
+	all = append(all, harden(withCommonFilters(NewInboxSource(inboxDir, holidaysFile), config.SourceConfig{Name: "inbox", Images: true})))
 
 	return all
 }
