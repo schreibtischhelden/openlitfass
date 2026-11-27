@@ -1,6 +1,17 @@
 {{/* Gemeinsamer Rahmen der statischen Seiten (build-site, static.go):
      ohne JavaScript lesbar, für Suchmaschinen und Link-Vorschauen. */}}
-{{define "top"}}<!DOCTYPE html>
+{{define "top"}}{{template "head" .}}
+<body>
+<div class="app static-page">
+  <header class="app-header">
+    {{template "brand" .}}
+  </header>
+  <main class="content" id="main">
+{{end}}
+
+{{/* "head", "brand" and "footer-links" are shared with page.html, whose
+     header and footer must not be <header>/<footer> (see there). */}}
+{{define "head"}}<!DOCTYPE html>
 <html lang="{{.Language}}">
 <head>
 <meta charset="UTF-8">
@@ -31,25 +42,22 @@
 <link rel="stylesheet" href="{{.Root}}css/style.css">
 {{if .JSONLD}}<script type="application/ld+json">{{.JSONLD}}</script>{{end}}
 {{if .CustomScript}}<script src="{{.Root}}custom-script.js" defer></script>{{end}}
-</head>
-<body>
-<div class="app static-page">
-  <header class="app-header">
-    <div class="app-header__inner">
-      <a class="logo" href="{{.Root}}">{{.Logo}}<span>{{.Name}}</span></a>
-    </div>
-  </header>
-  <main class="content" id="main">
-{{end}}
+</head>{{end}}
 
-{{define "bottom"}}
-    <footer class="site-footer">
+{{define "brand"}}<div class="app-header__inner">
+      <a class="logo" href="{{.Root}}">{{.Logo}}<span>{{.Name}}</span></a>
+    </div>{{end}}
+
+{{define "footer-links"}}
       <a href="{{.Root}}">Zum Kalender</a>
-      <a href="{{.Root}}termine/">Alle Termine</a>
+      {{if .StaticPages}}<a href="{{.Root}}termine/">Alle Termine</a>{{end}}
       {{if .Imprint}}<a href="{{.Imprint}}">Impressum</a>{{end}}
       {{if .Privacy}}<a href="{{.Privacy}}">Datenschutz</a>{{end}}
       <a href="{{.Root}}#einstellungen">Einstellungen</a>
-    </footer>
+{{end}}
+
+{{define "bottom"}}
+    <footer class="site-footer">{{template "footer-links" .}}</footer>
   </main>
 </div>
 </body>

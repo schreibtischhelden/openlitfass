@@ -73,6 +73,7 @@ type staticPage struct {
 	SiteURL      string // BaseURL without trailing slash, "" if unset
 	Root         string // relative path from the page to the site root
 	CustomScript bool   // site/custom-script.js exists
+	StaticPages  bool   // termine/ exists (OL_STATIC_PAGES)
 	Canonical    string // absolute URL of this page, "" without BaseURL
 	PageTitle    string
 	MetaDesc     string
@@ -85,6 +86,9 @@ type staticPage struct {
 	Imprint      string             // ImprintURL / PrivacyURL relative to this page
 	Privacy      string
 	Generated    string
+	// MarkdownPages are the names of the pages in pages/ (seite.html only),
+	// linked for visitors without JavaScript.
+	MarkdownPages []string
 }
 
 // buildStatic writes the static pages (termine/) into out.
@@ -107,7 +111,7 @@ func buildStatic(inst instance.Instance, webDir, out string, logo template.HTML,
 		}
 		return siteURL + "/" + rel
 	}
-	base := staticPage{Config: inst.Config, Logo: logo, SiteURL: siteURL, Root: "../",
+	base := staticPage{Config: inst.Config, Logo: logo, SiteURL: siteURL, Root: "../", StaticPages: true,
 		CustomScript: fileExists(filepath.Join(out, CustomScriptFile)),
 		Generated:    time.Now().In(model.Local).Format("02.01.2006, 15:04")}
 	if base.Title == "" {
