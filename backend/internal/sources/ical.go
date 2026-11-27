@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"regexp"
 	"sort"
@@ -27,7 +28,8 @@ import (
 // as model.Event.Cancelled - also for a cancelled RECURRENCE-ID occurrence),
 // recurring events (RRULE: DAILY/WEEKLY/MONTHLY/YEARLY with INTERVAL,
 // COUNT, UNTIL, BYDAY for WEEKLY; EXDATE; RECURRENCE-ID overrides),
-// expanded only inside the fetch window. Lenient with known exporter bugs:
+// expanded only inside the fetch window, multi-day events (one event per
+// day while they run, see splitDays). Lenient with known exporter bugs:
 // bare-LF line wraps in CRLF files, \" escapes, ORGANIZER names without CN,
 // and (opt-in, "icalUTCAs") local times marked as UTC.
 //
@@ -471,7 +473,7 @@ func parseICal(body string, cfg config.SourceConfig, from, to time.Time, now tim
 			case plainUIDs[uid] > 1:
 				ev.Source.SourceID = uid + "|" + occ.UTC().Format("20060102T150405")
 			}
-			events = append(events, ev)
+			events = append(events, splitDays(ev, occ, length, allDay, from, to)...)
 		}
 	}
 	return events, nil
@@ -591,6 +593,57 @@ func icalImage(v vevent) string {
 		}
 	}
 	return ""
+}
+
+// splitDays turns an occurrence that spans several days (an exhibition
+// 2 Oct - 31 Dec, a weekend festival) into one event per day inside the
+// fetch window, the way sources such as infomax report them. As a single
+// event it would carry only its start date and be dropped as past once
+// that day is over, although it is still running. The first day keeps the
+// start time; the following days are all-day. Each day gets its own stable
+// id (<occurrence id>|YYYY-MM-DD).
+//
+// A timed event shorter than 24 hours (a party 22:00 - 03:00) stays one
+// event on its start day.
+func splitDays(ev model.Event, start time.Time, length time.Duration, allDay bool, from, to time.Time) []model.Event {
+	var first, last time.Time
+	if allDay {
+		// DTEND of an all-day event is exclusive; round so a DURATION in
+		// hours across a DST change still counts whole days.
+		n := int(math.Round(length.Hours() / 24))
+		if n <= 1 {
+			return []model.Event{ev}
+		}
+		first, last = start, start.AddDate(0, 0, n-1)
+	} else {
+		if length < 24*time.Hour {
+			return []model.Event{ev}
+		}
+		first = start.In(model.Local)
+		last = start.Add(length - time.Nanosecond).In(model.Local)
+	}
+
+	fromDay := from.In(model.Local).Format("2006-01-02")
+	toDay := to.In(model.Local).Format("2006-01-02") // exclusive
+	lastDay := last.Format("2006-01-02")
+	id := ev.Source.SourceID
+	var out []model.Event
+	for d := time.Date(first.Year(), first.Month(), first.Day(), 0, 0, 0, 0, model.Local); ; d = d.AddDate(0, 0, 1) {
+		day := d.Format("2006-01-02")
+		if day > lastDay || day >= toDay {
+			break
+		}
+		if day < fromDay {
+			continue
+		}
+		e := ev
+		if day != ev.Date {
+			e.Date, e.StartTime, e.EndTime = day, "", ""
+		}
+		e.Source.SourceID = id + "|" + day
+		out = append(out, e)
+	}
+	return out
 }
 
 // ---- RRULE ----

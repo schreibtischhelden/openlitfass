@@ -180,6 +180,78 @@ func TestICalSharedUIDWithoutRRule(t *testing.T) {
 	}
 }
 
+func TestICalMultiDayAllDayEventRunsEveryDay(t *testing.T) {
+	// Arrange: an exhibition that started before the window and is still running.
+	body := cal("BEGIN:VEVENT\r\nUID:expo\r\nSUMMARY:Ausstellung\r\nDTSTART;VALUE=DATE:20261002\r\nDTEND;VALUE=DATE:20270101\r\nEND:VEVENT\r\n")
+	from, to := icalWindow("2026-12-29", 30)
+
+	// Act
+	evs, err := parseICal(body, config.SourceConfig{Name: "t"}, from, to, time.Now())
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, e := range evs {
+		got = append(got, e.Date+" "+e.StartTime+" "+e.Source.SourceID)
+	}
+	want := []string{"2026-12-29  expo|2026-12-29", "2026-12-30  expo|2026-12-30", "2026-12-31  expo|2026-12-31"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestICalMultiDayTimedEventKeepsStartTimeOnFirstDay(t *testing.T) {
+	// Arrange: a weekend festival Friday 18:00 to Sunday 14:00.
+	body := cal("BEGIN:VEVENT\r\nUID:fest\r\nSUMMARY:Fest\r\nDTSTART:20261204T180000\r\nDTEND:20261206T140000\r\nEND:VEVENT\r\n")
+	from, to := icalWindow("2026-11-27", 30)
+
+	// Act
+	evs, _ := parseICal(body, config.SourceConfig{Name: "t"}, from, to, time.Now())
+
+	// Assert
+	var got []string
+	for _, e := range evs {
+		got = append(got, e.Date+" "+e.StartTime+"-"+e.EndTime)
+	}
+	want := []string{"2026-12-04 18:00-", "2026-12-05 -", "2026-12-06 -"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestICalShortEventsStaySingle(t *testing.T) {
+	// Arrange: an overnight party and a one-day all-day event.
+	body := cal(
+		"BEGIN:VEVENT\r\nUID:party\r\nSUMMARY:Party\r\nDTSTART:20261204T220000\r\nDTEND:20261205T030000\r\nEND:VEVENT\r\n",
+		"BEGIN:VEVENT\r\nUID:day\r\nSUMMARY:Tag\r\nDTSTART;VALUE=DATE:20261210\r\nDTEND;VALUE=DATE:20261211\r\nEND:VEVENT\r\n",
+	)
+	from, to := icalWindow("2026-11-27", 30)
+
+	// Act
+	evs, _ := parseICal(body, config.SourceConfig{Name: "t"}, from, to, time.Now())
+
+	// Assert
+	if len(evs) != 2 || evs[0].Source.SourceID != "party" || evs[1].Source.SourceID != "day" {
+		t.Errorf("want two single events with plain ids, got %+v", evs)
+	}
+}
+
+func TestICalMultiDayEventEndsAtWindow(t *testing.T) {
+	// Arrange: a long exhibition beyond the window.
+	body := cal("BEGIN:VEVENT\r\nUID:long\r\nSUMMARY:Lang\r\nDTSTART;VALUE=DATE:20261101\r\nDURATION:P365D\r\nEND:VEVENT\r\n")
+	from, to := icalWindow("2026-11-27", 10)
+
+	// Act
+	evs, _ := parseICal(body, config.SourceConfig{Name: "t"}, from, to, time.Now())
+
+	// Assert
+	if len(evs) != 10 || evs[0].Date != "2026-11-27" || evs[9].Date != "2026-12-06" {
+		t.Errorf("want 10 days 2026-11-27..2026-12-06, got %d events", len(evs))
+	}
+}
+
 // brokenExport mimics the TYPO3 tx_cal export of kirche-mv.de: content lines
 // end with CRLF, but long values are wrapped with a bare LF (the space at
 // the wrap is dropped), LOCATION parts sit on bare-LF + tab lines, quotes
