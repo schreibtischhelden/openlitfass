@@ -180,6 +180,14 @@ type SourceConfig struct {
 	// be wcs_type slugs (matched against the slug first, see wcs.go).
 	// Unmapped values are kept as-is.
 	CategoryMap map[string]string `json:"categoryMap,omitempty"`
+	// CategoryRules sets the category from other fields, for sources that
+	// file very different events under one coarse category ("Extra"): an
+	// ordered list, the first matching rule wins, no match leaves the
+	// category unchanged. Same fields as Include/Exclude; a "category" rule
+	// sees the value after CategoryMap. Applied after CategoryMap and before
+	// the Categories allowlist and Include/Exclude, so those see the final
+	// category. Invalid rules are logged and skipped.
+	CategoryRules []CategoryRule `json:"categoryRules,omitempty"`
 	// FamilyFriendly is applied to every event this source produces (see
 	// model.Event.FamilyFriendly) - a per-event signal isn't available from
 	// the wcs API, but for a source that IS a family/parenting venue this is
@@ -322,4 +330,12 @@ func RecordAttempt(path string, fetchErr error) error {
 type MatchRule struct {
 	Field string `json:"field"`
 	Regex string `json:"regex"`
+}
+
+// CategoryRule is one entry of SourceConfig.CategoryRules: if Regex matches
+// the event field named by Field, the event gets Category.
+type CategoryRule struct {
+	Field    string `json:"field"`
+	Regex    string `json:"regex"`
+	Category string `json:"category"`
 }
