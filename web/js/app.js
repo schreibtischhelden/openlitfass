@@ -930,13 +930,7 @@
       const toToday = e.target.closest("[data-today]");
       if (toToday && !toToday.disabled) { setRange(state.period, todayISO()); return; }
       const step = e.target.closest("[data-step]");
-      if (step && !step.disabled) {
-        const [start] = currentRange();
-        const base = anchorDay();
-        const from = step.dataset.step === "1" ? base : start;
-        setRange(state.period, iso(addDays(parseDate(from), Number(step.dataset.step) * periodStep(state.period))));
-        return;
-      }
+      if (step && !step.disabled) { stepRange(Number(step.dataset.step)); return; }
     });
     // Klick aufs Datum öffnet den Picker (showPicker, wo vorhanden; sonst
     // reicht der Klick auf das darüberliegende, unsichtbare Datumsfeld).
@@ -964,14 +958,32 @@
     });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && !$("filterPanel").hidden) toggleFilterPanel(false);
-      if (state.view === "detail" && (e.key === "ArrowLeft" || e.key === "ArrowRight") &&
+      // Pfeiltasten blättern wie das Wischen: in der Detailansicht durch die
+      // Termine, in der Liste durch die Zeiträume. Nicht in Eingabefeldern
+      // und nicht in waagerecht scrollbaren Bereichen (Kategorie-Menü).
+      if ((e.key === "ArrowLeft" || e.key === "ArrowRight") &&
           !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey &&
-          !(e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable]"))) {
-        e.preventDefault();
-        showNeighbour(e.key === "ArrowRight" ? 1 : -1);
+          !(e.target instanceof Element &&
+            (e.target.closest("input, textarea, select, [contenteditable]") || inHorizontalScroller(e.target, document.body)))) {
+        const dir = e.key === "ArrowRight" ? 1 : -1;
+        if (state.view === "detail") { e.preventDefault(); showNeighbour(dir); }
+        else if (state.view === "list" && canStepRange(dir)) { e.preventDefault(); slideRange(dir); }
       }
     });
-    bindSwipe();
+    bindSwipe(el.viewDetail, {
+      active: () => state.view === "detail" && state.byId.has(state.detailId),
+      canGo: (dir) => {
+        const n = detailNeighbours(state.byId.get(state.detailId));
+        return Boolean(dir > 0 ? n.next : n.prev);
+      },
+      go: showNeighbour
+    });
+    bindSwipe(el.viewList, {
+      active: () => state.view === "list",
+      canGo: canStepRange,
+      go: slideRange
+    });
+    bindZoomState();
 
     // Klick auf eine Karte merkt sich, dass "Zurück" in die Liste führt
     // (dann history.back() statt Hash-Sprung, damit die Scrollposition bleibt).
@@ -1516,72 +1528,116 @@
     return { prev: seq[i - 1] || null, next: seq[i + 1] || null };
   }
 
-  const SLIDE_MS = 180;
-  function motionOk() {
-    return !(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
-  }
-  function resetSlide() {
-    const v = el.viewDetail;
-    v.style.transition = "";
-    v.style.transform = "";
-    v.style.opacity = "";
-  }
-  function snapBack() {
-    const v = el.viewDetail;
-    v.style.transition = `transform ${SLIDE_MS}ms ease-out`;
-    v.style.transform = "";
-    setTimeout(resetSlide, SLIDE_MS + 20);
-  }
   // dir: 1 = nächster, -1 = vorheriger Termin. replaceState statt neuem
   // Verlaufseintrag: "Zurück" führt weiter direkt in die Liste.
-  let sliding = false;
   function showNeighbour(dir) {
     const cur = state.byId.get(state.detailId);
     if (!cur || sliding) return;
     const target = detailNeighbours(cur)[dir > 0 ? "next" : "prev"];
-    if (!target) { snapBack(); return; }
-    const go = () => {
+    if (!target) { snapBack(el.viewDetail); return; }
+    slide(el.viewDetail, dir, () => {
       history.replaceState(null, "", `#${encodeURIComponent(target.id)}`);
       route();
-    };
-    if (!motionOk()) { resetSlide(); go(); return; }
-    const v = el.viewDetail;
+    });
+  }
+
+  // ---- Blättern durch die Zeiträume (Liste) ----
+  // Wie die Pfeile in der Datumsleiste: einen Tag bzw. eine Woche weiter
+  // oder zurück, nie vor heute; mit Suche gilt die Liste für alle Tage.
+  function canStepRange(dir) {
+    if (state.search) return false;
+    return dir > 0 || currentRange()[0] > todayISO();
+  }
+  function stepRange(dir) {
+    const from = dir > 0 ? anchorDay() : currentRange()[0];
+    setRange(state.period, iso(addDays(parseDate(from), dir * periodStep(state.period))));
+  }
+  function slideRange(dir) {
+    if (sliding || !canStepRange(dir)) { snapBack(el.viewList); return; }
+    slide(el.viewList, dir, () => stepRange(dir));
+  }
+
+  // ---- Wisch-Animation ----
+  const SLIDE_MS = 180;
+  let sliding = false;
+  function motionOk() {
+    return !(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }
+  function resetSlide(v) {
+    v.style.transition = "";
+    v.style.transform = "";
+    v.style.opacity = "";
+    v.classList.remove("is-sliding");
+  }
+  function snapBack(v) {
+    if (!v.classList.contains("is-sliding")) return;
+    v.style.transition = `transform ${SLIDE_MS}ms ease-out`;
+    v.style.transform = "";
+    setTimeout(() => resetSlide(v), SLIDE_MS + 20);
+  }
+  // Ansicht v zur Seite hinaus, change() tauscht den Inhalt, dann von der
+  // anderen Seite herein. dir 1 = vorwärts (Inhalt wandert nach links).
+  function slide(v, dir, change) {
+    if (!motionOk()) { resetSlide(v); change(); return; }
     const shift = Math.round(v.offsetWidth * 0.35);
     sliding = true;
+    v.classList.add("is-sliding");
     v.style.transition = `transform ${SLIDE_MS}ms ease-in, opacity ${SLIDE_MS}ms ease-in`;
     v.style.transform = `translateX(${-dir * shift}px)`;
     v.style.opacity = "0";
     setTimeout(() => {
-      go();
+      change();
       v.style.transition = "none";
       v.style.transform = `translateX(${dir * shift}px)`;
       void v.offsetWidth;
       v.style.transition = `transform ${SLIDE_MS}ms ease-out, opacity ${SLIDE_MS}ms ease-out`;
       v.style.transform = "";
       v.style.opacity = "";
-      setTimeout(() => { resetSlide(); sliding = false; }, SLIDE_MS + 20);
+      setTimeout(() => { resetSlide(v); sliding = false; }, SLIDE_MS + 20);
     }, SLIDE_MS);
   }
 
-  // Wischen: nur bei überwiegend waagerechter Bewegung (senkrecht scrollt
-  // die Seite wie gewohnt, touch-action: pan-y im CSS). Berührungen am
-  // Bildschirmrand bleiben der Zurück-Geste des Systems.
-  function bindSwipe() {
-    const v = el.viewDetail;
+  // Liegt el (bis zur Grenze stop) in einem Bereich, der selbst waagerecht
+  // scrollt? Dann gehören Wischen und Pfeiltasten diesem Bereich.
+  function inHorizontalScroller(node, stop) {
+    for (let n = node; n && n !== stop && n.nodeType === 1; n = n.parentElement) {
+      if (n.scrollWidth > n.clientWidth + 1 && /(auto|scroll)/.test(getComputedStyle(n).overflowX)) return true;
+    }
+    return false;
+  }
+  function isZoomed() {
+    return Boolean(window.visualViewport && window.visualViewport.scale > 1.01);
+  }
+  // Hineingezoomt verschiebt waagerechtes Wischen den Ausschnitt, statt zu
+  // blättern: .is-zoomed hebt touch-action: pan-y auf (style.css).
+  function bindZoomState() {
+    if (!window.visualViewport) return;
+    const sync = () => document.documentElement.classList.toggle("is-zoomed", isZoomed());
+    window.visualViewport.addEventListener("resize", sync);
+    sync();
+  }
+
+  // Wischen auf v: nur bei überwiegend waagerechter Bewegung (senkrecht
+  // scrollt die Seite wie gewohnt, touch-action im CSS). Berührungen am
+  // Bildschirmrand bleiben der Zurück-Geste des Systems. Nach links wischen
+  // = vorwärts (dir 1), nach rechts = zurück (dir -1).
+  //   active()   ob die Ansicht gerade wischbar ist
+  //   canGo(dir) ob es in diese Richtung weitergeht
+  //   go(dir)    blättern (mit Animation, siehe slide)
+  function bindSwipe(v, { active, canGo, go }) {
     const EDGE = 24, LOCK = 10;
     let sw = null;
     v.addEventListener("touchstart", (e) => {
       sw = null;
-      if (state.view !== "detail" || sliding || e.touches.length !== 1) return;
+      if (!active() || sliding || isZoomed() || e.touches.length !== 1) return;
       const t = e.touches[0];
       if (t.clientX < EDGE || t.clientX > window.innerWidth - EDGE) return;
-      const cur = state.byId.get(state.detailId);
-      if (!cur) return;
-      sw = { x: t.clientX, y: t.clientY, dx: 0, lock: "", time: Date.now(), n: detailNeighbours(cur) };
+      if (inHorizontalScroller(e.target, v)) return;
+      sw = { x: t.clientX, y: t.clientY, dx: 0, lock: "", time: Date.now(), next: canGo(1), prev: canGo(-1) };
     }, { passive: true });
     v.addEventListener("touchmove", (e) => {
       if (!sw) return;
-      if (e.touches.length !== 1) { sw = null; snapBack(); return; }
+      if (e.touches.length !== 1) { sw = null; snapBack(v); return; }
       const t = e.touches[0];
       const dx = t.clientX - sw.x, dy = t.clientY - sw.y;
       if (!sw.lock) {
@@ -1591,22 +1647,24 @@
       if (sw.lock !== "x") return;
       sw.dx = dx;
       if (!motionOk()) return;
-      // Ohne Nachbarn in dieser Richtung nur ein gebremstes Nachgeben.
-      const has = dx < 0 ? sw.n.next : sw.n.prev;
+      // Ohne Weiter in dieser Richtung nur ein gebremstes Nachgeben.
+      const has = dx < 0 ? sw.next : sw.prev;
+      v.classList.add("is-sliding");
       v.style.transition = "none";
       v.style.transform = `translateX(${has ? dx : dx / 4}px)`;
     }, { passive: true });
     v.addEventListener("touchend", () => {
       if (!sw || sw.lock !== "x") { sw = null; return; }
-      const { dx, time, n } = sw;
+      const { dx, time } = sw;
+      const dir = dx < 0 ? 1 : -1;
+      const has = dir > 0 ? sw.next : sw.prev;
       sw = null;
       const far = Math.abs(dx) > Math.min(80, v.offsetWidth * 0.25);
       const flick = Math.abs(dx) > 30 && Date.now() - time < 250;
-      const dir = dx < 0 ? 1 : -1;
-      if ((far || flick) && (dir > 0 ? n.next : n.prev)) showNeighbour(dir);
-      else snapBack();
+      if ((far || flick) && has) go(dir);
+      else snapBack(v);
     });
-    v.addEventListener("touchcancel", () => { if (sw) { sw = null; snapBack(); } });
+    v.addEventListener("touchcancel", () => { if (sw) { sw = null; snapBack(v); } });
   }
 
   function fact(icon, html) {

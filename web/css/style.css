@@ -335,10 +335,13 @@ button { font: inherit; }
   align-items: center;
   margin: calc(-1 * var(--space-2)) 0 var(--space-3);
 }
-/* Waagerechtes Wischen blättert (app.js bindSwipe); die beim Wischen
-   verschobene Ansicht erzeugt keinen waagerechten Scrollbalken. */
-.view.detail { touch-action: pan-y; }
-.content:has(> .view.detail:not([hidden])) { overflow-x: clip; }
+/* Waagerechtes Wischen blättert: in der Detailansicht durch die Termine, in
+   der Liste durch die Zeiträume (app.js bindSwipe). Zoomen bleibt möglich;
+   hineingezoomt (.is-zoomed) verschiebt Wischen wieder den Ausschnitt. Die
+   beim Wischen verschobene Ansicht erzeugt keinen waagerechten Scrollbalken. */
+#viewList, .view.detail { touch-action: pan-y pinch-zoom; }
+.is-zoomed #viewList, .is-zoomed .view.detail { touch-action: auto; }
+.content:has(> .is-sliding) { overflow-x: clip; }
 .detail__actions { display: flex; align-items: center; gap: var(--space-1); }
 .detail__nav { color: var(--color-primary-text); }
 .detail__nav:disabled { color: var(--color-text-muted); opacity: 0.4; cursor: default; background: transparent; }
