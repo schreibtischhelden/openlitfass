@@ -4,6 +4,9 @@
       {{if .Cancelled}}<div class="cancelled-notice" role="status"><strong>Abgesagt</strong> Dieser Termin findet nicht statt.</div>{{end}}
       {{if .Category}}<p class="category-label">{{.Category}}</p>{{end}}
       <h1 class="detail__title{{if .Cancelled}} is-cancelled{{end}}">{{.Title}}</h1>
+      {{/* Bild von der Quelle: nur mit JavaScript und je nach Einstellung
+           (js/image.js); ohne JavaScript wird nichts nachgeladen. */}}
+      {{if .Image}}<figure class="event-image" data-src="{{.Image}}" data-alt="Bild zu „{{.Title}}“" hidden></figure>{{end}}
       <ul class="facts static-facts">
         <li><strong>Datum:</strong> <time datetime="{{.Date}}">{{.DateLong}}</time></li>
         <li><strong>Zeit:</strong> {{.TimeText}}</li>
@@ -36,4 +39,5 @@
       });
     })();</script>
     {{if and .Lat .Lon}}<script src="{{$.Root}}js/map.js" defer></script>{{end}}
+    {{if .Image}}<script src="{{$.Root}}js/image.js" defer></script>{{end}}
 {{end}}{{template "bottom" .}}

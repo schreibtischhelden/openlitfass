@@ -133,11 +133,11 @@
     themeLightShort: "Hell",
     themeDarkShort: "Dunkel",
     settingsExternal: "Inhalte von anderen Seiten",
-    settingsExternalIntro: "Karten und Bilder kommen von fremden Servern. Beim Laden sieht der jeweilige Server deine IP-Adresse und welche Seite du ansiehst. Cookies werden dabei nicht mitgeschickt.",
+    settingsExternalIntro: "Karten und Bilder kommen von fremden Servern. Beim Laden sieht der jeweilige Server deine IP-Adresse.",
     settingsMaps: "Karten",
-    settingsMapsHost: "Kartenbilder von openstreetmap.org",
+    settingsMapsHost: "Kartenbilder von openstreetmap.org, ohne Cookies",
     settingsImages: "Bilder zu Terminen",
-    settingsImagesHost: "von den Seiten der Veranstalter",
+    settingsImagesHost: "direkt von den Servern der Veranstalter, ohne Angabe dieser Seite (Cookies je nach Browser)",
     externalClick: "Nach Klick laden",
     externalAuto: "Immer laden",
     externalOff: "Nie anzeigen",
@@ -154,8 +154,6 @@
     clearedAll: "Alles gelöscht",
     deleted: "Gelöscht",
     settingSaved: "Gespeichert",
-    imageLoad: (host) => `Bild von ${host} laden`,
-    imageNote: "Erst nach dem Klick, ohne Cookies. Dabei sieht der Server des Veranstalters deine IP-Adresse.",
     imageAlt: (title) => `Bild zu „${title}“`
   };
 
@@ -1379,6 +1377,12 @@
   }
   function mountMaps(root) {
     if (window.openLitfassMap) window.openLitfassMap.mountAll(root);
+    if (window.openLitfassImage) window.openLitfassImage.mountAll(root);
+  }
+  // Bild von der Quelle (js/image.js lädt es je nach Einstellung).
+  function imageHtml(ev) {
+    if (!ev.image || !/^https:\/\//i.test(ev.image)) return "";
+    return `<figure class="event-image" data-src="${escapeHtml(ev.image)}" data-alt="${escapeHtml(STR.imageAlt(ev.title))}" hidden></figure>`;
   }
   function placeTypeLabel(type) {
     return `<span class="category-label">${svg(state.placeTypeIcons.get(type) || ICON.pin)}${escapeHtml(type)}</span>`;
@@ -1517,6 +1521,7 @@
         : "") +
       categoryLabelHtml(ev.category) +
       `<h1 class="detail__title${ev.cancelled ? " is-cancelled" : ""}">${escapeHtml(ev.title)}</h1>` +
+      imageHtml(ev) +
       `<ul class="facts">${facts.join("")}</ul>` +
       map +
       (ev.description ?`<p class="detail__desc">${linkify(ev.description)}</p>` : "") +
