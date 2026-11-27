@@ -48,10 +48,12 @@ type page struct {
 //  3. plus <instance>/data/*.json (written by Fetch)
 //  4. webDir/index.html rendered as a Go html/template with the values from
 //     instance.json and the instance logo inlined
-//  5. optional (SiteOptions): static pages for search engines and visitors
+//  5. seite.html, the shell for the instance's Markdown pages
+//     (site/pages/*.md), if it has any; see markdown_pages.go
+//  6. optional (SiteOptions): static pages for search engines and visitors
 //     without JavaScript (termine/, pre-rendered start page), sitemap.xml
 //     and robots.txt; see static.go
-//  6. data/site.json, manifest.webmanifest, sw.js with a build id
+//  7. data/site.json, manifest.webmanifest, sw.js with a build id
 //
 // out is wiped first, but only if BuildSite created it (BuildMarker) or it
 // is empty/missing.
@@ -93,6 +95,9 @@ func BuildSite(inst instance.Instance, webDir, out string, opts SiteOptions) err
 	}
 	if err := renderIndex(webDir, inst, logo, start, opts, filepath.Join(out, "index.html")); err != nil {
 		return fmt.Errorf("render index.html: %w", err)
+	}
+	if err := buildMarkdownPages(inst, webDir, out, logo, opts); err != nil {
+		return fmt.Errorf("render %s: %w", MarkdownPageFile, err)
 	}
 	// Places (<instance>/places.json, optional): data/places.json for the
 	// app, with OL_STATIC_PAGES also orte/ pages.

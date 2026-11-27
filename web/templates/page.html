@@ -1,0 +1,27 @@
+{{/* Shell for the Markdown pages of an instance (site/pages/<name>.md),
+     rendered by build-site to seite.html. markdown-pages.js fills <main>
+     from ?page=<name> and puts the first heading into the title.
+     Header and footer are no <header>/<footer> elements: markdown-pages.js
+     would replace them with header.md / footer.md from the site root. */}}
+{{template "head" .}}
+<body>
+<div class="app static-page md-page">
+  <div class="app-header" role="banner">
+    {{template "brand" .}}
+  </div>
+  <div class="content">
+    <main id="main">
+      <noscript>
+        <p>Diese Seite wird mit JavaScript dargestellt. Ohne JavaScript lassen sich die Texte direkt lesen:</p>
+        <ul>
+          {{range .MarkdownPages}}<li><a href="{{$.Root}}pages/{{.}}.md">{{.}}</a></li>
+          {{end}}
+        </ul>
+      </noscript>
+    </main>
+    <div class="site-footer" role="contentinfo">{{template "footer-links" .}}</div>
+  </div>
+</div>
+<script src="{{.Root}}vendor/markdown-pages/markdown-pages.js"></script>
+</body>
+</html>

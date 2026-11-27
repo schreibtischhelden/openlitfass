@@ -76,7 +76,7 @@ func buildPlacePages(inst instance.Instance, webDir, out string, logo template.H
 		}
 		return siteURL + "/" + rel
 	}
-	base := staticPage{Config: inst.Config, Logo: logo, SiteURL: siteURL, Root: "../",
+	base := staticPage{Config: inst.Config, Logo: logo, SiteURL: siteURL, Root: "../", StaticPages: true,
 		CustomScript: fileExists(filepath.Join(out, CustomScriptFile)),
 		Generated:    time.Now().In(model.Local).Format("02.01.2006, 15:04")}
 	if base.Title == "" {

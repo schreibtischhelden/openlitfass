@@ -78,6 +78,11 @@ func TestServerServesAndSwapsBuilds(t *testing.T) {
 	if cc := get(t, h, "/data/events.json").Header.Get("Cache-Control"); cc != "no-cache" {
 		t.Errorf("data Cache-Control = %q", cc)
 	}
+	rec := httptest.NewRecorder()
+	setCacheHeaders(rec, "/pages/impressum.md")
+	if cc := rec.Header().Get("Cache-Control"); cc != "no-cache" {
+		t.Errorf("markdown page Cache-Control = %q", cc)
+	}
 	if code := get(t, h, "/data/").StatusCode; code != http.StatusNotFound {
 		t.Errorf("directory listing should be hidden, got %d", code)
 	}
