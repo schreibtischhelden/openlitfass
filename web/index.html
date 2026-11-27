@@ -27,6 +27,8 @@
      eine leere Datei, die Instanz ersetzt sie über site/css/theme.css. -->
 <link rel="stylesheet" href="css/theme.css">
 <link rel="stylesheet" href="css/style.css">
+<!-- Instanz-Skript (z. B. Statistik): nur wenn site/custom-script.js existiert. -->
+{{if .CustomScript}}<script src="custom-script.js" defer></script>{{end}}
 </head>
 <body>
 <div class="app">

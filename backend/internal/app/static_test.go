@@ -151,6 +151,45 @@ func TestBuildSiteDefaultsWithoutExtras(t *testing.T) {
 	if idx := readFile(t, filepath.Join(out, "index.html")); strings.Contains(idx, "lesung-abc123") || strings.Contains(idx, StaticDir+"/") {
 		t.Error("index.html should not pre-render or link static pages by default")
 	}
+	if idx := readFile(t, filepath.Join(out, "index.html")); strings.Contains(idx, CustomScriptFile) {
+		t.Errorf("index.html should not load %s without site/%s", CustomScriptFile, CustomScriptFile)
+	}
+}
+
+func TestBuildSiteCustomScript(t *testing.T) {
+	// Arrange
+	webDir, _ := filepath.Abs(filepath.Join("..", "..", "..", "web"))
+	root := t.TempDir()
+	instDir := filepath.Join(root, "inst")
+	tomorrow := time.Now().In(model.Local).AddDate(0, 0, 1).Format("2006-01-02")
+	writeFile(t, filepath.Join(instDir, "instance.json"), `{"name":"Zählkiez"}`)
+	writeFile(t, filepath.Join(instDir, "site", CustomScriptFile), `console.log("hi")`)
+	writeFile(t, filepath.Join(instDir, "data", "events.json"), `{"events":[
+	  {"id":"lesung-abc123","title":"Lesung","date":"`+tomorrow+`","location":{"name":""},"price":{"free":true,"amount":null}}]}`)
+	inst, err := instance.Load(instDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(root, "out")
+
+	// Act
+	if err := BuildSite(inst, webDir, out, SiteOptions{StaticPages: true}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Assert
+	if got := readFile(t, filepath.Join(out, CustomScriptFile)); got != `console.log("hi")` {
+		t.Errorf("%s not copied: %q", CustomScriptFile, got)
+	}
+	for file, want := range map[string]string{
+		"index.html":                                   `<script src="custom-script.js" defer></script>`,
+		filepath.Join(StaticDir, "index.html"):         `<script src="../custom-script.js" defer></script>`,
+		filepath.Join(StaticDir, "lesung-abc123.html"): `<script src="../custom-script.js" defer></script>`,
+	} {
+		if page := readFile(t, filepath.Join(out, file)); !strings.Contains(page, want) {
+			t.Errorf("%s: missing %s", file, want)
+		}
+	}
 }
 
 func TestSitemapWithoutStaticPagesListsOnlyStart(t *testing.T) {
