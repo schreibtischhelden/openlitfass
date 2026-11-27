@@ -164,6 +164,13 @@ type SourceConfig struct {
 	// with a "wcs_room" term inserted after the venue. ical: used as name
 	// when an event has no LOCATION.
 	LocationDefault string `json:"locationDefault,omitempty"`
+	// ICalUTCAs ("ical" sources only) is for exporters that write local
+	// times as UTC ("...Z") without converting them properly: "+01:00"
+	// means the exporter always subtracted one hour, so the times are read
+	// as UTC+1 wall-clock times in the calendar's timezone (summer events
+	// would otherwise be an hour late); "local" means the "Z" is simply
+	// wrong. Unset = trust the UTC times.
+	ICalUTCAs string `json:"icalUTCAs,omitempty"`
 	// CategoryMap translates the source's own category names to the
 	// instance's vocabulary (see <instance>/categories.json), e.g.
 	// {"Kino": "Kultur", "Kurs": "Kultur"}, so events get an icon instead

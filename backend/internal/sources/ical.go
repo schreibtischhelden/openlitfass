@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,14 +27,16 @@ import (
 // as model.Event.Cancelled - also for a cancelled RECURRENCE-ID occurrence),
 // recurring events (RRULE: DAILY/WEEKLY/MONTHLY/YEARLY with INTERVAL,
 // COUNT, UNTIL, BYDAY for WEEKLY; EXDATE; RECURRENCE-ID overrides),
-// expanded only inside the fetch window.
+// expanded only inside the fetch window. Lenient with known exporter bugs:
+// bare-LF line wraps in CRLF files, \" escapes, ORGANIZER names without CN,
+// and (opt-in, "icalUTCAs") local times marked as UTC.
 //
 // Field mapping is fixed (no "mapping" block): SUMMARY -> title,
 // DESCRIPTION -> description, URL, first CATEGORIES value -> category
-// (translate with categoryMap), ORGANIZER;CN -> organizer (else the
-// config's "organizer"), X-APPLE-STRUCTURED-LOCATION title/address or
-// LOCATION -> location (else "locationDefault"). iCal has no price field,
-// so the price is unknown (nothing shown).
+// (translate with categoryMap), ORGANIZER;CN or a plain-name ORGANIZER ->
+// organizer (else the config's "organizer"), X-APPLE-STRUCTURED-LOCATION
+// title/address or LOCATION -> location (else "locationDefault"). iCal has
+// no price field, so the price is unknown (nothing shown).
 type ICalSource struct {
 	cfg config.SourceConfig
 }
@@ -114,7 +117,45 @@ func (v vevent) text(name string) string {
 }
 
 // unfold joins RFC 5545 folded lines (CRLF followed by space or tab).
+//
+// Some exporters (e.g. TYPO3 tx_cal on kirche-mv.de) end content lines with
+// CRLF but wrap long values with a bare LF and no folding space, and put the
+// parts of a LOCATION on bare-LF + tab lines. When most line breaks are CRLF,
+// a bare LF is taken as such a break inside the value: followed by a tab it
+// becomes "\n" (kept as a part separator, see icalLocation), otherwise a
+// space (the exporter drops the space it wraps at). A bare LF that is
+// followed by a known property still starts a new line. Files with LF line
+// endings only can't be told apart this way and are unfolded as before.
 func unfold(s string) []string {
+	if crlf := strings.Count(s, "\r\n"); crlf == 0 || crlf*2 <= strings.Count(s, "\n") {
+		return unfoldStrict(s)
+	}
+	var lines []string
+	prevBare := false
+	for _, l := range strings.Split(s, "\n") {
+		crlf := strings.HasSuffix(l, "\r")
+		l = strings.TrimSuffix(l, "\r")
+		switch {
+		case l == "":
+		case len(lines) == 0:
+			lines = append(lines, l)
+		case prevBare && !startsICalProperty(l):
+			if strings.HasPrefix(l, "\t") {
+				lines[len(lines)-1] += "\n" + l[1:]
+			} else {
+				lines[len(lines)-1] += " " + strings.TrimPrefix(l, " ")
+			}
+		case strings.HasPrefix(l, " ") || strings.HasPrefix(l, "\t"):
+			lines[len(lines)-1] += l[1:]
+		default:
+			lines = append(lines, l)
+		}
+		prevBare = !crlf
+	}
+	return lines
+}
+
+func unfoldStrict(s string) []string {
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	s = strings.ReplaceAll(s, "\r", "\n")
 	var lines []string
@@ -126,6 +167,32 @@ func unfold(s string) []string {
 		lines = append(lines, l)
 	}
 	return lines
+}
+
+// icalPropertyNames are the RFC 5545 properties of VCALENDAR, VEVENT,
+// VTIMEZONE and VALARM; startsICalProperty also accepts X- names.
+var icalPropertyNames = map[string]bool{
+	"BEGIN": true, "END": true, "VERSION": true, "PRODID": true, "CALSCALE": true, "METHOD": true,
+	"UID": true, "DTSTAMP": true, "DTSTART": true, "DTEND": true, "DURATION": true, "SUMMARY": true,
+	"DESCRIPTION": true, "LOCATION": true, "URL": true, "ORGANIZER": true, "ATTENDEE": true,
+	"CATEGORIES": true, "CLASS": true, "STATUS": true, "TRANSP": true, "SEQUENCE": true,
+	"CREATED": true, "LAST-MODIFIED": true, "RRULE": true, "RDATE": true, "EXDATE": true,
+	"RECURRENCE-ID": true, "GEO": true, "PRIORITY": true, "RESOURCES": true, "CONTACT": true,
+	"COMMENT": true, "ATTACH": true, "RELATED-TO": true, "REQUEST-STATUS": true, "TZID": true,
+	"TZNAME": true, "TZOFFSETFROM": true, "TZOFFSETTO": true, "TZURL": true, "TRIGGER": true,
+	"ACTION": true, "REPEAT": true,
+}
+
+func startsICalProperty(l string) bool {
+	end := strings.IndexAny(l, ";:")
+	if end <= 0 {
+		return false
+	}
+	name := l[:end]
+	if strings.HasPrefix(name, "X-") {
+		return strings.Trim(name, "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-") == ""
+	}
+	return icalPropertyNames[name]
 }
 
 func parseLine(line string) (icalProp, bool) {
@@ -155,9 +222,12 @@ func parseLine(line string) (icalProp, bool) {
 	return p, true
 }
 
+// unescapeText also turns \" into " - not an RFC 5545 escape, but written by
+// some exporters (kirche-mv.de); valid files never contain it.
+var textUnescaper = strings.NewReplacer(`\n`, "\n", `\N`, "\n", `\,`, ",", `\;`, ";", `\"`, `"`, `\\`, `\`)
+
 func unescapeText(s string) string {
-	r := strings.NewReplacer(`\n`, "\n", `\N`, "\n", `\,`, ",", `\;`, ";", `\\`, `\`)
-	return r.Replace(s)
+	return textUnescaper.Replace(s)
 }
 
 func parseCalendar(s string) (events []vevent, calTZ string) {
@@ -267,8 +337,58 @@ func parseDuration(s string) (time.Duration, bool) {
 	return d, true
 }
 
+// parseUTCAs reads the "icalUTCAs" option: "local" or an offset such as
+// "+01:00" / "+0100".
+func parseUTCAs(s string) (time.Duration, error) {
+	s = strings.TrimSpace(s)
+	if strings.EqualFold(s, "local") {
+		return 0, nil
+	}
+	m := utcOffsetRe.FindStringSubmatch(s)
+	if m == nil {
+		return 0, fmt.Errorf(`icalUTCAs %q: want "local" or an offset like "+01:00"`, s)
+	}
+	h, _ := strconv.Atoi(m[2])
+	min, _ := strconv.Atoi(m[3])
+	d := time.Duration(h)*time.Hour + time.Duration(min)*time.Minute
+	if m[1] == "-" {
+		d = -d
+	}
+	return d, nil
+}
+
+var utcOffsetRe = regexp.MustCompile(`^([+-])(\d{2}):?(\d{2})$`)
+
+// shiftUTCTimes rewrites the UTC ("...Z") start, end and exception times of
+// every event into floating local times shifted by `shift`: for exporters
+// that mark local times as UTC after subtracting a fixed offset regardless
+// of daylight saving time.
+func shiftUTCTimes(vevents []vevent, shift time.Duration) {
+	for _, v := range vevents {
+		for _, name := range []string{"DTSTART", "DTEND", "RECURRENCE-ID", "EXDATE"} {
+			ps := v.props[name]
+			for i := range ps {
+				vals := strings.Split(ps[i].value, ",")
+				for j, val := range vals {
+					if t, err := time.Parse("20060102T150405Z", strings.TrimSpace(val)); err == nil {
+						vals[j] = t.Add(shift).Format("20060102T150405")
+					}
+				}
+				ps[i].value = strings.Join(vals, ",")
+			}
+		}
+	}
+}
+
 func parseICal(body string, cfg config.SourceConfig, from, to time.Time, now time.Time) ([]model.Event, error) {
 	vevents, calTZ := parseCalendar(body)
+	if cfg.ICalUTCAs != "" {
+		shift, err := parseUTCAs(cfg.ICalUTCAs)
+		if err != nil {
+			return nil, err
+		}
+		shiftUTCTimes(vevents, shift)
+	}
 
 	// RECURRENCE-ID overrides: UID -> set of replaced occurrence starts.
 	overridden := map[string]map[int64]bool{}
@@ -385,8 +505,14 @@ func buildICalEvent(v vevent, cfg config.SourceConfig, start time.Time, length t
 	if cats := v.text("CATEGORIES"); cats != "" {
 		ev.Category = mapping.CleanText(strings.SplitN(cats, ",", 2)[0])
 	}
-	if org, ok := v.first("ORGANIZER"); ok && org.params["CN"] != "" {
-		ev.Organizer = mapping.CleanText(org.params["CN"])
+	if org, ok := v.first("ORGANIZER"); ok {
+		if org.params["CN"] != "" {
+			ev.Organizer = mapping.CleanText(org.params["CN"])
+		} else if name := mapping.CleanText(unescapeText(org.value)); name != "" && !uriValueRe.MatchString(name) {
+			// Against the spec (ORGANIZER is a mailto: address), but some
+			// exporters write the organiser's name as the value.
+			ev.Organizer = name
+		}
 	}
 
 	// Location: Apple's structured location carries name and address
@@ -396,8 +522,8 @@ func buildICalEvent(v vevent, cfg config.SourceConfig, start time.Time, length t
 			Name:    mapping.CleanText(unescapeText(apple.params["X-TITLE"])),
 			Address: mapping.CleanText(unescapeText(apple.params["X-ADDRESS"])),
 		}
-	} else if loc := mapping.CleanText(v.text("LOCATION")); loc != "" {
-		ev.Location = model.Location{Name: loc}
+	} else if loc, ok := icalLocation(v); ok {
+		ev.Location = loc
 	} else {
 		ev.Location = model.Location{Name: cfg.LocationDefault}
 	}
@@ -417,6 +543,35 @@ func buildICalEvent(v vevent, cfg config.SourceConfig, start time.Time, length t
 		}
 	}
 	return ev
+}
+
+var uriValueRe = regexp.MustCompile(`(?i)^(mailto|https?|urn|tel|sip):`)
+
+// icalLocation reads LOCATION as one free-text name - or, when unfold kept
+// the exporter's bare-LF + tab parts as raw line breaks (kirche-mv.de:
+// "* Venue" / "* Street 1" / "* 12345 City"), the first part as the name
+// and the others as the address, without the list markers.
+func icalLocation(v vevent) (model.Location, bool) {
+	p, ok := v.first("LOCATION")
+	if !ok {
+		return model.Location{}, false
+	}
+	raws := strings.Split(p.value, "\n")
+	if len(raws) == 1 {
+		name := mapping.CleanText(unescapeText(p.value))
+		return model.Location{Name: name}, name != ""
+	}
+	var parts []string
+	for _, raw := range raws {
+		part := strings.TrimSpace(strings.TrimLeft(mapping.CleanText(unescapeText(raw)), "*•"))
+		if part != "" {
+			parts = append(parts, part)
+		}
+	}
+	if len(parts) == 0 {
+		return model.Location{}, false
+	}
+	return model.Location{Name: parts[0], Address: strings.Join(parts[1:], ", ")}, true
 }
 
 // ---- RRULE ----
