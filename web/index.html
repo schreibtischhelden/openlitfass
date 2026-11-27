@@ -20,8 +20,10 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 {{if .TouchIcon}}<link rel="apple-touch-icon" href="icon-192.png">{{end}}
 <!-- Gewähltes Farbschema vor dem ersten Zeichnen setzen (kein Aufblitzen).
-     Ohne Wahl gilt die Systemeinstellung (prefers-color-scheme). -->
-<script>try{var t=localStorage.getItem("openlitfass:theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+     Ohne Wahl gilt die Systemeinstellung (prefers-color-scheme). Liest
+     openlitfass:settings (js/settings.js), bis zum ersten Laden von
+     settings.js auch noch den alten Schlüssel openlitfass:theme. -->
+<script>try{var s=JSON.parse(localStorage.getItem("openlitfass:settings")||"{}"),t=s&&s.theme||localStorage.getItem("openlitfass:theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
 <link rel="stylesheet" href="css/tokens.css">
 <!-- Instanz-Theme: überschreibt Tokens aus tokens.css. Der Kern liefert
      eine leere Datei, die Instanz ersetzt sie über site/css/theme.css. -->
@@ -112,6 +114,9 @@
 
     <section id="viewAbout" class="view about" hidden></section>
 
+    <!-- Einstellungen auf dem Gerät (js/settings.js), gefüllt von app.js. -->
+    <section id="viewSettings" class="view settings" hidden></section>
+
     <footer class="site-footer" id="siteFooter"></footer>
   </main>
 
@@ -137,6 +142,7 @@
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 </div>
 
+<script src="js/settings.js" defer></script>
 <script src="js/map.js" defer></script>
 <script src="js/app.js" defer></script>
 </body>

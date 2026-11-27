@@ -11,6 +11,7 @@ const SHELL = [
   "css/tokens.css",
   "css/theme.css",
   "css/style.css",
+  "js/settings.js",
   "js/map.js",
   "js/app.js",
   "favicon.svg",

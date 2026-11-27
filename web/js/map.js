@@ -3,7 +3,9 @@
    Klick auf "Karte anzeigen" Kartenkacheln von OpenStreetMap. Vorher geht
    keine Anfrage an Dritte. Es sind schlichte Bilder (kein iframe, keine
    Bibliothek); crossorigin="anonymous" lässt Cookies weg, in beide
-   Richtungen. Genutzt von der App (app.js) und den statischen Seiten. */
+   Richtungen. Genutzt von der App (app.js) und den statischen Seiten.
+   Die Einstellung "Karten" (settings.js) kann das Laden auch automatisch
+   machen oder die Karte ganz weglassen. */
 (function () {
   "use strict";
 
@@ -59,11 +61,24 @@
     });
   }
 
+  // Einstellung "maps" (settings.js): "click" wie bisher, "auto" lädt
+  // gleich, "off" zeigt gar nichts. Ohne settings.js gilt "click".
+  function mode() {
+    var s = window.openLitfassSettings;
+    return s ? s.get("maps") : "click";
+  }
+
   // Platzhalter (Knopf + Hinweis) einsetzen und auf den Klick warten.
   function mount(box) {
     if (!box || box.getAttribute("data-mounted")) return;
+    var m = mode();
+    if (m === "off") return;
     box.setAttribute("data-mounted", "1");
     box.hidden = false;
+    if (m === "auto") {
+      show(box);
+      return;
+    }
     box.innerHTML =
       '<button type="button" class="btn map-snippet__load">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
