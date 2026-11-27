@@ -43,7 +43,8 @@ func TestBuildSiteStaticPages(t *testing.T) {
 	writeFile(t, filepath.Join(instDir, "data", "events.json"), `{"events":[
 	  {"id":"lesung-abc123","title":"Lesung <im> Hof","description":"Mehr: https://example.org/x","category":"Kultur",
 	   "date":"`+tomorrow+`","startTime":"19:00","endTime":"21:00","location":{"name":"Hof","address":"Weg 1"},
-	   "price":{"free":true,"amount":null},"cancelled":true},
+	   "price":{"free":true,"amount":null},"cancelled":true,"image":"https://quelle.example/bild.jpg?a=1&b=2"},
+	  {"id":"ohne-bild","title":"Ohne Bild","date":"`+tomorrow+`","location":{"name":""},"price":{"free":false,"amount":null}},
 	  {"id":"alt-1","title":"Vorbei","date":"2000-01-01","location":{"name":""},"price":{"free":false,"amount":null}},
 	  {"id":"../boese","title":"Böse ID","date":"`+tomorrow+`","location":{"name":""},"price":{"free":false,"amount":null}}
 	]}`)
@@ -65,10 +66,17 @@ func TestBuildSiteStaticPages(t *testing.T) {
 		`"isAccessibleForFree":true`,
 		`href="../#lesung-abc123"`,
 		`href="../impressum.html"`,
+		`<meta property="og:image" content="https://quelle.example/bild.jpg?a=1&amp;b=2">`,
+		`<meta name="twitter:card" content="summary_large_image">`,
+		`"image":"https://quelle.example/bild.jpg?a=1`,
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("event page lacks %q", want)
 		}
+	}
+	plain := readFile(t, filepath.Join(out, StaticDir, "ohne-bild.html"))
+	if strings.Contains(plain, "og:image") || !strings.Contains(plain, `<meta name="twitter:card" content="summary">`) {
+		t.Error("event page without image must stay at twitter:card summary without og:image")
 	}
 
 	list := readFile(t, filepath.Join(out, StaticDir, "index.html"))

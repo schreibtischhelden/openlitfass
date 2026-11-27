@@ -295,12 +295,16 @@ func (r BoolRule) resolve(item interface{}) bool {
 //     those exact strings (they're used as-is/regex-extracted, not
 //     reformatted, so they must already match YYYY-MM-DD / HH:MM).
 type SourceMapping struct {
-	SourceID        FieldRule `json:"sourceId"`
-	Title           FieldRule `json:"title"`
-	Description     FieldRule `json:"description"`
-	Category        FieldRule `json:"category"`
-	Organizer       FieldRule `json:"organizer"`
-	URL             FieldRule `json:"url"`
+	SourceID    FieldRule `json:"sourceId"`
+	Title       FieldRule `json:"title"`
+	Description FieldRule `json:"description"`
+	Category    FieldRule `json:"category"`
+	Organizer   FieldRule `json:"organizer"`
+	URL         FieldRule `json:"url"`
+	// Image resolves the URL of the event's image, e.g. {"path": "image.url"}
+	// for JSON or {"path": "enclosure@url"} for an RSS enclosure. Only kept
+	// when the source sets "images": true.
+	Image           FieldRule `json:"image"`
 	LocationName    FieldRule `json:"locationName"`
 	LocationAddress FieldRule `json:"locationAddress"`
 	// PlaceRef resolves the event's place reference (see model.Event.Place),
@@ -341,6 +345,7 @@ func BuildEvent(item interface{}, m *SourceMapping, sourceName string, now time.
 		Category:    CleanText(m.Category.resolveString(item)),
 		Organizer:   CleanText(m.Organizer.resolveString(item)),
 		URL:         strings.TrimSpace(m.URL.resolveString(item)),
+		Image:       strings.TrimSpace(m.Image.resolveString(item)),
 		Location: model.Location{
 			Name:    CleanText(m.LocationName.resolveString(item)),
 			Address: CleanText(m.LocationAddress.resolveString(item)),
@@ -404,6 +409,7 @@ func (m SourceMapping) MarshalJSON() ([]byte, error) { //nolint:gocritic // valu
 		Category             *FieldRule `json:"category,omitempty"`
 		Organizer            *FieldRule `json:"organizer,omitempty"`
 		URL                  *FieldRule `json:"url,omitempty"`
+		Image                *FieldRule `json:"image,omitempty"`
 		LocationName         *FieldRule `json:"locationName,omitempty"`
 		LocationAddress      *FieldRule `json:"locationAddress,omitempty"`
 		PlaceRef             *FieldRule `json:"placeRef,omitempty"`
@@ -418,7 +424,7 @@ func (m SourceMapping) MarshalJSON() ([]byte, error) { //nolint:gocritic // valu
 		FamilyFriendly       *BoolRule  `json:"familyFriendly,omitempty"`
 		Cancelled            *BoolRule  `json:"cancelled,omitempty"`
 	}{
-		fr(m.SourceID), fr(m.Title), fr(m.Description), fr(m.Category), fr(m.Organizer), fr(m.URL),
+		fr(m.SourceID), fr(m.Title), fr(m.Description), fr(m.Category), fr(m.Organizer), fr(m.URL), fr(m.Image),
 		fr(m.LocationName), fr(m.LocationAddress), fr(m.PlaceRef), fr(m.Start), fr(m.End),
 		fr(m.Date), fr(m.StartTime), fr(m.EndTime), price,
 		br(m.TicketRequired), br(m.RegistrationRequired), br(m.FamilyFriendly), br(m.Cancelled),

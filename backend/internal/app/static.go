@@ -345,6 +345,9 @@ func eventJSONLD(e staticEvent, canonical string) map[string]any {
 	if e.Organizer != "" {
 		ld["organizer"] = map[string]any{"@type": "Organization", "name": e.Organizer}
 	}
+	if e.Image != "" {
+		ld["image"] = e.Image
+	}
 	if e.Price.Free {
 		ld["isAccessibleForFree"] = true
 	} else if e.Price.Amount != nil {

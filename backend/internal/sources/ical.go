@@ -376,6 +376,7 @@ func buildICalEvent(v vevent, cfg config.SourceConfig, start time.Time, length t
 		Title:          mapping.CleanText(v.text("SUMMARY")),
 		Description:    mapping.CleanMultiline(v.text("DESCRIPTION")),
 		URL:            strings.TrimSpace(v.text("URL")),
+		Image:          icalImage(v),
 		Organizer:      cfg.Organizer,
 		Price:          model.Price{Free: false, Amount: nil},
 		FamilyFriendly: cfg.FamilyFriendly,
@@ -417,6 +418,24 @@ func buildICalEvent(v vevent, cfg config.SourceConfig, start time.Time, length t
 		}
 	}
 	return ev
+}
+
+// icalImage returns the URL of the event's image: the first IMAGE property
+// (RFC 7986) given as a URI, else the first ATTACH whose FMTTYPE is an
+// image. Inline (base64) images are skipped; the image is only referenced,
+// never copied.
+func icalImage(v vevent) string {
+	for _, p := range v.props["IMAGE"] {
+		if !strings.EqualFold(p.params["ENCODING"], "BASE64") && !strings.EqualFold(p.params["VALUE"], "BINARY") {
+			return strings.TrimSpace(p.value)
+		}
+	}
+	for _, p := range v.props["ATTACH"] {
+		if strings.HasPrefix(strings.ToLower(p.params["FMTTYPE"]), "image/") && !strings.EqualFold(p.params["ENCODING"], "BASE64") {
+			return strings.TrimSpace(p.value)
+		}
+	}
+	return ""
 }
 
 // ---- RRULE ----

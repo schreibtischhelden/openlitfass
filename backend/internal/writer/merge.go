@@ -168,6 +168,9 @@ func mergeCluster(cluster []model.Event) model.Event {
 		if m.Organizer == "" {
 			m.Organizer = e.Organizer
 		}
+		if m.Image == "" {
+			m.Image = e.Image
+		}
 		if m.EndTime == "" {
 			m.EndTime = e.EndTime
 		}

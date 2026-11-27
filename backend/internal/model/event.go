@@ -95,6 +95,12 @@ type Event struct {
 	Price       Price    `json:"price"`
 	Organizer   string   `json:"organizer,omitempty"`
 	URL         string   `json:"url,omitempty"`
+	// Image is the absolute https URL of the event's image at the source.
+	// openLitfass never copies or serves it: link previews (og:image) and
+	// the front end reference it directly, the front end only as far as the
+	// visitor's "images" setting allows. Kept only for sources with
+	// "images": true (see config.SourceConfig.Images).
+	Image string `json:"image,omitempty"`
 	// SourceName is the public copy of Source.Name (set by writer.Write),
 	// so the frontend can look up the source's label in data/sources.json.
 	// "inbox" for hand-authored events.

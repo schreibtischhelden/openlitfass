@@ -15,7 +15,12 @@
 <meta property="og:title" content="{{if .Event}}{{.Event.Title}}{{else}}{{.PageTitle}}{{end}}">
 {{if .MetaDesc}}<meta property="og:description" content="{{.MetaDesc}}">{{end}}
 <meta property="og:locale" content="de_DE">
-<meta name="twitter:card" content="summary">
+{{/* Das Bild bleibt bei der Quelle: nur die URL wird genannt, der
+     Messenger lädt es dort (#66). */}}
+{{if and .Event .Event.Image}}<meta property="og:image" content="{{.Event.Image}}">
+<meta name="twitter:image" content="{{.Event.Image}}">
+<meta name="twitter:card" content="summary_large_image">
+{{else}}<meta name="twitter:card" content="summary">{{end}}
 <link rel="icon" href="{{.Root}}favicon.svg" type="image/svg+xml">
 <script>try{var t=localStorage.getItem("openlitfass:theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
 <link rel="stylesheet" href="{{.Root}}css/tokens.css">
