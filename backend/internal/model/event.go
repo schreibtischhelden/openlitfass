@@ -84,17 +84,26 @@ type SourceRef struct {
 // Event is the normalized, frontend-ready representation of a single
 // event.
 type Event struct {
-	ID          string   `json:"id"`
-	Title       string   `json:"title"`
-	Description string   `json:"description"`
-	Category    string   `json:"category"`
-	Date        string   `json:"date"`      // YYYY-MM-DD, instance-local (model.Local)
-	StartTime   string   `json:"startTime"` // HH:MM, instance-local (model.Local)
-	EndTime     string   `json:"endTime"`   // HH:MM, instance-local (model.Local)
-	Location    Location `json:"location"`
-	Price       Price    `json:"price"`
-	Organizer   string   `json:"organizer,omitempty"`
-	URL         string   `json:"url,omitempty"`
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	// Category is the event's main category: icon, filter menu and card
+	// label. It is the first entry of the source's categories that the
+	// source's categoryMap knows, otherwise the first one.
+	Category string `json:"category"`
+	// Categories lists every category the source gave (split by the
+	// source's categorySeparator), narrowed by categoryFilter.include/
+	// exclude and mapped via categoryMap. Order as in the source, no
+	// duplicates. Can be empty; such events are kept unless
+	// categoryFilter.deny contains "".
+	Categories []string `json:"categories,omitempty"`
+	Date       string   `json:"date"`      // YYYY-MM-DD, instance-local (model.Local)
+	StartTime  string   `json:"startTime"` // HH:MM, instance-local (model.Local)
+	EndTime    string   `json:"endTime"`   // HH:MM, instance-local (model.Local)
+	Location   Location `json:"location"`
+	Price      Price    `json:"price"`
+	Organizer  string   `json:"organizer,omitempty"`
+	URL        string   `json:"url,omitempty"`
 	// Image is the absolute https URL of the event's image at the source.
 	// openLitfass never copies or serves it: link previews (og:image) and
 	// the front end reference it directly, the front end only as far as the

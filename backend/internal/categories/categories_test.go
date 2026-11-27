@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"openlitfass/backend/internal/model"
 )
 
 func writeCats(t *testing.T, body string) string {
@@ -38,6 +40,32 @@ func TestLoadGroupErrors(t *testing.T) {
 	} {
 		if _, err := Load(writeCats(t, body)); err == nil || !strings.Contains(err.Error(), "group") {
 			t.Errorf("%s: err = %v, want a group error", name, err)
+		}
+	}
+}
+
+func TestApplyAttributesFamilyFriendly(t *testing.T) {
+	// Arrange
+	c, err := Load(writeCats(t, `{"fallback":"X","categories":[
+	  {"name":"Familie","icon":["M0 0"],"familyFriendly":true},
+	  {"name":"X","icon":["M0 0"]}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := []model.Event{
+		{Title: "main", Category: "Familie"},
+		{Title: "listed", Category: "X", Categories: []string{"X", "Familie"}},
+		{Title: "other", Category: "X"},
+		{Title: "already", Category: "X", FamilyFriendly: true},
+	}
+
+	// Act
+	c.ApplyAttributes(events)
+
+	// Assert
+	for i, want := range []bool{true, true, false, true} {
+		if events[i].FamilyFriendly != want {
+			t.Errorf("%s: familyFriendly = %v, want %v", events[i].Title, events[i].FamilyFriendly, want)
 		}
 	}
 }

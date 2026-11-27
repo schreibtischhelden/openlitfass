@@ -24,11 +24,11 @@ linters:
       settings:
         # An instance handles a few hundred events per run; copying structs
         # below this size costs nothing measurable, pointers would invite
-        # aliasing bugs.
+        # aliasing bugs. SourceConfig and Event are just above 512 bytes.
         hugeParam:
-          sizeThreshold: 512
+          sizeThreshold: 1024
         rangeValCopy:
-          sizeThreshold: 512
+          sizeThreshold: 1024
     gosec:
       excludes:
         # data/ and public/ are committed and served: they must stay

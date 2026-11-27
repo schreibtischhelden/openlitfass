@@ -15,7 +15,7 @@ import (
 const defaultSourceTimeout = 20 * time.Second
 
 // maxSourceTimeout caps SourceConfig.TimeoutSeconds, leaving the other
-// sources room within the run's FetchTimeout (internal/app).
+// sources room within the run's time limit (instance.Config.FetchTimeout).
 const maxSourceTimeout = 180 * time.Second
 
 // sourceTimeout is the time limit for one source: TimeoutSeconds if set

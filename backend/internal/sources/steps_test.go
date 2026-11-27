@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -20,6 +22,7 @@ type widgetServer struct {
 	*httptest.Server
 	mu       sync.Mutex
 	requests []string
+	times    []time.Time
 }
 
 func newWidgetServer(t *testing.T) *widgetServer {
@@ -37,6 +40,9 @@ func newWidgetServer(t *testing.T) *widgetServer {
 	})
 	mux.HandleFunc("/items", func(w http.ResponseWriter, r *http.Request) {
 		ws.record(r)
+		if d, err := time.ParseDuration(r.URL.Query().Get("slowFor")); err == nil && r.URL.Query().Get("object[]") == r.URL.Query().Get("slowID") {
+			time.Sleep(d)
+		}
 		for _, id := range r.URL.Query()["object[]"] {
 			fmt.Fprintf(w, `<article data-ident="%s"><h2>Event %s</h2><p class="info">%s / 19:00 Uhr / Saal</p></article>`, id, id, day)
 		}
@@ -59,6 +65,7 @@ func (ws *widgetServer) record(r *http.Request) {
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
 	ws.requests = append(ws.requests, r.URL.RequestURI())
+	ws.times = append(ws.times, time.Now())
 }
 
 const widgetItemFields = `
@@ -245,5 +252,121 @@ func TestUsesSteps(t *testing.T) {
 	dated := config.SourceConfig{Type: "ical", URL: "https://example.org/feed.ics?from={today}"}
 	if !usesSteps(&dated) {
 		t.Error("{today} in the url needs the step source")
+	}
+}
+
+const pacedWidgetConfig = `{
+  "type": "html",
+  "steps": [{
+    "url": "%s/list",
+    "collect": { "ids": { "selector": "[data-idents]", "attr": "data-idents", "split": "," } }
+  }],
+  "url": "%s/items?%s",
+  "forEach": { "var": "ids", "param": "object[]", "batch": 1 },` + widgetItemFields + `
+}`
+
+func TestStepsRequestDelaySpacesRequests(t *testing.T) {
+	// Arrange
+	ws := newWidgetServer(t)
+	s := newStepSource(stepConfig(t, fmt.Sprintf(pacedWidgetConfig, ws.URL, ws.URL, "x=1")), newTypedSource)
+	s.delay = 80 * time.Millisecond
+
+	// Act
+	evs, err := s.Fetch(context.Background())
+
+	// Assert
+	if err != nil || len(evs) != 3 {
+		t.Fatalf("got %d events, err %v; want 3 events", len(evs), err)
+	}
+	if len(ws.times) != 4 {
+		t.Fatalf("requests = %v, want the list and three item requests", ws.requests)
+	}
+	for i := 1; i < len(ws.times); i++ {
+		if gap := ws.times[i].Sub(ws.times[i-1]); gap < s.delay-10*time.Millisecond {
+			t.Errorf("request %d started %s after the previous one, want at least %s", i+1, gap, s.delay)
+		}
+	}
+}
+
+func TestStepsRequestTimeoutAppliesPerRequest(t *testing.T) {
+	// Arrange
+	ws := newWidgetServer(t)
+	s := newStepSource(stepConfig(t, fmt.Sprintf(pacedWidgetConfig, ws.URL, ws.URL, "slowFor=500ms&slowID=ev_2")), newTypedSource)
+	s.delay = time.Millisecond
+	s.requestTimeout = 150 * time.Millisecond
+
+	// Act
+	got, err := s.Fetch(context.Background())
+
+	// Assert
+	if err != nil {
+		t.Fatalf("err = %v, want the other batches kept", err)
+	}
+	var names []string
+	for _, e := range got {
+		names = append(names, e.Title)
+	}
+	if want := "Event ev_1,Event ev_3"; strings.Join(names, ",") != want {
+		t.Errorf("titles = %v, want %s (slow batch timed out on its own)", names, want)
+	}
+}
+
+func TestStepsRequestDelayStopsWhenContextEnds(t *testing.T) {
+	// Arrange
+	ws := newWidgetServer(t)
+	s := newStepSource(stepConfig(t, fmt.Sprintf(pacedWidgetConfig, ws.URL, ws.URL, "x=1")), newTypedSource)
+	s.delay = 5 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+
+	// Act
+	_, err := s.Fetch(ctx)
+
+	// Assert
+	if err == nil {
+		t.Error("err = nil, want the time limit reported")
+	}
+	if took := time.Since(started); took > time.Second {
+		t.Errorf("Fetch took %s, want it to stop waiting when the context ends", took)
+	}
+}
+
+func TestNewStepSourcePacing(t *testing.T) {
+	paced := newStepSource(config.SourceConfig{RequestDelaySeconds: 5, TimeoutSeconds: 30}, newTypedSource)
+	if paced.delay != 5*time.Second || paced.requestTimeout != 30*time.Second {
+		t.Errorf("delay %s, request timeout %s; want 5s and 30s", paced.delay, paced.requestTimeout)
+	}
+	plain := newStepSource(config.SourceConfig{TimeoutSeconds: 30}, newTypedSource)
+	if plain.delay != 0 || plain.requestTimeout != 0 {
+		t.Errorf("without requestDelaySeconds: delay %s, request timeout %s; want none", plain.delay, plain.requestTimeout)
+	}
+}
+
+func TestAllRunsPacedSourcesLast(t *testing.T) {
+	// Arrange
+	dir := t.TempDir()
+	files := map[string]string{
+		"a-paced.json": `{"type": "html", "url": "https://example.org/items", "requestDelaySeconds": 5,
+		  "steps": [{"url": "https://example.org/list", "collect": {"ids": {"selector": "[data-id]", "attr": "data-id"}}}],
+		  "forEach": {"var": "ids", "param": "id"}}`,
+		"b-plain.json": `{"type": "rss", "url": "https://example.org/feed"}`,
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Act
+	all := All(dir, filepath.Join(dir, "inbox"), filepath.Join(dir, "holidays.json"))
+
+	// Assert
+	var names []string
+	for _, s := range all {
+		names = append(names, s.Name())
+	}
+	if want := "b-plain,inbox,a-paced"; strings.Join(names, ",") != want {
+		t.Errorf("order = %v, want %s", names, want)
 	}
 }
