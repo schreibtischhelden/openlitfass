@@ -348,9 +348,9 @@ func parseUTCAs(s string) (time.Duration, error) {
 	if m == nil {
 		return 0, fmt.Errorf(`icalUTCAs %q: want "local" or an offset like "+01:00"`, s)
 	}
-	h, _ := strconv.Atoi(m[2])
-	min, _ := strconv.Atoi(m[3])
-	d := time.Duration(h)*time.Hour + time.Duration(min)*time.Minute
+	hours, _ := strconv.Atoi(m[2])
+	mins, _ := strconv.Atoi(m[3])
+	d := time.Duration(hours)*time.Hour + time.Duration(mins)*time.Minute
 	if m[1] == "-" {
 		d = -d
 	}
