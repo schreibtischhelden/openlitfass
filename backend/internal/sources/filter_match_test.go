@@ -78,6 +78,40 @@ func TestCommonFiltersCategoryList(t *testing.T) {
 	}
 }
 
+func TestCommonFiltersCategoryRules(t *testing.T) {
+	cfg := config.SourceConfig{
+		Name:        "t",
+		CategoryMap: map[string]string{"Extra": "Unkategorisiert", "Bühne": "Kultur"},
+		CategoryRules: []config.CategoryRule{
+			{Field: "title", Regex: `(?i)workshop|bastel`, Category: "Mitmachen"},
+			{Field: "title", Regex: `(?i)(advents|floh)markt\b`, Category: "Markt"},
+			{Field: "title", Regex: `(?i)\b(stadt)?führung(en)?\b|rundgang`, Category: "Führungen"},
+			{Field: "category", Regex: `^Kultur$`, Category: "Bühne & Kultur"},
+		},
+		Categories: []string{"Mitmachen", "Markt", "Führungen", "Unkategorisiert", "Bühne & Kultur"},
+	}
+	evs := []model.Event{
+		{Title: "Aquarell-Workshop", Category: "Extra", Date: day(1)},
+		{Title: "Flohmarkt am Hafen", Category: "Extra", Date: day(1)},
+		{Title: "Stadtführung", Category: "Extra", Date: day(1)},
+		{Title: "Aufführung: Faust", Category: "Extra", Date: day(1)},
+		{Title: "Konzert", Category: "Bühne", Date: day(1)},
+		{Title: "Bastelnachmittag", Category: "Sport", Date: day(1)},
+	}
+
+	got := applyCommonFilters(evs, cfg)
+
+	want := []string{"Mitmachen", "Markt", "Führungen", "Unkategorisiert", "Bühne & Kultur", "Mitmachen"}
+	if len(got) != len(want) {
+		t.Fatalf("kept %d events (%+v), want %d", len(got), got, len(want))
+	}
+	for i, w := range want {
+		if got[i].Category != w {
+			t.Errorf("%q: category %q, want %q", got[i].Title, got[i].Category, w)
+		}
+	}
+}
+
 func TestCommonFiltersCategoryFilterIncludeAndEmpty(t *testing.T) {
 	// Arrange
 	cfg := config.SourceConfig{
@@ -142,5 +176,46 @@ func TestCommonFiltersTownFromLocationName(t *testing.T) {
 	// Assert
 	if len(got) != 1 || got[0].Title != "in town" {
 		t.Errorf("kept %+v, want only the event whose town is Stralsund", got)
+	}
+}
+
+func TestCommonFiltersCategoryRulesFirstMatchAndFilters(t *testing.T) {
+	cfg := config.SourceConfig{
+		Name: "t",
+		CategoryRules: []config.CategoryRule{
+			{Field: "category", Regex: `^Umland$`, Category: "Umland"},
+			{Field: "title", Regex: `(?i)markt`, Category: "Markt"},
+		},
+		Exclude: []config.MatchRule{{Field: "category", Regex: `^Markt$`}},
+	}
+	evs := []model.Event{
+		{Title: "Wochenmarkt", Category: "Umland", Date: day(1)},
+		{Title: "Weihnachtsmarkt", Category: "Extra", Date: day(1)},
+		{Title: "Lesung", Category: "Extra", Date: day(1)},
+	}
+
+	got := applyCommonFilters(evs, cfg)
+
+	if len(got) != 2 || got[0].Category != "Umland" || got[1].Category != "Extra" {
+		t.Errorf("kept %+v, want Wochenmarkt/Umland and Lesung/Extra", got)
+	}
+}
+
+func TestCommonFiltersInvalidCategoryRulesSkipped(t *testing.T) {
+	cfg := config.SourceConfig{
+		Name: "t",
+		CategoryRules: []config.CategoryRule{
+			{Field: "ort", Regex: "x", Category: "A"},
+			{Field: "title", Regex: "(", Category: "B"},
+			{Field: "title", Regex: "x", Category: " "},
+			{Field: "title", Regex: "x", Category: "C"},
+		},
+	}
+	evs := []model.Event{{Title: "x", Category: "Extra", Date: day(1)}}
+
+	got := applyCommonFilters(evs, cfg)
+
+	if len(got) != 1 || got[0].Category != "C" {
+		t.Errorf("kept %+v, want category C from the only valid rule", got)
 	}
 }

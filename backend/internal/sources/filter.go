@@ -59,6 +59,7 @@ func applyCommonFilters(events []model.Event, cfg config.SourceConfig) []model.E
 		}
 	}
 
+	categoryRules := compileCategoryRules(cfg.Name, cfg.CategoryRules)
 	include := compileMatchRules(cfg.Name, "include", cfg.Include)
 	exclude := compileMatchRules(cfg.Name, "exclude", cfg.Exclude)
 
@@ -77,6 +78,12 @@ func applyCommonFilters(events []model.Event, cfg config.SourceConfig) []model.E
 		}
 		if !cats.apply(&e) {
 			continue
+		}
+		for _, r := range categoryRules {
+			if r.re.MatchString(fieldValue(e, r.field)) {
+				e.Category = r.category
+				break
+			}
 		}
 		if allowedCategories != nil && !allowedCategories[e.Category] {
 			continue
@@ -278,40 +285,72 @@ type matchRule struct {
 func compileMatchRules(source, kind string, rules []config.MatchRule) []matchRule {
 	var out []matchRule
 	for _, r := range rules {
-		switch r.Field {
-		case "title", "location", "organizer", "description":
-		case "category":
+		if r.Field == "category" {
 			log.Printf(`source %q: %s: field "category" is deprecated, use "categoryFilter"`, source, kind)
-		default:
-			log.Printf("source %q: %s: unknown field %q (title, location, organizer, category, description)", source, kind, r.Field)
-			continue
 		}
-		re, err := regexp.Compile(r.Regex)
-		if err != nil {
-			log.Printf("source %q: %s: invalid regex %q: %v", source, kind, r.Regex, err)
-			continue
+		if m, ok := compileMatchRule(source, kind, r.Field, r.Regex); ok {
+			out = append(out, m)
 		}
-		out = append(out, matchRule{field: r.Field, re: re})
 	}
 	return out
 }
 
+func compileMatchRule(source, kind, field, regex string) (matchRule, bool) {
+	switch field {
+	case "title", "location", "organizer", "category", "description":
+	default:
+		log.Printf("source %q: %s: unknown field %q (title, location, organizer, category, description)", source, kind, field)
+		return matchRule{}, false
+	}
+	re, err := regexp.Compile(regex)
+	if err != nil {
+		log.Printf("source %q: %s: invalid regex %q: %v", source, kind, regex, err)
+		return matchRule{}, false
+	}
+	return matchRule{field: field, re: re}, true
+}
+
+type categoryRule struct {
+	matchRule
+	category string
+}
+
+// compileCategoryRules compiles categoryRules in order; invalid ones (and
+// rules without a target category) are logged and skipped.
+func compileCategoryRules(source string, rules []config.CategoryRule) []categoryRule {
+	var out []categoryRule
+	for _, r := range rules {
+		category := strings.TrimSpace(r.Category)
+		if category == "" {
+			log.Printf("source %q: categoryRules: rule %q on %q has no category", source, r.Regex, r.Field)
+			continue
+		}
+		if m, ok := compileMatchRule(source, "categoryRules", r.Field, r.Regex); ok {
+			out = append(out, categoryRule{matchRule: m, category: category})
+		}
+	}
+	return out
+}
+
+func fieldValue(e model.Event, field string) string {
+	switch field {
+	case "title":
+		return e.Title
+	case "location":
+		return e.Location.Name + " " + e.Location.Address
+	case "organizer":
+		return e.Organizer
+	case "category":
+		return e.Category
+	case "description":
+		return e.Description
+	}
+	return ""
+}
+
 func anyRuleMatches(rules []matchRule, e model.Event) bool {
 	for _, r := range rules {
-		var v string
-		switch r.field {
-		case "title":
-			v = e.Title
-		case "location":
-			v = e.Location.Name + " " + e.Location.Address
-		case "organizer":
-			v = e.Organizer
-		case "category":
-			v = e.Category
-		case "description":
-			v = e.Description
-		}
-		if r.re.MatchString(v) {
+		if r.re.MatchString(fieldValue(e, r.field)) {
 			return true
 		}
 	}
