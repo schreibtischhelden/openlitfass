@@ -7,8 +7,17 @@
     "widgetToken": "ABCdef123gh."
   },
   "daysAhead": 14,
+  "categoryFilter": {
+    "deny": ["Ausstellung"],
+    "allow": ["Führungen & Touren"],
+    "exclude": ["Kinder"]
+  },
   "categoryMap": {
     "Ausstellung": "Kultur",
+    "Führungen & Touren": "Führungen",
     "Konzert": "Musik"
-  }
+  },
+  "include": [
+    { "field": "location", "regex": "(?i),\\s*Beispiel-Stadt\\s*$" }
+  ]
 }

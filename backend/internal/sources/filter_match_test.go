@@ -127,3 +127,20 @@ func TestCommonFiltersWithoutSeparatorKeepsOneCategory(t *testing.T) {
 		t.Errorf("list = %q %v, want the value kept whole", got[1].Category, got[1].Categories)
 	}
 }
+
+func TestCommonFiltersTownFromLocationName(t *testing.T) {
+	// Arrange
+	cfg := config.SourceConfig{Name: "t", Include: []config.MatchRule{{Field: "location", Regex: `(?i),\s*Stralsund\s*$`}}}
+	evs := []model.Event{
+		{Title: "in town", Date: day(1), Location: model.Location{Name: "Theater Vorpommern, Stralsund"}},
+		{Title: "venue name only", Date: day(1), Location: model.Location{Name: "Stralsund-Halle, Greifswald"}},
+	}
+
+	// Act
+	got := applyCommonFilters(evs, cfg)
+
+	// Assert
+	if len(got) != 1 || got[0].Title != "in town" {
+		t.Errorf("kept %+v, want only the event whose town is Stralsund", got)
+	}
+}

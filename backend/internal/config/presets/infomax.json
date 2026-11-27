@@ -31,6 +31,11 @@
     "homepage": "https://{host}/{permalink}/?widgetToken={widgetToken}",
     "daysAhead": 14,
     "timeoutSeconds": 180,
+    "requestDelaySeconds": 5,
+    "categorySeparator": ", ",
+    "categoryAttributes": {
+      "Kinder": { "familyFriendly": true }
+    },
     "steps": [
       {
         "url": "https://{host}/{permalink}/?widgetToken={widgetToken}&form=search&searchType=search&dateFrom={today}&dateTo={until}",
@@ -56,7 +61,7 @@
     "mapping": {
       "sourceId": { "path": "id" },
       "title": { "path": "title" },
-      "category": { "path": "category", "regex": "^([^,]+)" },
+      "category": { "path": "category" },
       "description": { "path": "description" },
       "url": { "path": "link" },
       "locationName": { "path": "place" },

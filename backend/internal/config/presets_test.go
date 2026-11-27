@@ -47,6 +47,29 @@ func TestParseSourceAppliesPreset(t *testing.T) {
 	if c.Mapping == nil || c.Mapping.Category.Default != "Kultur" || c.Mapping.Title.Path != "title" {
 		t.Errorf("mapping = %+v, want category overridden and title kept", c.Mapping)
 	}
+	if c.RequestDelaySeconds != 5 || c.CategorySeparator != ", " || !c.CategoryAttributes["Kinder"].FamilyFriendly {
+		t.Errorf("requestDelaySeconds/categorySeparator/categoryAttributes = %d/%q/%+v, want the preset's crawl delay, list split and Kinder as family-friendly",
+			c.RequestDelaySeconds, c.CategorySeparator, c.CategoryAttributes)
+	}
+}
+
+func TestExampleInfomaxSourceParses(t *testing.T) {
+	// Arrange
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "example-instance", "sources", "beispiel-infomax.example.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Act
+	c, err := parseSource(data)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.CategoryFilter == nil || len(c.CategoryFilter.Deny) != 1 || len(c.Include) != 1 {
+		t.Errorf("categoryFilter/include = %+v/%+v, want the example's filters", c.CategoryFilter, c.Include)
+	}
 }
 
 func TestParseSourcePresetErrors(t *testing.T) {
