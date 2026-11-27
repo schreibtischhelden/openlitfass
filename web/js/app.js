@@ -23,6 +23,19 @@
   const CORE_HOMEPAGE = "https://openlitfass.org";
   const CORE_ISSUES_URL = "https://github.com/schreibtischhelden/openlitfass/issues";
 
+  // Einstellungen auf dem Gerät (js/settings.js). Fehlt das Skript (alte
+  // Kopie im Cache), gelten die Standardwerte und nichts wird gespeichert.
+  const SETTINGS = window.openLitfassSettings || {
+    get: (name) => (name === "theme" ? "system" : "click"),
+    set: () => {},
+    all: () => ({ theme: "system", maps: "click", images: "click" }),
+    readOnly: () => false,
+    entries: () => [],
+    remove: () => {},
+    clearAll: () => Promise.resolve(),
+    onChange: () => {}
+  };
+
   // ---- Texte ----
   // Alle sichtbaren Texte an einer Stelle, damit Mehrsprachigkeit später
   // ohne Umbau ergänzt werden kann.
@@ -110,7 +123,38 @@
     feedbackBug: "Fehler melden",
     feedbackFeature: "Idee vorschlagen",
     feedbackAll: "Alle Meldungen",
-    inbox: "Von Hand eingetragen"
+    inbox: "Von Hand eingetragen",
+    settings: "Einstellungen",
+    settingsIntro: "Diese Einstellungen gelten nur für diesen Browser auf diesem Gerät. Sie werden nicht an uns oder andere geschickt, Cookies setzt diese Seite nicht.",
+    settingsReadOnly: "Die Einstellungen stammen von einer neueren Version dieser Seite. Sie werden hier angezeigt, aber nicht verändert.",
+    settingsAppearance: "Darstellung",
+    settingsTheme: "Farbschema",
+    themeSystem: "Wie das Gerät",
+    themeLightShort: "Hell",
+    themeDarkShort: "Dunkel",
+    settingsExternal: "Inhalte von anderen Seiten",
+    settingsExternalIntro: "Karten und Bilder kommen von fremden Servern. Beim Laden sieht der jeweilige Server deine IP-Adresse.",
+    settingsMaps: "Karten",
+    settingsMapsHost: "Kartenbilder von openstreetmap.org, ohne Cookies",
+    settingsImages: "Bilder zu Terminen",
+    settingsImagesHost: "direkt von den Servern der Veranstalter, ohne Angabe dieser Seite (Cookies je nach Browser)",
+    externalClick: "Nach Klick laden",
+    externalAuto: "Immer laden",
+    externalOff: "Nie anzeigen",
+    settingsLocal: "Gespeichert auf diesem Gerät",
+    settingsLocalNone: "Zurzeit ist nichts gespeichert.",
+    settingsLocalOffline: "Außerdem hält der Browser eine Offline-Kopie der Seite, damit sie ohne Netz startet.",
+    localSettings: "Einstellungen",
+    localSaved: (n) => `Merkliste (${n === 1 ? "1 Termin" : `${n} Termine`})`,
+    localLegacyTheme: "Farbschema (ältere Version)",
+    localOther: "Sonstiger Eintrag",
+    localDelete: "Löschen",
+    clearAll: "Alle Daten auf diesem Gerät löschen",
+    clearAllConfirm: "Alle Einstellungen, die Merkliste und die Offline-Kopie dieser Seite löschen?",
+    clearedAll: "Alles gelöscht",
+    deleted: "Gelöscht",
+    settingSaved: "Gespeichert",
+    imageAlt: (title) => `Bild zu „${title}“`
   };
 
   const WEEKDAYS = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
@@ -202,6 +246,7 @@
     viewList: $("viewList"),
     viewDetail: $("viewDetail"),
     viewAbout: $("viewAbout"),
+    viewSettings: $("viewSettings"),
     viewPlaces: $("viewPlaces"),
     viewPlace: $("viewPlace"),
     navPlaces: $("navPlaces"),
@@ -700,15 +745,15 @@
     if (s.imprintUrl) links.push(siteLink(s.imprintUrl, STR.imprint));
     if (s.privacyUrl) links.push(siteLink(s.privacyUrl, STR.privacy));
     links.push(`<a href="#ueber">${STR.about}</a>`);
+    links.push(`<a href="#einstellungen">${STR.settings}</a>`);
     el.footer.innerHTML = links.join("");
   }
 
   // ---- Farbschema ----
-  // Ohne eigene Wahl folgt die Seite dem System. Der Schalter setzt
-  // data-theme auf <html> (das Inline-Skript im <head> stellt es beim
-  // Laden wieder her); entspricht die Wahl dem System, wird sie gelöscht,
-  // damit die Seite wieder automatisch mitwechselt.
-  const THEME_KEY = "openlitfass:theme";
+  // Ohne eigene Wahl folgt die Seite dem System. Der Schalter ist eine
+  // Abkürzung für die Einstellung "Farbschema" (settings.js setzt
+  // data-theme auf <html>); entspricht die Wahl dem System, wird "system"
+  // gespeichert, damit die Seite wieder automatisch mitwechselt.
   const darkQuery = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
   function isDark() {
     const t = document.documentElement.getAttribute("data-theme");
@@ -725,12 +770,7 @@
   function toggleTheme() {
     const next = isDark() ? "light" : "dark";
     const system = darkQuery && darkQuery.matches ? "dark" : "light";
-    try {
-      if (next === system) localStorage.removeItem(THEME_KEY);
-      else localStorage.setItem(THEME_KEY, next);
-    } catch (_) { /* nur für diese Sitzung */ }
-    if (next === system) document.documentElement.removeAttribute("data-theme");
-    else document.documentElement.setAttribute("data-theme", next);
+    SETTINGS.set("theme", next === system ? "system" : next);
     syncThemeToggle();
   }
 
@@ -897,6 +937,7 @@
     if (themeBtn) themeBtn.addEventListener("click", toggleTheme);
     if (darkQuery && darkQuery.addEventListener) darkQuery.addEventListener("change", syncThemeToggle);
     syncThemeToggle();
+    bindSettings();
 
     el.searchToggle.addEventListener("click", () => {
       const open = el.searchBar.hidden;
@@ -930,13 +971,7 @@
       const toToday = e.target.closest("[data-today]");
       if (toToday && !toToday.disabled) { setRange(state.period, todayISO()); return; }
       const step = e.target.closest("[data-step]");
-      if (step && !step.disabled) {
-        const [start] = currentRange();
-        const base = anchorDay();
-        const from = step.dataset.step === "1" ? base : start;
-        setRange(state.period, iso(addDays(parseDate(from), Number(step.dataset.step) * periodStep(state.period))));
-        return;
-      }
+      if (step && !step.disabled) { stepRange(Number(step.dataset.step)); return; }
     });
     // Klick aufs Datum öffnet den Picker (showPicker, wo vorhanden; sonst
     // reicht der Klick auf das darüberliegende, unsichtbare Datumsfeld).
@@ -964,14 +999,32 @@
     });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && !$("filterPanel").hidden) toggleFilterPanel(false);
-      if (state.view === "detail" && (e.key === "ArrowLeft" || e.key === "ArrowRight") &&
+      // Pfeiltasten blättern wie das Wischen: in der Detailansicht durch die
+      // Termine, in der Liste durch die Zeiträume. Nicht in Eingabefeldern
+      // und nicht in waagerecht scrollbaren Bereichen (Kategorie-Menü).
+      if ((e.key === "ArrowLeft" || e.key === "ArrowRight") &&
           !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey &&
-          !(e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable]"))) {
-        e.preventDefault();
-        showNeighbour(e.key === "ArrowRight" ? 1 : -1);
+          !(e.target instanceof Element &&
+            (e.target.closest("input, textarea, select, [contenteditable]") || inHorizontalScroller(e.target, document.body)))) {
+        const dir = e.key === "ArrowRight" ? 1 : -1;
+        if (state.view === "detail") { e.preventDefault(); showNeighbour(dir); }
+        else if (state.view === "list" && canStepRange(dir)) { e.preventDefault(); slideRange(dir); }
       }
     });
-    bindSwipe();
+    bindSwipe(el.viewDetail, {
+      active: () => state.view === "detail" && state.byId.has(state.detailId),
+      canGo: (dir) => {
+        const n = detailNeighbours(state.byId.get(state.detailId));
+        return Boolean(dir > 0 ? n.next : n.prev);
+      },
+      go: showNeighbour
+    });
+    bindSwipe(el.viewList, {
+      active: () => state.view === "list",
+      canGo: canStepRange,
+      go: slideRange
+    });
+    bindZoomState();
 
     // Klick auf eine Karte merkt sich, dass "Zurück" in die Liste führt
     // (dann history.back() statt Hash-Sprung, damit die Scrollposition bleibt).
@@ -1045,6 +1098,7 @@
     if (rangeMatch || hash === "") view = "list";
     else if (hash === "gemerkt") view = "saved";
     else if (hash === "ueber") view = "about";
+    else if (hash === "einstellungen") view = "settings";
     else if (hash === "orte" && state.places.length) view = "places";
     else if (hash.startsWith("ort/") && state.placeById.has(hash.slice(4))) view = "place";
     else if (hash && state.byId.has(hash)) view = "detail";
@@ -1058,13 +1112,14 @@
     el.viewList.hidden = !(view === "list" || view === "saved");
     el.viewDetail.hidden = view !== "detail";
     el.viewAbout.hidden = view !== "about";
+    el.viewSettings.hidden = view !== "settings";
     el.viewPlaces.hidden = view !== "places";
     el.viewPlace.hidden = view !== "place";
     const filtersVisible = view === "list";
     el.toolbar.hidden = !filtersVisible;
     if (!filtersVisible) toggleFilterPanel(false);
     syncDateNav();
-    const navView = view === "detail" ? "list" : view === "place" ? "places" : view;
+    const navView = view === "detail" ? "list" : view === "place" ? "places" : view === "settings" ? "about" : view;
     el.navItems.forEach((a) => a.classList.toggle("is-active", a.dataset.view === navView));
 
     if (view === "list" || view === "saved") {
@@ -1078,6 +1133,9 @@
       if (fromView !== "place") window.scrollTo({ top: 0 });
     } else if (view === "place") {
       renderPlace(state.placeById.get(hash.slice(4)));
+      window.scrollTo({ top: 0 });
+    } else if (view === "settings") {
+      renderSettings();
       window.scrollTo({ top: 0 });
     } else {
       renderAbout();
@@ -1331,6 +1389,12 @@
   }
   function mountMaps(root) {
     if (window.openLitfassMap) window.openLitfassMap.mountAll(root);
+    if (window.openLitfassImage) window.openLitfassImage.mountAll(root);
+  }
+  // Bild von der Quelle (js/image.js lädt es je nach Einstellung).
+  function imageHtml(ev) {
+    if (!ev.image || !/^https:\/\//i.test(ev.image)) return "";
+    return `<figure class="event-image" data-src="${escapeHtml(ev.image)}" data-alt="${escapeHtml(STR.imageAlt(ev.title))}" hidden></figure>`;
   }
   function placeTypeLabel(type) {
     return `<span class="category-label">${svg(state.placeTypeIcons.get(type) || ICON.pin)}${escapeHtml(type)}</span>`;
@@ -1469,6 +1533,7 @@
         : "") +
       categoryLabelHtml(ev.category) +
       `<h1 class="detail__title${ev.cancelled ? " is-cancelled" : ""}">${escapeHtml(ev.title)}</h1>` +
+      imageHtml(ev) +
       `<ul class="facts">${facts.join("")}</ul>` +
       map +
       (ev.description ?`<p class="detail__desc">${linkify(ev.description)}</p>` : "") +
@@ -1516,72 +1581,116 @@
     return { prev: seq[i - 1] || null, next: seq[i + 1] || null };
   }
 
-  const SLIDE_MS = 180;
-  function motionOk() {
-    return !(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
-  }
-  function resetSlide() {
-    const v = el.viewDetail;
-    v.style.transition = "";
-    v.style.transform = "";
-    v.style.opacity = "";
-  }
-  function snapBack() {
-    const v = el.viewDetail;
-    v.style.transition = `transform ${SLIDE_MS}ms ease-out`;
-    v.style.transform = "";
-    setTimeout(resetSlide, SLIDE_MS + 20);
-  }
   // dir: 1 = nächster, -1 = vorheriger Termin. replaceState statt neuem
   // Verlaufseintrag: "Zurück" führt weiter direkt in die Liste.
-  let sliding = false;
   function showNeighbour(dir) {
     const cur = state.byId.get(state.detailId);
     if (!cur || sliding) return;
     const target = detailNeighbours(cur)[dir > 0 ? "next" : "prev"];
-    if (!target) { snapBack(); return; }
-    const go = () => {
+    if (!target) { snapBack(el.viewDetail); return; }
+    slide(el.viewDetail, dir, () => {
       history.replaceState(null, "", `#${encodeURIComponent(target.id)}`);
       route();
-    };
-    if (!motionOk()) { resetSlide(); go(); return; }
-    const v = el.viewDetail;
+    });
+  }
+
+  // ---- Blättern durch die Zeiträume (Liste) ----
+  // Wie die Pfeile in der Datumsleiste: einen Tag bzw. eine Woche weiter
+  // oder zurück, nie vor heute; mit Suche gilt die Liste für alle Tage.
+  function canStepRange(dir) {
+    if (state.search) return false;
+    return dir > 0 || currentRange()[0] > todayISO();
+  }
+  function stepRange(dir) {
+    const from = dir > 0 ? anchorDay() : currentRange()[0];
+    setRange(state.period, iso(addDays(parseDate(from), dir * periodStep(state.period))));
+  }
+  function slideRange(dir) {
+    if (sliding || !canStepRange(dir)) { snapBack(el.viewList); return; }
+    slide(el.viewList, dir, () => stepRange(dir));
+  }
+
+  // ---- Wisch-Animation ----
+  const SLIDE_MS = 180;
+  let sliding = false;
+  function motionOk() {
+    return !(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }
+  function resetSlide(v) {
+    v.style.transition = "";
+    v.style.transform = "";
+    v.style.opacity = "";
+    v.classList.remove("is-sliding");
+  }
+  function snapBack(v) {
+    if (!v.classList.contains("is-sliding")) return;
+    v.style.transition = `transform ${SLIDE_MS}ms ease-out`;
+    v.style.transform = "";
+    setTimeout(() => resetSlide(v), SLIDE_MS + 20);
+  }
+  // Ansicht v zur Seite hinaus, change() tauscht den Inhalt, dann von der
+  // anderen Seite herein. dir 1 = vorwärts (Inhalt wandert nach links).
+  function slide(v, dir, change) {
+    if (!motionOk()) { resetSlide(v); change(); return; }
     const shift = Math.round(v.offsetWidth * 0.35);
     sliding = true;
+    v.classList.add("is-sliding");
     v.style.transition = `transform ${SLIDE_MS}ms ease-in, opacity ${SLIDE_MS}ms ease-in`;
     v.style.transform = `translateX(${-dir * shift}px)`;
     v.style.opacity = "0";
     setTimeout(() => {
-      go();
+      change();
       v.style.transition = "none";
       v.style.transform = `translateX(${dir * shift}px)`;
       void v.offsetWidth;
       v.style.transition = `transform ${SLIDE_MS}ms ease-out, opacity ${SLIDE_MS}ms ease-out`;
       v.style.transform = "";
       v.style.opacity = "";
-      setTimeout(() => { resetSlide(); sliding = false; }, SLIDE_MS + 20);
+      setTimeout(() => { resetSlide(v); sliding = false; }, SLIDE_MS + 20);
     }, SLIDE_MS);
   }
 
-  // Wischen: nur bei überwiegend waagerechter Bewegung (senkrecht scrollt
-  // die Seite wie gewohnt, touch-action: pan-y im CSS). Berührungen am
-  // Bildschirmrand bleiben der Zurück-Geste des Systems.
-  function bindSwipe() {
-    const v = el.viewDetail;
+  // Liegt el (bis zur Grenze stop) in einem Bereich, der selbst waagerecht
+  // scrollt? Dann gehören Wischen und Pfeiltasten diesem Bereich.
+  function inHorizontalScroller(node, stop) {
+    for (let n = node; n && n !== stop && n.nodeType === 1; n = n.parentElement) {
+      if (n.scrollWidth > n.clientWidth + 1 && /(auto|scroll)/.test(getComputedStyle(n).overflowX)) return true;
+    }
+    return false;
+  }
+  function isZoomed() {
+    return Boolean(window.visualViewport && window.visualViewport.scale > 1.01);
+  }
+  // Hineingezoomt verschiebt waagerechtes Wischen den Ausschnitt, statt zu
+  // blättern: .is-zoomed hebt touch-action: pan-y auf (style.css).
+  function bindZoomState() {
+    if (!window.visualViewport) return;
+    const sync = () => document.documentElement.classList.toggle("is-zoomed", isZoomed());
+    window.visualViewport.addEventListener("resize", sync);
+    sync();
+  }
+
+  // Wischen auf v: nur bei überwiegend waagerechter Bewegung (senkrecht
+  // scrollt die Seite wie gewohnt, touch-action im CSS). Berührungen am
+  // Bildschirmrand bleiben der Zurück-Geste des Systems. Nach links wischen
+  // = vorwärts (dir 1), nach rechts = zurück (dir -1).
+  //   active()   ob die Ansicht gerade wischbar ist
+  //   canGo(dir) ob es in diese Richtung weitergeht
+  //   go(dir)    blättern (mit Animation, siehe slide)
+  function bindSwipe(v, { active, canGo, go }) {
     const EDGE = 24, LOCK = 10;
     let sw = null;
     v.addEventListener("touchstart", (e) => {
       sw = null;
-      if (state.view !== "detail" || sliding || e.touches.length !== 1) return;
+      if (!active() || sliding || isZoomed() || e.touches.length !== 1) return;
       const t = e.touches[0];
       if (t.clientX < EDGE || t.clientX > window.innerWidth - EDGE) return;
-      const cur = state.byId.get(state.detailId);
-      if (!cur) return;
-      sw = { x: t.clientX, y: t.clientY, dx: 0, lock: "", time: Date.now(), n: detailNeighbours(cur) };
+      if (inHorizontalScroller(e.target, v)) return;
+      sw = { x: t.clientX, y: t.clientY, dx: 0, lock: "", time: Date.now(), next: canGo(1), prev: canGo(-1) };
     }, { passive: true });
     v.addEventListener("touchmove", (e) => {
       if (!sw) return;
-      if (e.touches.length !== 1) { sw = null; snapBack(); return; }
+      if (e.touches.length !== 1) { sw = null; snapBack(v); return; }
       const t = e.touches[0];
       const dx = t.clientX - sw.x, dy = t.clientY - sw.y;
       if (!sw.lock) {
@@ -1591,22 +1700,24 @@
       if (sw.lock !== "x") return;
       sw.dx = dx;
       if (!motionOk()) return;
-      // Ohne Nachbarn in dieser Richtung nur ein gebremstes Nachgeben.
-      const has = dx < 0 ? sw.n.next : sw.n.prev;
+      // Ohne Weiter in dieser Richtung nur ein gebremstes Nachgeben.
+      const has = dx < 0 ? sw.next : sw.prev;
+      v.classList.add("is-sliding");
       v.style.transition = "none";
       v.style.transform = `translateX(${has ? dx : dx / 4}px)`;
     }, { passive: true });
     v.addEventListener("touchend", () => {
       if (!sw || sw.lock !== "x") { sw = null; return; }
-      const { dx, time, n } = sw;
+      const { dx, time } = sw;
+      const dir = dx < 0 ? 1 : -1;
+      const has = dir > 0 ? sw.next : sw.prev;
       sw = null;
       const far = Math.abs(dx) > Math.min(80, v.offsetWidth * 0.25);
       const flick = Math.abs(dx) > 30 && Date.now() - time < 250;
-      const dir = dx < 0 ? 1 : -1;
-      if ((far || flick) && (dir > 0 ? n.next : n.prev)) showNeighbour(dir);
-      else snapBack();
+      if ((far || flick) && has) go(dir);
+      else snapBack(v);
     });
-    v.addEventListener("touchcancel", () => { if (sw) { sw = null; snapBack(); } });
+    v.addEventListener("touchcancel", () => { if (sw) { sw = null; snapBack(v); } });
   }
 
   function fact(icon, html) {
@@ -1724,6 +1835,101 @@
         ]
       : [extLink(base, STR.feedbackAll)];
     return `<div class="feedback"><h3>${escapeHtml(title)}</h3><p>${links.join("")}</p></div>`;
+  }
+
+  // ---- Einstellungen ----
+  // Alles nur auf diesem Gerät (settings.js). Jede Wahl wird sofort
+  // gespeichert; die Liste unten zeigt, was openLitfass abgelegt hat.
+  const SETTING_CHOICES = {
+    theme: [["system", "themeSystem"], ["light", "themeLightShort"], ["dark", "themeDarkShort"]],
+    maps: [["click", "externalClick"], ["auto", "externalAuto"], ["off", "externalOff"]],
+    images: [["click", "externalClick"], ["auto", "externalAuto"], ["off", "externalOff"]]
+  };
+
+  function settingGroup(name, label, hint) {
+    const current = SETTINGS.get(name);
+    const disabled = SETTINGS.readOnly() ? " disabled" : "";
+    const chips = SETTING_CHOICES[name].map(([value, key]) =>
+      `<label class="chip${value === current ? " is-active" : ""}">` +
+      `<input type="radio" class="sr-only" name="setting-${name}" value="${value}"${value === current ? " checked" : ""}${disabled}>` +
+      `${STR[key]}</label>`).join("");
+    return `<fieldset class="setting" data-setting="${name}"><legend>${label}</legend>` +
+      (hint ? `<p class="setting__hint">${hint}</p>` : "") +
+      `<div class="fp-chips">${chips}</div></fieldset>`;
+  }
+
+  function localEntryLabel(key, value) {
+    if (key === "openlitfass:settings") return STR.localSettings;
+    if (key === "openlitfass:theme") return STR.localLegacyTheme;
+    if (key.startsWith("openlitfass:saved:")) {
+      let n = 0;
+      try { const v = JSON.parse(value); if (Array.isArray(v)) n = v.length; } catch (_) { /* leer */ }
+      return STR.localSaved(n);
+    }
+    return STR.localOther;
+  }
+
+  function formatBytes(n) {
+    return n < 1024 ? `${n} Byte` : `${(n / 1024).toFixed(1).replace(".", ",")} KB`;
+  }
+
+  function renderSettings() {
+    const entries = SETTINGS.entries();
+    const rows = entries.map((e) => {
+      const size = new Blob([e.key + e.value]).size;
+      return `<li><span>${escapeHtml(localEntryLabel(e.key, e.value))}<br><small><code>${escapeHtml(e.key)}</code> · ${formatBytes(size)}</small></span>` +
+        `<button type="button" class="btn btn--small" data-remove="${escapeHtml(e.key)}">${STR.localDelete}</button></li>`;
+    }).join("");
+
+    el.viewSettings.innerHTML =
+      `<h1>${STR.settings}</h1><p>${STR.settingsIntro}</p>` +
+      (SETTINGS.readOnly() ? `<p class="setting__warn" role="status">${STR.settingsReadOnly}</p>` : "") +
+      `<h2>${STR.settingsAppearance}</h2>` +
+      settingGroup("theme", STR.settingsTheme) +
+      `<h2>${STR.settingsExternal}</h2><p>${STR.settingsExternalIntro}</p>` +
+      settingGroup("maps", STR.settingsMaps, STR.settingsMapsHost) +
+      settingGroup("images", STR.settingsImages, STR.settingsImagesHost) +
+      `<h2>${STR.settingsLocal}</h2>` +
+      (rows ? `<ul class="source-list local-data">${rows}</ul>` : `<p>${STR.settingsLocalNone}</p>`) +
+      `<p><small>${STR.settingsLocalOffline}</small></p>` +
+      `<p><button type="button" class="btn" id="clearAllData">${STR.clearAll}</button></p>`;
+  }
+
+  function bindSettings() {
+    el.viewSettings.addEventListener("change", (e) => {
+      const input = e.target.closest("input[type=radio]");
+      const group = input && input.closest("[data-setting]");
+      if (!group) return;
+      SETTINGS.set(group.dataset.setting, input.value);
+      syncThemeToggle();
+      renderSettings();
+      toast(STR.settingSaved);
+    });
+    el.viewSettings.addEventListener("click", (e) => {
+      const remove = e.target.closest("[data-remove]");
+      if (remove) {
+        const key = remove.dataset.remove;
+        SETTINGS.remove(key);
+        if (key === SAVED_KEY) {
+          saved.clear();
+          updateSavedCount();
+        }
+        syncThemeToggle();
+        renderSettings();
+        toast(STR.deleted);
+        return;
+      }
+      if (e.target.closest("#clearAllData")) {
+        if (!window.confirm(STR.clearAllConfirm)) return;
+        SETTINGS.clearAll().then(() => {
+          saved.clear();
+          updateSavedCount();
+          syncThemeToggle();
+          renderSettings();
+          toast(STR.clearedAll);
+        });
+      }
+    });
   }
 
   // ---- Hilfen ----

@@ -169,7 +169,7 @@ func unfoldStrict(s string) []string {
 	return lines
 }
 
-// icalPropertyNames are the RFC 5545 properties of VCALENDAR, VEVENT,
+// icalPropertyNames are the RFC 5545/7986 properties of VCALENDAR, VEVENT,
 // VTIMEZONE and VALARM; startsICalProperty also accepts X- names.
 var icalPropertyNames = map[string]bool{
 	"BEGIN": true, "END": true, "VERSION": true, "PRODID": true, "CALSCALE": true, "METHOD": true,
@@ -180,7 +180,7 @@ var icalPropertyNames = map[string]bool{
 	"RECURRENCE-ID": true, "GEO": true, "PRIORITY": true, "RESOURCES": true, "CONTACT": true,
 	"COMMENT": true, "ATTACH": true, "RELATED-TO": true, "REQUEST-STATUS": true, "TZID": true,
 	"TZNAME": true, "TZOFFSETFROM": true, "TZOFFSETTO": true, "TZURL": true, "TRIGGER": true,
-	"ACTION": true, "REPEAT": true,
+	"ACTION": true, "REPEAT": true, "IMAGE": true, "COLOR": true, "CONFERENCE": true, "REFRESH-INTERVAL": true,
 }
 
 func startsICalProperty(l string) bool {
@@ -496,6 +496,7 @@ func buildICalEvent(v vevent, cfg config.SourceConfig, start time.Time, length t
 		Title:          mapping.CleanText(v.text("SUMMARY")),
 		Description:    mapping.CleanMultiline(v.text("DESCRIPTION")),
 		URL:            strings.TrimSpace(v.text("URL")),
+		Image:          icalImage(v),
 		Organizer:      cfg.Organizer,
 		Price:          model.Price{Free: false, Amount: nil},
 		FamilyFriendly: cfg.FamilyFriendly,
@@ -572,6 +573,24 @@ func icalLocation(v vevent) (model.Location, bool) {
 		return model.Location{}, false
 	}
 	return model.Location{Name: parts[0], Address: strings.Join(parts[1:], ", ")}, true
+}
+
+// icalImage returns the URL of the event's image: the first IMAGE property
+// (RFC 7986) given as a URI, else the first ATTACH whose FMTTYPE is an
+// image. Inline (base64) images are skipped; the image is only referenced,
+// never copied.
+func icalImage(v vevent) string {
+	for _, p := range v.props["IMAGE"] {
+		if !strings.EqualFold(p.params["ENCODING"], "BASE64") && !strings.EqualFold(p.params["VALUE"], "BINARY") {
+			return strings.TrimSpace(p.value)
+		}
+	}
+	for _, p := range v.props["ATTACH"] {
+		if strings.HasPrefix(strings.ToLower(p.params["FMTTYPE"]), "image/") && !strings.EqualFold(p.params["ENCODING"], "BASE64") {
+			return strings.TrimSpace(p.value)
+		}
+	}
+	return ""
 }
 
 // ---- RRULE ----

@@ -191,6 +191,11 @@ type SourceConfig struct {
 	// single venue; events that carry their own reference (mapping
 	// "placeRef") keep it. Applied in withCommonFilters.
 	Place string `json:"place,omitempty"`
+	// Images keeps the event images this source provides (mapping "image",
+	// iCal IMAGE/ATTACH). Off by default because the licence of such images
+	// varies; turn it on only where the source allows the use. The image is
+	// never copied, only referenced by its URL. Applied in withCommonFilters.
+	Images bool `json:"images,omitempty"`
 
 	// Status is maintained by the pipeline itself (see RecordAttempt) - not
 	// something you write by hand. Absent until the first fetch attempt.

@@ -36,7 +36,22 @@ type rssItem struct {
 
 type rssField struct {
 	XMLName xml.Name
-	Value   string `xml:",chardata"`
+	Value   string     `xml:",chardata"`
+	Attrs   []xml.Attr `xml:",any,attr"`
+}
+
+// putRSSValue stores v under key; a repeated key becomes a list.
+func putRSSValue(item map[string]interface{}, key, v string) {
+	if existing, ok := item[key]; ok {
+		switch e := existing.(type) {
+		case []interface{}:
+			item[key] = append(e, v)
+		default:
+			item[key] = []interface{}{e, v}
+		}
+		return
+	}
+	item[key] = v
 }
 
 func (s *RSSSource) Fetch(ctx context.Context) ([]model.Event, error) {
@@ -78,16 +93,13 @@ func (s *RSSSource) Fetch(ctx context.Context) ([]model.Event, error) {
 		item := make(map[string]interface{}, len(raw.Fields))
 		for _, f := range raw.Fields {
 			key := strings.ToLower(f.XMLName.Local)
-			if existing, ok := item[key]; ok {
-				switch v := existing.(type) {
-				case []interface{}:
-					item[key] = append(v, f.Value)
-				default:
-					item[key] = []interface{}{v, f.Value}
-				}
-				continue
+			putRSSValue(item, key, f.Value)
+			// Attributes as "<tag>@<attr>", e.g. "enclosure@url" or
+			// "content@url" (media:content): the namespace prefix is dropped
+			// like for the element names.
+			for _, a := range f.Attrs {
+				putRSSValue(item, key+"@"+strings.ToLower(a.Name.Local), a.Value)
 			}
-			item[key] = f.Value
 		}
 		events = append(events, mapping.BuildEvent(item, &m, s.cfg.Name, now))
 	}
