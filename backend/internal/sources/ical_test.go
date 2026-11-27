@@ -251,3 +251,106 @@ func TestICalMultiDayEventEndsAtWindow(t *testing.T) {
 		t.Errorf("want 10 days 2026-11-27..2026-12-06, got %d events", len(evs))
 	}
 }
+
+// brokenExport mimics the TYPO3 tx_cal export of kirche-mv.de: content lines
+// end with CRLF, but long values are wrapped with a bare LF (the space at
+// the wrap is dropped), LOCATION parts sit on bare-LF + tab lines, quotes
+// are written as \", ORGANIZER is a plain name and local times carry a "Z"
+// after a fixed one-hour subtraction.
+const brokenExport = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n" +
+	"BEGIN:VEVENT\r\nUID:1\r\n" +
+	"LOCATION:* Dorfkirche Beispielhausen\n\t* Kirchweg 3 \n\t* 12345 Beispielhausen\r\n" +
+	"SUMMARY:Konzert mit dem Chor \\\"Klangfarben\\\" und dem\nPosaunenchor\r\n" +
+	"DESCRIPTION:Ein Abend mit Liedern zum Mitsingen. Weitere Infos unter\nhttps://example.org/konzert und vor Ort.\r\n" +
+	"ORGANIZER:Kirchengemeinde Beispielhausen -\nwww.example.org\r\n" +
+	"DTSTART:20261002T090000Z\r\nDTEND:20261002T100000Z\r\n" +
+	"URL:https://example.org/veranstaltung/1\r\nEND:VEVENT\r\n" +
+	"BEGIN:VEVENT\r\nUID:2\r\nLOCATION:* Gemeindehaus\r\nSUMMARY:Andacht\r\n" +
+	"ORGANIZER:mailto:info@example.org\r\n" +
+	"DTSTART:20261129T090000Z\r\nEND:VEVENT\r\n" +
+	"END:VCALENDAR\r\n"
+
+func TestICalLenientBrokenExport(t *testing.T) {
+	from, to := icalWindow("2026-09-01", 120)
+	evs, err := parseICal(brokenExport, config.SourceConfig{Name: "k", Organizer: "Fallback"}, from, to, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evs) != 2 {
+		t.Fatalf("want 2 events, got %d", len(evs))
+	}
+	e := evs[0]
+	checks := map[string][2]string{
+		"title":       {e.Title, `Konzert mit dem Chor "Klangfarben" und dem Posaunenchor`},
+		"description": {e.Description, "Ein Abend mit Liedern zum Mitsingen. Weitere Infos unter https://example.org/konzert und vor Ort."},
+		"organizer":   {e.Organizer, "Kirchengemeinde Beispielhausen - www.example.org"},
+		"place":       {e.Location.Name, "Dorfkirche Beispielhausen"},
+		"address":     {e.Location.Address, "Kirchweg 3, 12345 Beispielhausen"},
+		"url":         {e.URL, "https://example.org/veranstaltung/1"},
+		"start":       {e.StartTime, "11:00"}, // UTC trusted without icalUTCAs
+	}
+	for name, c := range checks {
+		if c[0] != c[1] {
+			t.Errorf("%s = %q, want %q", name, c[0], c[1])
+		}
+	}
+	if got := evs[1]; got.Organizer != "Fallback" || got.Location.Name != "* Gemeindehaus" {
+		t.Errorf("mailto ORGANIZER must not become a name, single-line LOCATION stays as is: %q, %q", got.Organizer, got.Location.Name)
+	}
+}
+
+func TestICalUTCAs(t *testing.T) {
+	from, to := icalWindow("2026-09-01", 120)
+	tests := map[string][3]string{ // icalUTCAs -> October start, October end, November start
+		"+01:00": {"10:00", "11:00", "10:00"},
+		"+0100":  {"10:00", "11:00", "10:00"},
+		"local":  {"09:00", "10:00", "09:00"},
+	}
+	for opt, want := range tests {
+		evs, err := parseICal(brokenExport, config.SourceConfig{Name: "k", ICalUTCAs: opt}, from, to, time.Now())
+		if err != nil {
+			t.Fatalf("%s: %v", opt, err)
+		}
+		got := [3]string{evs[0].StartTime, evs[0].EndTime, evs[1].StartTime}
+		if got != want {
+			t.Errorf("icalUTCAs %s: got %v, want %v", opt, got, want)
+		}
+	}
+	if _, err := parseICal(brokenExport, config.SourceConfig{Name: "k", ICalUTCAs: "MEZ"}, from, to, time.Now()); err == nil {
+		t.Error("invalid icalUTCAs must be an error")
+	}
+}
+
+func TestICalUnfoldModes(t *testing.T) {
+	tests := []struct {
+		name, in string
+		want     []string
+	}{
+		{"RFC folding", "SUMMARY:Lange\r\n  Zeile\r\nUID:1\r\n", []string{"SUMMARY:Lange Zeile", "UID:1"}},
+		{"LF only stays strict", "SUMMARY:Erste\nZweite: Zeile\n", []string{"SUMMARY:Erste", "Zweite: Zeile", ""}},
+		{"bare LF before a property", "SUMMARY:Titel\nUID:1\r\nEND:VEVENT\r\n", []string{"SUMMARY:Titel", "UID:1", "END:VEVENT"}},
+		{"bare LF before X- property", "SUMMARY:Titel\nX-FOO:1\r\nUID:2\r\n", []string{"SUMMARY:Titel", "X-FOO:1", "UID:2"}},
+		{"URL-like continuation", "DESCRIPTION:Mehr unter\nhttps://example.org\r\nUID:1\r\n", []string{"DESCRIPTION:Mehr unter https://example.org", "UID:1"}},
+		{"label-like continuation", "SUMMARY:Konzert\nSopran: Anna\r\nUID:1\r\n", []string{"SUMMARY:Konzert Sopran: Anna", "UID:1"}},
+	}
+	for _, tt := range tests {
+		got := unfold(tt.in)
+		if strings.Join(got, "|") != strings.Join(tt.want, "|") {
+			t.Errorf("%s: unfold = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestUnescapeText(t *testing.T) {
+	tests := map[string]string{
+		`a\,b\;c\nd`: "a,b;c\nd",
+		`\"Zitat\"`:  `"Zitat"`,
+		`C:\\Pfad`:   `C:\Pfad`,
+		`\\"`:        `\"`,
+	}
+	for in, want := range tests {
+		if got := unescapeText(in); got != want {
+			t.Errorf("unescapeText(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
