@@ -26,5 +26,9 @@
     "start": { "template": "{day} {month} {year} {start}", "format": "2 Jan 2006 15:04|2 Jan 2006" },
     "end": { "template": "{day} {month} {year} {end}", "format": "2 Jan 2006 15:04" }
   },
+  "categoryRules": [
+    { "field": "title", "regex": "(?i)(floh|wochen|bauern)markt\\b", "category": "Markt" },
+    { "field": "title", "regex": "(?i)\\b(lauf|yoga|turnier)\\b", "category": "Sport" }
+  ],
   "daysAhead": 60
 }
