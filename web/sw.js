@@ -37,12 +37,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // Markdown pages (seite.html?page=…, pages/*.md and their renderer) are
-  // not in the shell: like the data they are fetched from the network and
-  // kept, so a page visited once also opens offline.
-  const markdownPage = url.pathname.endsWith("/seite.html") ||
-    url.pathname.includes("/pages/") || url.pathname.includes("/vendor/markdown-pages/");
-  if (url.pathname.includes("/data/") || markdownPage) {
+  if (url.pathname.includes("/data/")) {
     event.respondWith(
       fetch(req)
         .then((res) => {
