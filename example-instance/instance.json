@@ -8,7 +8,7 @@
   "timezone": "Europe/Berlin",
   "language": "de",
   "themeColor": "#2F3E4E",
-  "imprintUrl": "seite.html?page=impressum",
-  "privacyUrl": "seite.html?page=datenschutz",
+  "imprintUrl": "impressum.html",
+  "privacyUrl": "datenschutz.html",
   "submitUrl": "mailto:termine@example.events?subject=Termin%20f%C3%BCr%20example.events"
 }

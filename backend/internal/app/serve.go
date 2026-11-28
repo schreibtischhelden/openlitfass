@@ -274,13 +274,12 @@ func (s *Server) Handler() http.Handler {
 	return s.countRequests(mux)
 }
 
-// setCacheHeaders: data, the pages (also the Markdown pages), the manifest
-// and the service worker must always be revalidated (they change with every
-// build); other assets may be cached briefly. The service worker handles
-// offline use.
+// setCacheHeaders: data, the page itself, the manifest and the service
+// worker must always be revalidated (they change with every build); other
+// assets may be cached briefly. The service worker handles offline use.
 func setCacheHeaders(w http.ResponseWriter, p string) {
 	switch {
-	case p == "/" || strings.HasSuffix(p, ".html") || strings.HasPrefix(p, "/data/") || strings.HasPrefix(p, "/"+MarkdownPagesDir+"/") ||
+	case p == "/" || strings.HasSuffix(p, ".html") || strings.HasPrefix(p, "/data/") ||
 		p == "/sw.js" || p == "/manifest.webmanifest":
 		w.Header().Set("Cache-Control", "no-cache")
 	default:
